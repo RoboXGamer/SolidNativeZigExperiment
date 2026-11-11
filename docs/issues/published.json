@@ -1,0 +1,2311 @@
+{
+  "repo": "RoboXGamer/SolidNativeZigExperiment",
+  "totalPlanned": 288,
+  "published": 288,
+  "issues": [
+    {
+      "id": "absolute-positioning",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 1,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/1",
+      "title": "[CSS 2024] Absolute positioning (absolute-positioning)"
+    },
+    {
+      "id": "align-content-block",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 2,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/2",
+      "title": "[CSS 2024] align-content in block layouts (align-content-block)"
+    },
+    {
+      "id": "all",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 3,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/3",
+      "title": "[CSS 2024] all (all)"
+    },
+    {
+      "id": "alt-text-generated-content",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 4,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/4",
+      "title": "[CSS 2024] Alt text for generated content (alt-text-generated-content)"
+    },
+    {
+      "id": "animation-composition",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 5,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/5",
+      "title": "[CSS 2024] animation-composition (animation-composition)"
+    },
+    {
+      "id": "animations-css",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 6,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/6",
+      "title": "[CSS 2024] Animations (CSS) (animations-css)"
+    },
+    {
+      "id": "appearance",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 7,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/7",
+      "title": "[CSS 2024] appearance (appearance)"
+    },
+    {
+      "id": "aspect-ratio",
+      "area": "styling",
+      "historicalStatus": "partial",
+      "number": 8,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/8",
+      "title": "[CSS 2024] aspect-ratio (aspect-ratio)"
+    },
+    {
+      "id": "attr-contents",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 9,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/9",
+      "title": "[CSS 2024] attr() (content only) (attr-contents)"
+    },
+    {
+      "id": "autonomous-custom-elements",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 10,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/10",
+      "title": "[CSS 2024] Autonomous custom elements (autonomous-custom-elements)"
+    },
+    {
+      "id": "backdrop",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 11,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/11",
+      "title": "[CSS 2024] ::backdrop (backdrop)"
+    },
+    {
+      "id": "backdrop-filter",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 12,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/12",
+      "title": "[CSS 2024] backdrop-filter (backdrop-filter)"
+    },
+    {
+      "id": "background",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 13,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/13",
+      "title": "[CSS 2024] background (background)"
+    },
+    {
+      "id": "background-attachment",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 14,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/14",
+      "title": "[CSS 2024] background-attachment (background-attachment)"
+    },
+    {
+      "id": "background-blend-mode",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 15,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/15",
+      "title": "[CSS 2024] background-blend-mode (background-blend-mode)"
+    },
+    {
+      "id": "background-clip",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 16,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/16",
+      "title": "[CSS 2024] background-clip (background-clip)"
+    },
+    {
+      "id": "background-color",
+      "area": "painting",
+      "historicalStatus": "partial",
+      "number": 17,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/17",
+      "title": "[CSS 2024] background-color (background-color)"
+    },
+    {
+      "id": "background-image",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 18,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/18",
+      "title": "[CSS 2024] background-image (background-image)"
+    },
+    {
+      "id": "background-origin",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 19,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/19",
+      "title": "[CSS 2024] background-origin (background-origin)"
+    },
+    {
+      "id": "background-position",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 20,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/20",
+      "title": "[CSS 2024] background-position (background-position)"
+    },
+    {
+      "id": "background-repeat",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 21,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/21",
+      "title": "[CSS 2024] background-repeat (background-repeat)"
+    },
+    {
+      "id": "background-size",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 22,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/22",
+      "title": "[CSS 2024] background-size (background-size)"
+    },
+    {
+      "id": "before-after",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 23,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/23",
+      "title": "[CSS 2024] ::before and ::after (before-after)"
+    },
+    {
+      "id": "border-image",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 24,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/24",
+      "title": "[CSS 2024] Border images (border-image)"
+    },
+    {
+      "id": "border-radius",
+      "area": "painting",
+      "historicalStatus": "partial",
+      "number": 25,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/25",
+      "title": "[CSS 2024] border-radius (border-radius)"
+    },
+    {
+      "id": "borders",
+      "area": "painting",
+      "historicalStatus": "partial",
+      "number": 26,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/26",
+      "title": "[CSS 2024] Borders (borders)"
+    },
+    {
+      "id": "box-shadow",
+      "area": "painting",
+      "historicalStatus": "partial",
+      "number": 27,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/27",
+      "title": "[CSS 2024] box-shadow (box-shadow)"
+    },
+    {
+      "id": "box-sizing",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 28,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/28",
+      "title": "[CSS 2024] box-sizing (box-sizing)"
+    },
+    {
+      "id": "calc",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 29,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/29",
+      "title": "[CSS 2024] calc() (calc)"
+    },
+    {
+      "id": "calc-constants",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 30,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/30",
+      "title": "[CSS 2024] calc() keywords (calc-constants)"
+    },
+    {
+      "id": "cap",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 31,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/31",
+      "title": "[CSS 2024] cap unit (cap)"
+    },
+    {
+      "id": "caret-color",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 32,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/32",
+      "title": "[CSS 2024] caret-color (caret-color)"
+    },
+    {
+      "id": "cascade-layers",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 33,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/33",
+      "title": "[CSS 2024] Cascade layers (cascade-layers)"
+    },
+    {
+      "id": "case-insensitive-attributes",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 34,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/34",
+      "title": "[CSS 2024] Case-insensitive attribute selector (case-insensitive-attributes)"
+    },
+    {
+      "id": "ch",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 35,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/35",
+      "title": "[CSS 2024] ch unit (ch)"
+    },
+    {
+      "id": "charset",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 36,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/36",
+      "title": "[CSS 2024] @charset (charset)"
+    },
+    {
+      "id": "clip-path",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 37,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/37",
+      "title": "[CSS 2024] clip-path (clip-path)"
+    },
+    {
+      "id": "clip-path-animatable",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 38,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/38",
+      "title": "[CSS 2024] Animatable clipping paths (clip-path-animatable)"
+    },
+    {
+      "id": "clip-path-boxes",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 39,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/39",
+      "title": "[CSS 2024] Clip path boxes (clip-path-boxes)"
+    },
+    {
+      "id": "color",
+      "area": "painting",
+      "historicalStatus": "partial",
+      "number": 40,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/40",
+      "title": "[CSS 2024] Color (color)"
+    },
+    {
+      "id": "color-function",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 41,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/41",
+      "title": "[CSS 2024] color() (color-function)"
+    },
+    {
+      "id": "color-gamut",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 42,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/42",
+      "title": "[CSS 2024] color-gamut media query (color-gamut)"
+    },
+    {
+      "id": "color-mix",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 43,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/43",
+      "title": "[CSS 2024] color-mix() (color-mix)"
+    },
+    {
+      "id": "color-scheme",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 44,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/44",
+      "title": "[CSS 2024] color-scheme (color-scheme)"
+    },
+    {
+      "id": "colrv0",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 45,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/45",
+      "title": "[CSS 2024] COLRv0 (colrv0)"
+    },
+    {
+      "id": "column-breaks",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 46,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/46",
+      "title": "[CSS 2024] Column breaks (column-breaks)"
+    },
+    {
+      "id": "column-fill",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 47,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/47",
+      "title": "[CSS 2024] column-fill (column-fill)"
+    },
+    {
+      "id": "column-span",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 48,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/48",
+      "title": "[CSS 2024] column-span (column-span)"
+    },
+    {
+      "id": "conic-gradients",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 49,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/49",
+      "title": "[CSS 2024] Conic gradients (conic-gradients)"
+    },
+    {
+      "id": "contain",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 50,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/50",
+      "title": "[CSS 2024] contain (contain)"
+    },
+    {
+      "id": "contain-inline-size",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 51,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/51",
+      "title": "[CSS 2024] Inline-size containment (contain-inline-size)"
+    },
+    {
+      "id": "contain-intrinsic-size",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 52,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/52",
+      "title": "[CSS 2024] contain-intrinsic-size (contain-intrinsic-size)"
+    },
+    {
+      "id": "contain-layout",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 53,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/53",
+      "title": "[CSS 2024] Layout containment (contain-layout)"
+    },
+    {
+      "id": "contain-paint",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 54,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/54",
+      "title": "[CSS 2024] Paint containment (contain-paint)"
+    },
+    {
+      "id": "contain-size",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 55,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/55",
+      "title": "[CSS 2024] Size containment (contain-size)"
+    },
+    {
+      "id": "contain-style",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 56,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/56",
+      "title": "[CSS 2024] Style containment (contain-style)"
+    },
+    {
+      "id": "container-queries",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 57,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/57",
+      "title": "[CSS 2024] Container queries (size) (container-queries)"
+    },
+    {
+      "id": "content",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 58,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/58",
+      "title": "[CSS 2024] Content (content)"
+    },
+    {
+      "id": "content-visibility",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 59,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/59",
+      "title": "[CSS 2024] content-visibility (content-visibility)"
+    },
+    {
+      "id": "counter-set",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 60,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/60",
+      "title": "[CSS 2024] counter-set (counter-set)"
+    },
+    {
+      "id": "counter-style",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 61,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/61",
+      "title": "[CSS 2024] @counter-style (counter-style)"
+    },
+    {
+      "id": "counters",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 62,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/62",
+      "title": "[CSS 2024] Counters (CSS) (counters)"
+    },
+    {
+      "id": "cubic-bezier-easing",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 63,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/63",
+      "title": "[CSS 2024] cubic-bezier() easing (cubic-bezier-easing)"
+    },
+    {
+      "id": "currentcolor",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 64,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/64",
+      "title": "[CSS 2024] currentColor (currentcolor)"
+    },
+    {
+      "id": "cursor",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 65,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/65",
+      "title": "[CSS 2024] Cursor styles (cursor)"
+    },
+    {
+      "id": "custom-properties",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 66,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/66",
+      "title": "[CSS 2024] Custom properties (custom-properties)"
+    },
+    {
+      "id": "default",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 67,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/67",
+      "title": "[CSS 2024] :default (default)"
+    },
+    {
+      "id": "dir-pseudo",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 68,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/68",
+      "title": "[CSS 2024] :dir() (dir-pseudo)"
+    },
+    {
+      "id": "display",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 69,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/69",
+      "title": "[CSS 2024] Display (display)"
+    },
+    {
+      "id": "display-contents",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 70,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/70",
+      "title": "[CSS 2024] display: contents (display-contents)"
+    },
+    {
+      "id": "display-flow-root",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 71,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/71",
+      "title": "[CSS 2024] display: flow-root (display-flow-root)"
+    },
+    {
+      "id": "display-list-item",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 72,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/72",
+      "title": "[CSS 2024] display: list-item (display-list-item)"
+    },
+    {
+      "id": "display-mode",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 73,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/73",
+      "title": "[CSS 2024] display-mode media query (display-mode)"
+    },
+    {
+      "id": "display-table",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 74,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/74",
+      "title": "[CSS 2024] display: table (display-table)"
+    },
+    {
+      "id": "dominant-baseline",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 75,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/75",
+      "title": "[CSS 2024] dominant-baseline (dominant-baseline)"
+    },
+    {
+      "id": "dynamic-range",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 76,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/76",
+      "title": "[CSS 2024] dynamic-range media query (dynamic-range)"
+    },
+    {
+      "id": "em-unit",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 77,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/77",
+      "title": "[CSS 2024] em unit (em-unit)"
+    },
+    {
+      "id": "empty",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 78,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/78",
+      "title": "[CSS 2024] :empty (empty)"
+    },
+    {
+      "id": "ex",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 79,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/79",
+      "title": "[CSS 2024] ex unit (ex)"
+    },
+    {
+      "id": "exp-functions",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 80,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/80",
+      "title": "[CSS 2024] Exponential functions (CSS) (exp-functions)"
+    },
+    {
+      "id": "file-selector-button",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 81,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/81",
+      "title": "[CSS 2024] ::file-selector-button (file-selector-button)"
+    },
+    {
+      "id": "filter",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 82,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/82",
+      "title": "[CSS 2024] filter (filter)"
+    },
+    {
+      "id": "first-letter",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 83,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/83",
+      "title": "[CSS 2024] ::first-letter (first-letter)"
+    },
+    {
+      "id": "first-line",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 84,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/84",
+      "title": "[CSS 2024] ::first-line (first-line)"
+    },
+    {
+      "id": "fit-content",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 85,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/85",
+      "title": "[CSS 2024] fit-content (fit-content)"
+    },
+    {
+      "id": "fixed-positioning",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 86,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/86",
+      "title": "[CSS 2024] Fixed positioning (fixed-positioning)"
+    },
+    {
+      "id": "flexbox",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 87,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/87",
+      "title": "[CSS 2024] Flexbox (flexbox)"
+    },
+    {
+      "id": "flexbox-gap",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 88,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/88",
+      "title": "[CSS 2024] Flexbox gap (flexbox-gap)"
+    },
+    {
+      "id": "float-clear",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 89,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/89",
+      "title": "[CSS 2024] float and clear (float-clear)"
+    },
+    {
+      "id": "focus-visible",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 90,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/90",
+      "title": "[CSS 2024] :focus-visible (focus-visible)"
+    },
+    {
+      "id": "focus-within",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 91,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/91",
+      "title": "[CSS 2024] :focus-within (focus-within)"
+    },
+    {
+      "id": "font-display",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 92,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/92",
+      "title": "[CSS 2024] font-display (font-display)"
+    },
+    {
+      "id": "font-face",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 93,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/93",
+      "title": "[CSS 2024] @font-face (font-face)"
+    },
+    {
+      "id": "font-family",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 94,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/94",
+      "title": "[CSS 2024] font-family (font-family)"
+    },
+    {
+      "id": "font-family-system",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 95,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/95",
+      "title": "[CSS 2024] System font (font-family-system)"
+    },
+    {
+      "id": "font-feature-settings",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 96,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/96",
+      "title": "[CSS 2024] font-feature-settings (font-feature-settings)"
+    },
+    {
+      "id": "font-kerning",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 97,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/97",
+      "title": "[CSS 2024] font-kerning (font-kerning)"
+    },
+    {
+      "id": "font-optical-sizing",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 98,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/98",
+      "title": "[CSS 2024] font-optical-sizing (font-optical-sizing)"
+    },
+    {
+      "id": "font-palette",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 99,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/99",
+      "title": "[CSS 2024] font-palette (font-palette)"
+    },
+    {
+      "id": "font-shorthand",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 100,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/100",
+      "title": "[CSS 2024] Font shorthand (font-shorthand)"
+    },
+    {
+      "id": "font-size",
+      "area": "typography",
+      "historicalStatus": "partial",
+      "number": 101,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/101",
+      "title": "[CSS 2024] font-size (font-size)"
+    },
+    {
+      "id": "font-size-adjust",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 102,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/102",
+      "title": "[CSS 2024] font-size-adjust (font-size-adjust)"
+    },
+    {
+      "id": "font-stretch",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 103,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/103",
+      "title": "[CSS 2024] font-stretch (font-stretch)"
+    },
+    {
+      "id": "font-style",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 104,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/104",
+      "title": "[CSS 2024] font-style (font-style)"
+    },
+    {
+      "id": "font-synthesis",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 105,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/105",
+      "title": "[CSS 2024] font-synthesis (font-synthesis)"
+    },
+    {
+      "id": "font-synthesis-small-caps",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 106,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/106",
+      "title": "[CSS 2024] font-synthesis-small-caps (font-synthesis-small-caps)"
+    },
+    {
+      "id": "font-synthesis-style",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 107,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/107",
+      "title": "[CSS 2024] font-synthesis-style (font-synthesis-style)"
+    },
+    {
+      "id": "font-synthesis-weight",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 108,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/108",
+      "title": "[CSS 2024] font-synthesis-weight (font-synthesis-weight)"
+    },
+    {
+      "id": "font-variant",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 109,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/109",
+      "title": "[CSS 2024] font-variant (font-variant)"
+    },
+    {
+      "id": "font-variant-alternates",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 110,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/110",
+      "title": "[CSS 2024] font-variant-alternates (font-variant-alternates)"
+    },
+    {
+      "id": "font-variant-caps",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 111,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/111",
+      "title": "[CSS 2024] font-variant-caps (font-variant-caps)"
+    },
+    {
+      "id": "font-variant-east-asian",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 112,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/112",
+      "title": "[CSS 2024] font-variant-east-asian (font-variant-east-asian)"
+    },
+    {
+      "id": "font-variant-ligatures",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 113,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/113",
+      "title": "[CSS 2024] font-variant-ligatures (font-variant-ligatures)"
+    },
+    {
+      "id": "font-variant-numeric",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 114,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/114",
+      "title": "[CSS 2024] font-variant-numeric (font-variant-numeric)"
+    },
+    {
+      "id": "font-variant-position",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 115,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/115",
+      "title": "[CSS 2024] font-variant-position (font-variant-position)"
+    },
+    {
+      "id": "font-variation-settings",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 116,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/116",
+      "title": "[CSS 2024] font-variation-settings (font-variation-settings)"
+    },
+    {
+      "id": "font-weight",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 117,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/117",
+      "title": "[CSS 2024] font-weight (font-weight)"
+    },
+    {
+      "id": "forced-colors",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 118,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/118",
+      "title": "[CSS 2024] Forced colors (forced-colors)"
+    },
+    {
+      "id": "form-validity-pseudos",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 119,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/119",
+      "title": "[CSS 2024] Form validity pseudo-classes (form-validity-pseudos)"
+    },
+    {
+      "id": "fullscreen",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 120,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/120",
+      "title": "[CSS 2024] Fullscreen API (fullscreen)"
+    },
+    {
+      "id": "gradient-interpolation",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 121,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/121",
+      "title": "[CSS 2024] Gradient interpolation (gradient-interpolation)"
+    },
+    {
+      "id": "gradients",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 122,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/122",
+      "title": "[CSS 2024] Gradients (gradients)"
+    },
+    {
+      "id": "grid",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 123,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/123",
+      "title": "[CSS 2024] Grid (grid)"
+    },
+    {
+      "id": "grid-animation",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 124,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/124",
+      "title": "[CSS 2024] Grid animation (grid-animation)"
+    },
+    {
+      "id": "has",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 125,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/125",
+      "title": "[CSS 2024] :has() (has)"
+    },
+    {
+      "id": "host",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 126,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/126",
+      "title": "[CSS 2024] Host (host)"
+    },
+    {
+      "id": "hsl",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 127,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/127",
+      "title": "[CSS 2024] HSL (hsl)"
+    },
+    {
+      "id": "hwb",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 128,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/128",
+      "title": "[CSS 2024] HWB (hwb)"
+    },
+    {
+      "id": "hyphenate-character",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 129,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/129",
+      "title": "[CSS 2024] Hyphenate character (hyphenate-character)"
+    },
+    {
+      "id": "hyphens",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 130,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/130",
+      "title": "[CSS 2024] Hyphenation (hyphens)"
+    },
+    {
+      "id": "ic",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 131,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/131",
+      "title": "[CSS 2024] ic unit (ic)"
+    },
+    {
+      "id": "image-orientation",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 132,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/132",
+      "title": "[CSS 2024] image-orientation (image-orientation)"
+    },
+    {
+      "id": "image-rendering",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 133,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/133",
+      "title": "[CSS 2024] image-rendering (image-rendering)"
+    },
+    {
+      "id": "image-set",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 134,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/134",
+      "title": "[CSS 2024] image-set() (image-set)"
+    },
+    {
+      "id": "import",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 135,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/135",
+      "title": "[CSS 2024] @import (import)"
+    },
+    {
+      "id": "indeterminate",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 136,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/136",
+      "title": "[CSS 2024] :indeterminate (indeterminate)"
+    },
+    {
+      "id": "individual-transforms",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 137,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/137",
+      "title": "[CSS 2024] Individual transform properties (individual-transforms)"
+    },
+    {
+      "id": "inherit-value",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 138,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/138",
+      "title": "[CSS 2024] inherit (inherit-value)"
+    },
+    {
+      "id": "initial-value",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 139,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/139",
+      "title": "[CSS 2024] initial (initial-value)"
+    },
+    {
+      "id": "input-selectors",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 140,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/140",
+      "title": "[CSS 2024] Input selectors (input-selectors)"
+    },
+    {
+      "id": "interaction",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 141,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/141",
+      "title": "[CSS 2024] Interaction media queries (interaction)"
+    },
+    {
+      "id": "is",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 142,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/142",
+      "title": "[CSS 2024] :is() (is)"
+    },
+    {
+      "id": "isolation",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 143,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/143",
+      "title": "[CSS 2024] isolation (isolation)"
+    },
+    {
+      "id": "lab",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 144,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/144",
+      "title": "[CSS 2024] Lab and LCH (lab)"
+    },
+    {
+      "id": "lang",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 145,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/145",
+      "title": "[CSS 2024] :lang() (lang)"
+    },
+    {
+      "id": "layout-direction-override",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 146,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/146",
+      "title": "[CSS 2024] Layout direction override (layout-direction-override)"
+    },
+    {
+      "id": "letter-spacing",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 147,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/147",
+      "title": "[CSS 2024] letter-spacing (letter-spacing)"
+    },
+    {
+      "id": "lh",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 148,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/148",
+      "title": "[CSS 2024] lh unit (lh)"
+    },
+    {
+      "id": "light-dark",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 149,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/149",
+      "title": "[CSS 2024] light-dark() (light-dark)"
+    },
+    {
+      "id": "line-break",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 150,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/150",
+      "title": "[CSS 2024] line-break (line-break)"
+    },
+    {
+      "id": "line-height",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 151,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/151",
+      "title": "[CSS 2024] line-height (line-height)"
+    },
+    {
+      "id": "linear-easing",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 152,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/152",
+      "title": "[CSS 2024] linear() easing (linear-easing)"
+    },
+    {
+      "id": "link-selectors",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 153,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/153",
+      "title": "[CSS 2024] Link selectors (link-selectors)"
+    },
+    {
+      "id": "list-style",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 154,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/154",
+      "title": "[CSS 2024] List style (list-style)"
+    },
+    {
+      "id": "logical-properties",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 155,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/155",
+      "title": "[CSS 2024] Logical properties (logical-properties)"
+    },
+    {
+      "id": "margin",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 156,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/156",
+      "title": "[CSS 2024] margin (margin)"
+    },
+    {
+      "id": "mask-type",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 157,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/157",
+      "title": "[CSS 2024] mask-type (mask-type)"
+    },
+    {
+      "id": "masks",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 158,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/158",
+      "title": "[CSS 2024] Masks (masks)"
+    },
+    {
+      "id": "mathml",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 159,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/159",
+      "title": "[CSS 2024] MathML (mathml)"
+    },
+    {
+      "id": "media-queries",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 160,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/160",
+      "title": "[CSS 2024] Media queries (media-queries)"
+    },
+    {
+      "id": "media-query-range-syntax",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 161,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/161",
+      "title": "[CSS 2024] Media query range syntax (media-query-range-syntax)"
+    },
+    {
+      "id": "min-max-clamp",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 162,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/162",
+      "title": "[CSS 2024] min(), max(), and clamp() (min-max-clamp)"
+    },
+    {
+      "id": "min-max-content",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 163,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/163",
+      "title": "[CSS 2024] min-content and max-content (min-max-content)"
+    },
+    {
+      "id": "min-max-width-height",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 164,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/164",
+      "title": "[CSS 2024] Min and max width and height (min-max-width-height)"
+    },
+    {
+      "id": "mix-blend-mode",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 165,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/165",
+      "title": "[CSS 2024] mix-blend-mode (mix-blend-mode)"
+    },
+    {
+      "id": "modal",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 166,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/166",
+      "title": "[CSS 2024] :modal (modal)"
+    },
+    {
+      "id": "motion-path",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 167,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/167",
+      "title": "[CSS 2024] Motion path (motion-path)"
+    },
+    {
+      "id": "multi-column",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 168,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/168",
+      "title": "[CSS 2024] Multi-column layout (multi-column)"
+    },
+    {
+      "id": "named-color",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 169,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/169",
+      "title": "[CSS 2024] Named colors (named-color)"
+    },
+    {
+      "id": "namespace",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 170,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/170",
+      "title": "[CSS 2024] @namespace (namespace)"
+    },
+    {
+      "id": "nesting",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 171,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/171",
+      "title": "[CSS 2024] Nesting (nesting)"
+    },
+    {
+      "id": "not",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 172,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/172",
+      "title": "[CSS 2024] :not() (not)"
+    },
+    {
+      "id": "nth-child",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 173,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/173",
+      "title": "[CSS 2024] :nth-child() (nth-child)"
+    },
+    {
+      "id": "nth-child-of",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 174,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/174",
+      "title": "[CSS 2024] :nth-child() of <selector> (nth-child-of)"
+    },
+    {
+      "id": "nth-of-type",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 175,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/175",
+      "title": "[CSS 2024] :nth-of-type() pseudo-classes (nth-of-type)"
+    },
+    {
+      "id": "object-fit",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 176,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/176",
+      "title": "[CSS 2024] object-fit (object-fit)"
+    },
+    {
+      "id": "object-position",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 177,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/177",
+      "title": "[CSS 2024] object-position (object-position)"
+    },
+    {
+      "id": "oklab",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 178,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/178",
+      "title": "[CSS 2024] Oklab and OkLCh (oklab)"
+    },
+    {
+      "id": "opacity",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 179,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/179",
+      "title": "[CSS 2024] opacity (opacity)"
+    },
+    {
+      "id": "outline",
+      "area": "painting",
+      "historicalStatus": "partial",
+      "number": 180,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/180",
+      "title": "[CSS 2024] outline (outline)"
+    },
+    {
+      "id": "outlines",
+      "area": "painting",
+      "historicalStatus": "partial",
+      "number": 181,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/181",
+      "title": "[CSS 2024] Outlines (outlines)"
+    },
+    {
+      "id": "overflow",
+      "area": "responsive",
+      "historicalStatus": "partial",
+      "number": 182,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/182",
+      "title": "[CSS 2024] Overflow media queries (overflow)"
+    },
+    {
+      "id": "overflow-clip",
+      "area": "scrolling",
+      "historicalStatus": "partial",
+      "number": 183,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/183",
+      "title": "[CSS 2024] overflow: clip (overflow-clip)"
+    },
+    {
+      "id": "overflow-shorthand",
+      "area": "scrolling",
+      "historicalStatus": "missing",
+      "number": 184,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/184",
+      "title": "[CSS 2024] overflow (overflow-shorthand)"
+    },
+    {
+      "id": "overflow-wrap",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 185,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/185",
+      "title": "[CSS 2024] overflow-wrap (overflow-wrap)"
+    },
+    {
+      "id": "padding",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 186,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/186",
+      "title": "[CSS 2024] padding (padding)"
+    },
+    {
+      "id": "page-breaks",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 187,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/187",
+      "title": "[CSS 2024] Page breaks (page-breaks)"
+    },
+    {
+      "id": "page-selectors",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 188,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/188",
+      "title": "[CSS 2024] Page selectors (page-selectors)"
+    },
+    {
+      "id": "page-setup",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 189,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/189",
+      "title": "[CSS 2024] Page setup (page-setup)"
+    },
+    {
+      "id": "paint-order",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 190,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/190",
+      "title": "[CSS 2024] paint-order (paint-order)"
+    },
+    {
+      "id": "path-shape",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 191,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/191",
+      "title": "[CSS 2024] path() (path-shape)"
+    },
+    {
+      "id": "physical-properties",
+      "area": "styling",
+      "historicalStatus": "partial",
+      "number": 192,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/192",
+      "title": "[CSS 2024] Physical properties (physical-properties)"
+    },
+    {
+      "id": "placeholder",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 193,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/193",
+      "title": "[CSS 2024] ::placeholder (placeholder)"
+    },
+    {
+      "id": "placeholder-shown",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 194,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/194",
+      "title": "[CSS 2024] :placeholder-shown (placeholder-shown)"
+    },
+    {
+      "id": "pointer-events",
+      "area": "scrolling",
+      "historicalStatus": "missing",
+      "number": 195,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/195",
+      "title": "[CSS 2024] pointer-events (pointer-events)"
+    },
+    {
+      "id": "popover",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 196,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/196",
+      "title": "[CSS 2024] Popover (popover)"
+    },
+    {
+      "id": "position",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 197,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/197",
+      "title": "[CSS 2024] Position (position)"
+    },
+    {
+      "id": "prefers-color-scheme",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 198,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/198",
+      "title": "[CSS 2024] prefers-color-scheme media query (prefers-color-scheme)"
+    },
+    {
+      "id": "prefers-contrast",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 199,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/199",
+      "title": "[CSS 2024] prefers-contrast media query (prefers-contrast)"
+    },
+    {
+      "id": "prefers-reduced-motion",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 200,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/200",
+      "title": "[CSS 2024] prefers-reduced-motion media query (prefers-reduced-motion)"
+    },
+    {
+      "id": "q-unit",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 201,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/201",
+      "title": "[CSS 2024] Q unit (q-unit)"
+    },
+    {
+      "id": "quotes",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 202,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/202",
+      "title": "[CSS 2024] Quotes (quotes)"
+    },
+    {
+      "id": "read-write-pseudos",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 203,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/203",
+      "title": "[CSS 2024] :read-only and :read-write (read-write-pseudos)"
+    },
+    {
+      "id": "rect-xywh",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 204,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/204",
+      "title": "[CSS 2024] rect() and xywh() (rect-xywh)"
+    },
+    {
+      "id": "registered-custom-properties",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 205,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/205",
+      "title": "[CSS 2024] Registered custom properties (registered-custom-properties)"
+    },
+    {
+      "id": "relative-color",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 206,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/206",
+      "title": "[CSS 2024] Relative colors (relative-color)"
+    },
+    {
+      "id": "relative-positioning",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 207,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/207",
+      "title": "[CSS 2024] Relative positioning (relative-positioning)"
+    },
+    {
+      "id": "rem",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 208,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/208",
+      "title": "[CSS 2024] rem (rem)"
+    },
+    {
+      "id": "resolution",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 209,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/209",
+      "title": "[CSS 2024] resolution media query (resolution)"
+    },
+    {
+      "id": "resolution-compat",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 210,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/210",
+      "title": "[CSS 2024] resolution media query (compatibility prefixes) (resolution-compat)"
+    },
+    {
+      "id": "revert-value",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 211,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/211",
+      "title": "[CSS 2024] revert (revert-value)"
+    },
+    {
+      "id": "rgb",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 212,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/212",
+      "title": "[CSS 2024] RGB (rgb)"
+    },
+    {
+      "id": "rlh",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 213,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/213",
+      "title": "[CSS 2024] rlh unit (rlh)"
+    },
+    {
+      "id": "root",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 214,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/214",
+      "title": "[CSS 2024] :root (root)"
+    },
+    {
+      "id": "round-mod-rem",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 215,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/215",
+      "title": "[CSS 2024] round(), mod(), and rem() (round-mod-rem)"
+    },
+    {
+      "id": "ruby-align",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 216,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/216",
+      "title": "[CSS 2024] ruby-align (ruby-align)"
+    },
+    {
+      "id": "ruby-position",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 217,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/217",
+      "title": "[CSS 2024] ruby-position (ruby-position)"
+    },
+    {
+      "id": "safe-area-inset",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 218,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/218",
+      "title": "[CSS 2024] Safe area inset environment variables (safe-area-inset)"
+    },
+    {
+      "id": "scope-pseudo",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 219,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/219",
+      "title": "[CSS 2024] :scope (pseudo-class) (scope-pseudo)"
+    },
+    {
+      "id": "scripting",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 220,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/220",
+      "title": "[CSS 2024] scripting media query (scripting)"
+    },
+    {
+      "id": "scroll-behavior",
+      "area": "scrolling",
+      "historicalStatus": "missing",
+      "number": 221,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/221",
+      "title": "[CSS 2024] scroll-behavior (scroll-behavior)"
+    },
+    {
+      "id": "scroll-snap",
+      "area": "scrolling",
+      "historicalStatus": "missing",
+      "number": 222,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/222",
+      "title": "[CSS 2024] Scroll snap (scroll-snap)"
+    },
+    {
+      "id": "scrollbar-gutter",
+      "area": "scrolling",
+      "historicalStatus": "missing",
+      "number": 223,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/223",
+      "title": "[CSS 2024] scrollbar-gutter (scrollbar-gutter)"
+    },
+    {
+      "id": "scrollbar-width",
+      "area": "scrolling",
+      "historicalStatus": "missing",
+      "number": 224,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/224",
+      "title": "[CSS 2024] scrollbar-width (scrollbar-width)"
+    },
+    {
+      "id": "selectors",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 225,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/225",
+      "title": "[CSS 2024] Selectors (core) (selectors)"
+    },
+    {
+      "id": "shadow-parts",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 226,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/226",
+      "title": "[CSS 2024] Shadow parts (shadow-parts)"
+    },
+    {
+      "id": "shape-outside",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 227,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/227",
+      "title": "[CSS 2024] shape-outside (shape-outside)"
+    },
+    {
+      "id": "shapes",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 228,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/228",
+      "title": "[CSS 2024] shapes (shapes)"
+    },
+    {
+      "id": "slot",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 229,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/229",
+      "title": "[CSS 2024] <slot> (slot)"
+    },
+    {
+      "id": "starting-style",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 230,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/230",
+      "title": "[CSS 2024] @starting-style (starting-style)"
+    },
+    {
+      "id": "state",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 231,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/231",
+      "title": "[CSS 2024] :state() (state)"
+    },
+    {
+      "id": "static-positioning",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 232,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/232",
+      "title": "[CSS 2024] Static positioning (static-positioning)"
+    },
+    {
+      "id": "steps-easing",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 233,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/233",
+      "title": "[CSS 2024] steps() easing (steps-easing)"
+    },
+    {
+      "id": "sticky-positioning",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 234,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/234",
+      "title": "[CSS 2024] Sticky positioning (sticky-positioning)"
+    },
+    {
+      "id": "subgrid",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 235,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/235",
+      "title": "[CSS 2024] Subgrid (subgrid)"
+    },
+    {
+      "id": "supports",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 236,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/236",
+      "title": "[CSS 2024] @supports (supports)"
+    },
+    {
+      "id": "supports-compat",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 237,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/237",
+      "title": "[CSS 2024] @supports (compatibility prefix) (supports-compat)"
+    },
+    {
+      "id": "svg",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 238,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/238",
+      "title": "[CSS 2024] SVG (svg)"
+    },
+    {
+      "id": "svg-filters",
+      "area": "platform",
+      "historicalStatus": "missing",
+      "number": 239,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/239",
+      "title": "[CSS 2024] SVG filters (svg-filters)"
+    },
+    {
+      "id": "system-color",
+      "area": "painting",
+      "historicalStatus": "missing",
+      "number": 240,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/240",
+      "title": "[CSS 2024] System colors (system-color)"
+    },
+    {
+      "id": "tab-size",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 241,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/241",
+      "title": "[CSS 2024] tab-size (tab-size)"
+    },
+    {
+      "id": "table",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 242,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/242",
+      "title": "[CSS 2024] Tables (table)"
+    },
+    {
+      "id": "target",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 243,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/243",
+      "title": "[CSS 2024] :target (target)"
+    },
+    {
+      "id": "target-text",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 244,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/244",
+      "title": "[CSS 2024] ::target-text (target-text)"
+    },
+    {
+      "id": "text-align",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 245,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/245",
+      "title": "[CSS 2024] text-align (text-align)"
+    },
+    {
+      "id": "text-align-last",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 246,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/246",
+      "title": "[CSS 2024] text-align-last (text-align-last)"
+    },
+    {
+      "id": "text-combine-upright",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 247,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/247",
+      "title": "[CSS 2024] text-combine-upright (text-combine-upright)"
+    },
+    {
+      "id": "text-decoration",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 248,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/248",
+      "title": "[CSS 2024] text-decoration (text-decoration)"
+    },
+    {
+      "id": "text-decoration-skip-ink",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 249,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/249",
+      "title": "[CSS 2024] text-decoration-skip-ink (text-decoration-skip-ink)"
+    },
+    {
+      "id": "text-emphasis",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 250,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/250",
+      "title": "[CSS 2024] text-emphasis (text-emphasis)"
+    },
+    {
+      "id": "text-indent",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 251,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/251",
+      "title": "[CSS 2024] text-indent (text-indent)"
+    },
+    {
+      "id": "text-orientation",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 252,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/252",
+      "title": "[CSS 2024] text-orientation (text-orientation)"
+    },
+    {
+      "id": "text-overflow",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 253,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/253",
+      "title": "[CSS 2024] Text overflow (text-overflow)"
+    },
+    {
+      "id": "text-shadow",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 254,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/254",
+      "title": "[CSS 2024] text-shadow (text-shadow)"
+    },
+    {
+      "id": "text-stroke-fill",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 255,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/255",
+      "title": "[CSS 2024] Text stroke and fill  (compatibility prefixes) (text-stroke-fill)"
+    },
+    {
+      "id": "text-transform",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 256,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/256",
+      "title": "[CSS 2024] text-transform (text-transform)"
+    },
+    {
+      "id": "text-underline-offset",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 257,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/257",
+      "title": "[CSS 2024] text-underline-offset (text-underline-offset)"
+    },
+    {
+      "id": "text-underline-position",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 258,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/258",
+      "title": "[CSS 2024] text-underline-position (text-underline-position)"
+    },
+    {
+      "id": "text-wrap",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 259,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/259",
+      "title": "[CSS 2024] text-wrap (text-wrap)"
+    },
+    {
+      "id": "text-wrap-balance",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 260,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/260",
+      "title": "[CSS 2024] text-wrap: balance (text-wrap-balance)"
+    },
+    {
+      "id": "touch-action",
+      "area": "scrolling",
+      "historicalStatus": "missing",
+      "number": 261,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/261",
+      "title": "[CSS 2024] touch-action (touch-action)"
+    },
+    {
+      "id": "transform-box",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 262,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/262",
+      "title": "[CSS 2024] transform-box (transform-box)"
+    },
+    {
+      "id": "transforms2d",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 263,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/263",
+      "title": "[CSS 2024] 2D transforms (transforms2d)"
+    },
+    {
+      "id": "transforms3d",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 264,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/264",
+      "title": "[CSS 2024] 3D transforms (transforms3d)"
+    },
+    {
+      "id": "transition-behavior",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 265,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/265",
+      "title": "[CSS 2024] transition-behavior (transition-behavior)"
+    },
+    {
+      "id": "transitions",
+      "area": "motion",
+      "historicalStatus": "missing",
+      "number": 266,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/266",
+      "title": "[CSS 2024] Transitions (CSS) (transitions)"
+    },
+    {
+      "id": "trig-functions",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 267,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/267",
+      "title": "[CSS 2024] Trigonometric functions (CSS) (trig-functions)"
+    },
+    {
+      "id": "two-value-display",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 268,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/268",
+      "title": "[CSS 2024] Two-value display property (two-value-display)"
+    },
+    {
+      "id": "unset-value",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 269,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/269",
+      "title": "[CSS 2024] unset (unset-value)"
+    },
+    {
+      "id": "update",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 270,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/270",
+      "title": "[CSS 2024] Update frequency media query (update)"
+    },
+    {
+      "id": "user-action-pseudos",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 271,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/271",
+      "title": "[CSS 2024] User action pseudo-classes (user-action-pseudos)"
+    },
+    {
+      "id": "user-pseudos",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 272,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/272",
+      "title": "[CSS 2024] :user-valid and :user-invalid (user-pseudos)"
+    },
+    {
+      "id": "vertical-align",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 273,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/273",
+      "title": "[CSS 2024] vertical-align (vertical-align)"
+    },
+    {
+      "id": "vertical-form-controls",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 274,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/274",
+      "title": "[CSS 2024] Vertical form controls (vertical-form-controls)"
+    },
+    {
+      "id": "viewport-unit-variants",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 275,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/275",
+      "title": "[CSS 2024] Small, large, and dynamic viewport units (viewport-unit-variants)"
+    },
+    {
+      "id": "viewport-units",
+      "area": "responsive",
+      "historicalStatus": "missing",
+      "number": 276,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/276",
+      "title": "[CSS 2024] Viewport units (viewport-units)"
+    },
+    {
+      "id": "visibility",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 277,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/277",
+      "title": "[CSS 2024] visibility (visibility)"
+    },
+    {
+      "id": "webvtt",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 278,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/278",
+      "title": "[CSS 2024] WebVTT (webvtt)"
+    },
+    {
+      "id": "where",
+      "area": "selectors",
+      "historicalStatus": "missing",
+      "number": 279,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/279",
+      "title": "[CSS 2024] :where() (where)"
+    },
+    {
+      "id": "white-space",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 280,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/280",
+      "title": "[CSS 2024] white-space (white-space)"
+    },
+    {
+      "id": "white-space-collapse",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 281,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/281",
+      "title": "[CSS 2024] white-space-collapse (white-space-collapse)"
+    },
+    {
+      "id": "width-height",
+      "area": "layout",
+      "historicalStatus": "partial",
+      "number": 282,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/282",
+      "title": "[CSS 2024] Width and height (width-height)"
+    },
+    {
+      "id": "will-change",
+      "area": "styling",
+      "historicalStatus": "missing",
+      "number": 283,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/283",
+      "title": "[CSS 2024] will-change (will-change)"
+    },
+    {
+      "id": "word-break",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 284,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/284",
+      "title": "[CSS 2024] word-break (word-break)"
+    },
+    {
+      "id": "word-spacing",
+      "area": "typography",
+      "historicalStatus": "missing",
+      "number": 285,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/285",
+      "title": "[CSS 2024] word-spacing (word-spacing)"
+    },
+    {
+      "id": "writing-mode",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 286,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/286",
+      "title": "[CSS 2024] writing-mode (writing-mode)"
+    },
+    {
+      "id": "z-index",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 287,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/287",
+      "title": "[CSS 2024] z-index (z-index)"
+    },
+    {
+      "id": "zoom",
+      "area": "layout",
+      "historicalStatus": "missing",
+      "number": 288,
+      "url": "https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/288",
+      "title": "[CSS 2024] zoom (zoom)"
+    }
+  ]
+}

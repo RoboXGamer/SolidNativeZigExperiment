@@ -1,0 +1,503 @@
+{
+  "source": "https://unpkg.com/web-features@3.45.0/data.json",
+  "sourceSha256": "bcda8f1fd702fd2c7cc71779d35430022cf57b56dcd9415f3bb8ee14486eb3b4",
+  "packageVersion": "3.45.0",
+  "start": "2025-01-01",
+  "end": "2025-12-31",
+  "features": [
+    {
+      "id": "abs-sign",
+      "name": "abs() and sign()",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-4/#sign-funcs"
+      ],
+      "keys": [
+        {
+          "key": "css.types.abs",
+          "baselineDate": "2025-06-26",
+          "chrome": "138"
+        },
+        {
+          "key": "css.types.sign",
+          "baselineDate": "2025-06-26",
+          "chrome": "138"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "absolute-positioning",
+      "name": "Absolute positioning",
+      "groups": [
+        "positioning"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-position-3/#abspos-insets"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.align-self.context_position_absolute",
+          "baselineDate": "2025-09-15",
+          "chrome": "122"
+        },
+        {
+          "key": "css.properties.justify-self.context_position_absolute",
+          "baselineDate": "2025-09-15",
+          "chrome": "122"
+        },
+        {
+          "key": "css.properties.place-self.context_position_absolute",
+          "baselineDate": "2025-09-15",
+          "chrome": "122"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "active-view-transition",
+      "name": "Active view transition",
+      "groups": [
+        "view-transitions",
+        "selectors"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-view-transitions-2/#the-active-view-transition-pseudo"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.active-view-transition",
+          "baselineDate": "2025-10-14",
+          "chrome": "125"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "attr",
+      "name": "attr()",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-5/#attr-notation"
+      ],
+      "keys": [
+        {
+          "key": "css.types.attr.declaration-value",
+          "baselineDate": "2025-03-31",
+          "chrome": "133"
+        },
+        {
+          "key": "css.types.attr.fallback",
+          "baselineDate": "2025-03-31",
+          "chrome": "133"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "conic-gradients",
+      "name": "Conic gradients",
+      "groups": [
+        "gradients"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-images-4/#conic-gradients"
+      ],
+      "keys": [
+        {
+          "key": "css.types.gradient.conic-gradient.single_color_stop",
+          "baselineDate": "2025-04-04",
+          "chrome": "135"
+        },
+        {
+          "key": "css.types.gradient.repeating-conic-gradient.single_color_stop",
+          "baselineDate": "2025-04-04",
+          "chrome": "135"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "content-visibility",
+      "name": "content-visibility",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-contain-2/#content-visibility"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.content-visibility.auto",
+          "baselineDate": "2025-09-15",
+          "chrome": "85"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "details-content",
+      "name": "::details-content",
+      "groups": [
+        "selectors"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-pseudo-4/#details-content-pseudo"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.details-content",
+          "baselineDate": "2025-09-16",
+          "chrome": "131"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "font-feature-settings",
+      "name": "font-feature-settings",
+      "groups": [
+        "font-features"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-fonts-4/#font-feature-settings-prop"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.font-face.font-feature-settings",
+          "baselineDate": "2025-09-05",
+          "chrome": "140"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "gradients",
+      "name": "Gradients",
+      "groups": [
+        "gradients"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-images-3/#gradients"
+      ],
+      "keys": [
+        {
+          "key": "css.types.gradient.linear-gradient.single_color_stop",
+          "baselineDate": "2025-04-04",
+          "chrome": "135"
+        },
+        {
+          "key": "css.types.gradient.radial-gradient.single_color_stop",
+          "baselineDate": "2025-04-04",
+          "chrome": "135"
+        },
+        {
+          "key": "css.types.gradient.repeating-linear-gradient.single_color_stop",
+          "baselineDate": "2025-04-04",
+          "chrome": "135"
+        },
+        {
+          "key": "css.types.gradient.repeating-radial-gradient.single_color_stop",
+          "baselineDate": "2025-04-04",
+          "chrome": "135"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "logical-properties",
+      "name": "Logical properties",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-logical-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.overflow-block",
+          "baselineDate": "2025-09-15",
+          "chrome": "135"
+        },
+        {
+          "key": "css.properties.overflow-inline",
+          "baselineDate": "2025-09-15",
+          "chrome": "135"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "mathml",
+      "name": "MathML",
+      "groups": [
+        "mathml"
+      ],
+      "spec": [
+        "https://w3c.github.io/mathml-core/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.math-shift",
+          "baselineDate": "2025-12-12",
+          "chrome": "109"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "print-color-adjust",
+      "name": "print-color-adjust",
+      "groups": [
+        "print"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-color-adjust-1/#propdef-print-color-adjust"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.print-color-adjust",
+          "baselineDate": "2025-05-01",
+          "chrome": "136"
+        },
+        {
+          "key": "css.properties.print-color-adjust.economy",
+          "baselineDate": "2025-05-01",
+          "chrome": "136"
+        },
+        {
+          "key": "css.properties.print-color-adjust.exact",
+          "baselineDate": "2025-05-01",
+          "chrome": "136"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "scope",
+      "name": "@scope",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-cascade-6/#scope-atrule"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.nesting.at-scope",
+          "baselineDate": "2025-12-12",
+          "chrome": "143"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "scrollbar-color",
+      "name": "scrollbar-color",
+      "groups": [
+        "scrolling"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-scrollbars-1/#scrollbar-color"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.scrollbar-color",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        },
+        {
+          "key": "css.properties.scrollbar-color.auto",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "text-autospace",
+      "name": "text-autospace",
+      "groups": [],
+      "spec": [
+        "https://drafts.csswg.org/css-text-4/#text-autospace-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-autospace",
+          "baselineDate": "2025-11-11",
+          "chrome": "140"
+        },
+        {
+          "key": "css.properties.text-autospace.no-autospace",
+          "baselineDate": "2025-11-11",
+          "chrome": "140"
+        },
+        {
+          "key": "css.properties.text-autospace.normal",
+          "baselineDate": "2025-11-11",
+          "chrome": "140"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "text-decoration",
+      "name": "text-decoration",
+      "groups": [
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-decor-4/#line-decoration"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-decoration.currentColor",
+          "baselineDate": "2025-12-12",
+          "chrome": "57"
+        },
+        {
+          "key": "css.properties.text-decoration.includes_color-and-style",
+          "baselineDate": "2025-12-12",
+          "chrome": "57"
+        },
+        {
+          "key": "css.properties.text-decoration.includes_thickness",
+          "baselineDate": "2025-12-12",
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.text-decoration.transparent",
+          "baselineDate": "2025-12-12",
+          "chrome": "57"
+        }
+      ],
+      "extends2024Group": true
+    },
+    {
+      "id": "text-decoration-spelling-grammar",
+      "name": "Spelling and grammar text decorations",
+      "groups": [
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-decor-4/#valdef-text-decoration-line-spelling-error"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-decoration-line.grammar-error",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        },
+        {
+          "key": "css.properties.text-decoration-line.spelling-error",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "view-transition-class",
+      "name": "view-transition-class",
+      "groups": [
+        "view-transitions"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-class"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.view-transition-class",
+          "baselineDate": "2025-10-14",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.view-transition-class.none",
+          "baselineDate": "2025-10-14",
+          "chrome": "125"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "view-transitions",
+      "name": "View transitions",
+      "groups": [
+        "view-transitions"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-view-transitions-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.view-transition-name",
+          "baselineDate": "2025-10-14",
+          "chrome": "111"
+        },
+        {
+          "key": "css.properties.view-transition-name.match-element",
+          "baselineDate": "2025-10-14",
+          "chrome": "137"
+        },
+        {
+          "key": "css.properties.view-transition-name.none",
+          "baselineDate": "2025-10-14",
+          "chrome": "111"
+        },
+        {
+          "key": "css.selectors.view-transition",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-group",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-image-pair",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-new",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-old",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        }
+      ],
+      "extends2024Group": false
+    },
+    {
+      "id": "writing-mode",
+      "name": "writing-mode",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-writing-modes-4/#block-flow"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.writing-mode.sideways-lr",
+          "baselineDate": "2025-03-31",
+          "chrome": "132"
+        },
+        {
+          "key": "css.properties.writing-mode.sideways-rl",
+          "baselineDate": "2025-03-31",
+          "chrome": "132"
+        }
+      ],
+      "extends2024Group": true
+    }
+  ]
+}

@@ -21,6 +21,7 @@ pub const text = @import("text.zig");
 pub const Text = text.Text;
 pub const Metrics = text.Metrics;
 pub const MeasureFn = text.MeasureFn;
+pub const TextEdit = @import("text_edit.zig").TextEdit;
 
 test {
     std.testing.refAllDecls(@import("tests.zig"));

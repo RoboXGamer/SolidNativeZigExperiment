@@ -25,7 +25,9 @@ pub const Runtime = struct {
         return ui_next_timeout();
     }
     pub fn init(source: []const u8) !Runtime {
-        if (ui_init(source.ptr, source.len) == 0) {
+        const result = ui_init(source.ptr, source.len);
+        if (result < 0) return error.RuntimeAlreadyInitialized;
+        if (result == 0) {
             ui_destroy();
             return error.JavaScriptInitializationFailed;
         }
@@ -34,11 +36,11 @@ pub const Runtime = struct {
     pub fn deinit(_: *Runtime) void {
         ui_destroy();
     }
-    pub fn snapshot(_: *Runtime) ![:0]u8 {
+    pub fn changes(_: *Runtime) ![:0]u8 {
         const result = ui_eval_string("uiChanges()") orelse return error.JavaScriptEvaluationFailed;
         return std.mem.span(result);
     }
-    pub fn freeSnapshot(_: *Runtime, value: [:0]u8) void {
+    pub fn freeChanges(_: *Runtime, value: [:0]u8) void {
         ui_free_string(value.ptr);
     }
     pub fn click(_: *Runtime, id: u32) !void {

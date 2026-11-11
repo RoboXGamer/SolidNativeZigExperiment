@@ -49,6 +49,7 @@
         "tests",
         "package.json",
         "vite.config.mjs",
+        "jsconfig.json",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
         // For example...

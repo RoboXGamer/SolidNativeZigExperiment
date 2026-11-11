@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "jsx": "preserve",
+    "jsxImportSource": "@zig-ui/solid",
+    "paths": {
+      "@zig-ui/solid": ["./packages/solid-zig/src/native.d.ts"],
+      "@zig-ui/solid/jsx-runtime": ["./packages/solid-zig/src/jsx-runtime.d.ts"],
+      "@zig-ui/solid/jsx-dev-runtime": ["./packages/solid-zig/src/jsx-runtime.d.ts"],
+      "@zig-ui/solid/renderer": ["./packages/solid-zig/src/renderer.js"]
+    }
+  },
+  "include": ["ui/**/*", "packages/solid-zig/src/**/*"],
+  "exclude": ["node_modules", "src", "vendor", ".zig-cache", "zig-out"]
+}

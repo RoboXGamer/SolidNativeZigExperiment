@@ -20,7 +20,15 @@ pub const Tree = struct {
         const parsed = try std.json.parseFromSlice(Patch, self.allocator, json, .{ .ignore_unknown_fields = true });
         defer parsed.deinit();
         const patch = parsed.value;
+        if (patch.root == self.root and patch.nodes.len == 0 and patch.removed.len == 0) return false;
+        var staged = std.AutoHashMap(u32, Entry).init(self.allocator);
+        defer staged.deinit();
+        errdefer {
+            var entries = staged.valueIterator();
+            while (entries.next()) |entry| entry.arena.deinit();
+        }
         for (patch.nodes) |n| {
+            if (staged.contains(n.id)) return error.DuplicateNode;
             var arena = std.heap.ArenaAllocator.init(self.allocator);
             errdefer arena.deinit();
             const a = arena.allocator();
@@ -49,17 +57,37 @@ pub const Tree = struct {
             copy.style.outlineColor = try a.dupe(u8, n.style.outlineColor);
             copy.style.boxShadow = try a.dupe(u8, n.style.boxShadow);
             copy.children = try a.dupe(u32, n.children);
-            const result = try self.nodes.getOrPut(n.id);
-            if (result.found_existing) result.value_ptr.arena.deinit();
-            result.value_ptr.* = .{ .arena = arena, .node = copy };
+            try staged.put(n.id, .{ .arena = arena, .node = copy });
         }
-        for (patch.removed) |id| if (self.nodes.fetchRemove(id)) |removed| {
-            var old = removed.value;
-            old.arena.deinit();
-        };
+        var next = try self.nodes.clone();
+        errdefer next.deinit();
+        var changes = staged.iterator();
+        while (changes.next()) |entry| try next.put(entry.key_ptr.*, entry.value_ptr.*);
+        for (patch.removed) |id| {
+            if (staged.contains(id)) return error.ConflictingRemoval;
+            _ = next.remove(id);
+        }
+        var visited = std.AutoHashMap(u32, void).init(self.allocator);
+        defer visited.deinit();
+        try validate(&next, &visited, patch.root, 0);
+        if (visited.count() != next.count()) return error.UnreachableNode;
         const changed = self.root != patch.root or patch.nodes.len > 0 or patch.removed.len > 0;
+        var old = self.nodes.iterator();
+        while (old.next()) |entry| {
+            if (staged.contains(entry.key_ptr.*) or !next.contains(entry.key_ptr.*)) entry.value_ptr.arena.deinit();
+        }
+        self.nodes.deinit();
+        self.nodes = next;
         self.root = patch.root;
         return changed;
+    }
+
+    fn validate(nodes: *const std.AutoHashMap(u32, Entry), visited: *std.AutoHashMap(u32, void), id: u32, depth: usize) anyerror!void {
+        if (depth > 256) return error.TreeTooDeep;
+        if (visited.contains(id)) return error.CyclicOrSharedNode;
+        const entry = nodes.get(id) orelse return error.UnknownNode;
+        try visited.put(id, {});
+        for (entry.node.children) |child| try validate(nodes, visited, child, depth + 1);
     }
     pub fn materialize(self: *const Tree, allocator: std.mem.Allocator, id: u32, depth: usize) anyerror!core.Node {
         if (depth > 256) return error.TreeTooDeep;

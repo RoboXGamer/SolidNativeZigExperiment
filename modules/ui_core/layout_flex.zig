@@ -14,8 +14,6 @@ const Node = root.Node;
 const Rect = root.Rect;
 const Scene = root.Scene;
 
-const max_items = 64;
-
 const ItemInfo = struct {
     child: *const Node,
     // Margins from the node's margin ring, auto sentinel preserved.
@@ -161,7 +159,7 @@ fn baselineOf(scene: *const Scene, child: *const Node) f32 {
     return 0;
 }
 
-fn orderedIndices(n: *const Node, out: *[max_items]usize, count: usize) void {
+fn orderedIndices(n: *const Node, out: []usize, count: usize) void {
     for (0..count) |i| out[i] = i;
     var i: usize = 1;
     while (i < count) : (i += 1) {
@@ -175,9 +173,9 @@ fn orderedIndices(n: *const Node, out: *[max_items]usize, count: usize) void {
 }
 
 /// Resolve flexible lengths for one line, respecting min/max clamping.
-fn distribute(infos: *[max_items]ItemInfo, start: usize, end: usize, main_avail: f32, gap: f32, growing: bool) void {
+fn distribute(infos: []ItemInfo, frozen: []bool, start: usize, end: usize, main_avail: f32, gap: f32, growing: bool) void {
     const nline = end - start;
-    var frozen: [max_items]bool = @splat(false);
+    @memset(frozen[start..end], false);
     var iterations: usize = 0;
     while (iterations <= nline) : (iterations += 1) {
         var used: f32 = gap * @as(f32, @floatFromInt(if (nline > 1) nline - 1 else 0));
@@ -231,17 +229,22 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     const cross_avail = if (is_row) inner_height else inner_width;
     const wrap = (std.mem.eql(u8, n.style.flexWrap, "wrap") or wrap_reverse) and main_avail > 0;
     const gap = n.style.gap;
-    const count = @min(n.children.len, max_items);
+    const count = n.children.len;
     if (count == 0) return;
 
     const pad = n.padding();
     const bd = n.border();
     const mg = n.margin();
 
-    var order: [max_items]usize = undefined;
-    orderedIndices(n, &order, count);
+    // Scene-owned workspace scales with the actual children instead of silently
+    // dropping siblings after a fixed stack buffer fills up.
+    const allocator = self.arena.allocator();
+    const order = try allocator.alloc(usize, count);
+    orderedIndices(n, order, count);
 
-    var infos: [max_items]ItemInfo = undefined;
+    const infos = try allocator.alloc(ItemInfo, count);
+    const frozen = try allocator.alloc(bool, count);
+    const main_start = try allocator.alloc(f32, count);
     for (0..count) |k| {
         const child = &n.children[order[k]];
         var info = ItemInfo{ .child = child };
@@ -266,7 +269,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         info.cross_after = fixed(cross_after);
 
         info.grow = @max(0, child.style.flexGrow);
-        info.shrink = if (child.style.flexShrink > 0) child.style.flexShrink else 1;
+        info.shrink = @max(0, child.style.flexShrink);
         info.min_main = minMainSize(self, child, is_row);
         info.max_main = @max(info.min_main, maxMainSize(child, is_row));
         info.base_main = std.math.clamp(resolveMainBasis(self, child, is_row), info.min_main, info.max_main);
@@ -276,8 +279,8 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     }
 
     // Break the ordered items into flex lines.
-    var line_start: [max_items]usize = undefined;
-    var line_end: [max_items]usize = undefined;
+    const line_start = try allocator.alloc(usize, count);
+    const line_end = try allocator.alloc(usize, count);
     var line_count: usize = 0;
     {
         var start: usize = 0;
@@ -303,7 +306,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     }
 
     // Hypothetical line cross sizes (including fixed cross margins).
-    var line_cross: [max_items]f32 = undefined;
+    const line_cross = try allocator.alloc(f32, line_count);
     for (0..line_count) |li| {
         var c: f32 = 0;
         for (line_start[li]..line_end[li]) |k| {
@@ -343,7 +346,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     }
 
     // align-content: positions and gaps for each line on the cross axis.
-    var cross_pos: [max_items]f32 = undefined;
+    const cross_pos = try allocator.alloc(f32, line_count);
     {
         var total: f32 = gap * @as(f32, @floatFromInt(if (line_count > 1) line_count - 1 else 0));
         for (0..line_count) |li| total += line_cross[li];
@@ -398,9 +401,9 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         }
         const initial_free = main_avail - used;
         if (initial_free > 0 and grow_total > 0) {
-            distribute(&infos, start, end, main_avail, gap, true);
+            distribute(infos, frozen, start, end, main_avail, gap, true);
         } else if (initial_free < 0 and shrink_total > 0) {
-            distribute(&infos, start, end, main_avail, gap, false);
+            distribute(infos, frozen, start, end, main_avail, gap, false);
         }
 
         // Auto margins absorb positive free space after flexing.
@@ -439,7 +442,6 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         }
 
         // Main-axis positions, then mirror for *-reverse directions.
-        var main_start: [max_items]f32 = undefined;
         {
             var cursor = lead;
             for (start..end) |k| {

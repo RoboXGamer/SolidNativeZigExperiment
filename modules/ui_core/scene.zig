@@ -91,6 +91,7 @@ pub const Scene = struct {
     arena: std.heap.ArenaAllocator,
     root: *Node,
     items: std.ArrayList(Item) = .empty,
+    index: std.AutoHashMapUnmanaged(u32, usize) = .empty,
     /// Backend text metrics; defaults to the headless estimator.
     text: Text = .{},
 
@@ -175,6 +176,7 @@ pub const Scene = struct {
         if (n.style.maxHeight > 0) b.height = @min(b.height, n.style.maxHeight);
         if (n.style.aspectRatio > 0 and b.height == 0) b.height = b.width / n.style.aspectRatio;
         const bounds = b;
+        try self.index.put(self.arena.allocator(), n.id, self.items.items.len);
         try self.items.append(self.arena.allocator(), .{ .node = n, .bounds = bounds, .parent_id = parent_id });
 
         const pad = n.padding();
@@ -221,12 +223,67 @@ pub const Scene = struct {
         try @import("layout_flex.zig").layout(self, n, bounds, inner_width, inner_height);
     }
 
+    pub fn find(self: *const Scene, id: u32) ?Item {
+        return self.items.items[self.index.get(id) orelse return null];
+    }
+
+    pub fn clipFor(self: *const Scene, item: Item) Rect {
+        var clip = self.items.items[0].bounds;
+        var parent_id = item.parent_id;
+        while (parent_id) |id| {
+            const parent = self.find(id) orelse break;
+            const overflow = parent.node.style.overflow;
+            if (std.mem.eql(u8, overflow, "hidden") or std.mem.eql(u8, overflow, "clip") or std.mem.eql(u8, overflow, "scroll") or std.mem.eql(u8, overflow, "auto")) {
+                clip = clip.intersect(parent.bounds.inset(parent.node.border()));
+            }
+            parent_id = parent.parent_id;
+        }
+        return clip;
+    }
+
+    fn descendsFrom(self: *const Scene, item: Item, ancestor: u32) bool {
+        var parent_id = item.parent_id;
+        while (parent_id) |id| {
+            if (id == ancestor) return true;
+            parent_id = (self.find(id) orelse return false).parent_id;
+        }
+        return false;
+    }
+
+    pub fn applyScroll(self: *Scene, offsets: *std.AutoHashMap(u32, f32)) void {
+        for (0..self.items.items.len) |i| {
+            const viewport = self.items.items[i];
+            if (!std.mem.eql(u8, viewport.node.style.overflow, "scroll") and !std.mem.eql(u8, viewport.node.style.overflow, "auto")) continue;
+            var bottom = viewport.bounds.bottom();
+            for (self.items.items) |child| {
+                if (child.parent_id == viewport.node.id) bottom = @max(bottom, child.bounds.bottom() + child.node.margin().bottom + viewport.node.padding().bottom);
+            }
+            const maximum = @max(0, bottom - viewport.bounds.bottom());
+            const entry = offsets.getPtr(viewport.node.id) orelse continue;
+            entry.* = std.math.clamp(entry.*, 0, maximum);
+            const offset = entry.*;
+            for (self.items.items[i + 1 ..]) |*child| {
+                if (self.descendsFrom(child.*, viewport.node.id)) child.bounds.y -= offset;
+            }
+        }
+    }
+
+    pub fn scrollTarget(self: *const Scene, x: f32, y: f32) ?u32 {
+        var i = self.items.items.len;
+        while (i > 0) {
+            i -= 1;
+            const item = self.items.items[i];
+            if ((std.mem.eql(u8, item.node.style.overflow, "scroll") or std.mem.eql(u8, item.node.style.overflow, "auto")) and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
+        }
+        return null;
+    }
+
     pub fn hitTest(self: *const Scene, x: f32, y: f32) ?u32 {
         var i = self.items.items.len;
         while (i > 0) {
             i -= 1;
             const item = self.items.items[i];
-            if (item.node.clickable and item.bounds.contains(x, y)) return item.node.id;
+            if (item.node.clickable and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
         }
         return null;
     }

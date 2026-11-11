@@ -5,8 +5,9 @@ const bridge = @import("solid_bridge");
 extern fn ui_watch_start() c_int;
 extern fn ui_watch_changed() c_int;
 extern fn ui_watch_stop() void;
-extern fn glfwWaitEvents() void;
-extern fn glfwWaitEventsTimeout(timeout: f64) void;
+extern fn ui_wake_start() c_int;
+extern fn ui_wake_schedule(seconds: f64) void;
+extern fn ui_wake_stop() void;
 
 const source = @embedFile("ui-bundle.js");
 const window_width = 1280;
@@ -34,7 +35,8 @@ fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics
     var total: i32 = 0;
     var offset: usize = 0;
     while (offset < content.len) {
-        const chunk = @min(content.len - offset, buf.len - 1);
+        var chunk = @min(content.len - offset, buf.len - 1);
+        while (offset + chunk < content.len and chunk > 0 and content[offset + chunk] & 0xc0 == 0x80) chunk -= 1;
         @memcpy(buf[0..chunk], content[offset .. offset + chunk]);
         buf[chunk] = 0;
         total += rl.measureText(buf[0..chunk :0], size);
@@ -47,7 +49,7 @@ fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics
     };
 }
 
-fn renderScene(scene: *ui.Scene, focused: ?u32) !void {
+fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator: std.mem.Allocator) !void {
     for (scene.items.items) |item| {
         const n = item.node;
         const b = item.bounds;
@@ -56,30 +58,11 @@ fn renderScene(scene: *ui.Scene, focused: ?u32) !void {
         const is_input = std.mem.eql(u8, n.type, "input");
         const radius = if (n.style.borderTopLeftRadius > 0) n.style.borderTopLeftRadius else n.style.borderRadius;
 
-        // true overflow clipping: intersect with all overflow-hidden ancestors
-        var clip = b;
-        var has_clip = false;
-        var cur_parent = item.parent_id;
-        while (cur_parent) |pid| {
-            var found: ?ui.Item = null;
-            for (scene.items.items) |it| {
-                if (it.node.id == pid) {
-                    found = it;
-                    break;
-                }
-            }
-            const pitem = found orelse break;
-            const ov = pitem.node.style.overflow;
-            if (std.mem.eql(u8, ov, "hidden") or std.mem.eql(u8, ov, "clip") or std.mem.eql(u8, ov, "scroll")) {
-                clip = clip.intersect(pitem.bounds);
-                has_clip = true;
-            }
-            cur_parent = pitem.parent_id;
-        }
-        const self_overflow = std.mem.eql(u8, n.style.overflow, "hidden") or std.mem.eql(u8, n.style.overflow, "clip") or std.mem.eql(u8, n.style.overflow, "scroll");
-        if (has_clip or self_overflow) {
-            rl.beginScissorMode(@intFromFloat(clip.left()), @intFromFloat(clip.top()), @intFromFloat(clip.width), @intFromFloat(clip.height));
-        }
+        var clip = scene.clipFor(item);
+        if (is_input) clip = clip.intersect(b);
+        if (clip.isEmpty()) continue;
+        rl.beginScissorMode(@intFromFloat(clip.left()), @intFromFloat(clip.top()), @intFromFloat(clip.width), @intFromFloat(clip.height));
+        defer rl.endScissorMode();
         // box shadow (parsed: "ox oy blur spread color")
         if (n.style.boxShadow.len > 0) {
             var it = std.mem.tokenizeAny(u8, n.style.boxShadow, " ");
@@ -117,52 +100,99 @@ fn renderScene(scene: *ui.Scene, focused: ?u32) !void {
         }
         const font_size: i32 = @intFromFloat(n.fontSize());
         if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
-            const text = try scene.arena.allocator().dupeSentinel(u8, n.text, 0);
+            const text = try allocator.dupeSentinel(u8, n.text, 0);
             rl.drawText(text, @intFromFloat(b.x), @intFromFloat(b.y), font_size, color(n.style.color, .white));
         }
         if (std.mem.eql(u8, n.type, "input")) {
-            const value = try scene.arena.allocator().dupeSentinel(u8, n.value, 0);
+            const value = try allocator.dupeSentinel(u8, n.value, 0);
             const pad = n.padding();
-            rl.drawText(value, @intFromFloat(b.x + pad.left), @intFromFloat(b.y + pad.top), font_size, .white);
+            var text_x = b.x + pad.left;
+            const text_y = b.y + pad.top;
+            if (focused == n.id) {
+                editor.clamp(n.value);
+                const caret = measureRaylib(null, n.value[0..editor.cursor], @floatFromInt(font_size)).width;
+                text_x -= @max(0, caret - @max(0, b.width - pad.horizontal() - 4));
+                const selected = editor.selection();
+                const start = measureRaylib(null, n.value[0..selected.start], @floatFromInt(font_size)).width;
+                const end = measureRaylib(null, n.value[0..selected.end], @floatFromInt(font_size)).width;
+                if (selected.start != selected.end) {
+                    rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size) }, .blue);
+                } else {
+                    rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size)) }, 1, .white);
+                }
+            }
+            rl.drawText(value, @intFromFloat(text_x), @intFromFloat(text_y), font_size, color(n.style.color, .white));
         }
         if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
-        if (has_clip or self_overflow) {
-            rl.endScissorMode();
-        }
     }
 }
 
-fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32) !void {
-    const id = focused orelse return;
-    for (scene.items.items) |item| {
-        if (item.node.id != id or !std.mem.eql(u8, item.node.type, "input")) continue;
-        var value: std.ArrayList(u8) = .empty;
-        const a = scene.arena.allocator();
-        try value.appendSlice(a, item.node.value);
-        var changed = false;
-        if ((rl.isKeyPressed(.backspace) or rl.isKeyPressedRepeat(.backspace)) and value.items.len > 0) {
-            var end = value.items.len - 1;
-            while (end > 0 and value.items[end] & 0xc0 == 0x80) end -= 1;
-            value.shrinkRetainingCapacity(end);
-            changed = true;
-        }
-        var codepoint = rl.getCharPressed();
-        while (codepoint > 0) : (codepoint = rl.getCharPressed()) {
-            var bytes: [4]u8 = undefined;
-            const len = std.unicode.utf8Encode(@intCast(codepoint), &bytes) catch continue;
-            try value.appendSlice(a, bytes[0..len]);
-            changed = true;
-        }
-        if (changed) try runtime.input(id, try a.dupeSentinel(u8, value.items, 0));
-        return;
-    }
+fn pressed(key: rl.KeyboardKey) bool {
+    return rl.isKeyPressed(key) or rl.isKeyPressedRepeat(key);
 }
 
-fn buildScene(runtime: *bridge.Runtime, tree: *ui.Tree) !ui.Scene {
-    const json = try runtime.snapshot();
-    defer runtime.freeSnapshot(json);
-    _ = try tree.apply(json);
+fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator: std.mem.Allocator) !void {
+    const item = scene.find(focused orelse return) orelse return;
+    if (!std.mem.eql(u8, item.node.type, "input")) return;
+    const a = allocator;
+    var value = item.node.value;
+    editor.clamp(value);
+    const shift = rl.isKeyDown(.left_shift) or rl.isKeyDown(.right_shift);
+    const control = rl.isKeyDown(.left_control) or rl.isKeyDown(.right_control);
+    var changed = false;
+    if (pressed(.left)) editor.left(value, shift);
+    if (pressed(.right)) editor.right(value, shift);
+    if (pressed(.home)) editor.move(0, shift);
+    if (pressed(.end)) editor.move(value.len, shift);
+    if (control and rl.isKeyPressed(.a)) {
+        editor.anchor = 0;
+        editor.cursor = value.len;
+    }
+    if (control and (rl.isKeyPressed(.c) or rl.isKeyPressed(.x))) {
+        const selected = editor.selection();
+        if (selected.start != selected.end) {
+            rl.setClipboardText(try a.dupeSentinel(u8, value[selected.start..selected.end], 0));
+            if (rl.isKeyPressed(.x)) {
+                value = try editor.replace(a, value, "");
+                changed = true;
+            }
+        }
+    }
+    if (control and rl.isKeyPressed(.v)) {
+        const pasted = rl.getClipboardText();
+        // A single-line input accepts pasted text up to its first line break.
+        const end = std.mem.indexOfAny(u8, pasted, "\r\n") orelse pasted.len;
+        value = try editor.replace(a, value, pasted[0..end]);
+        changed = true;
+    }
+    if (pressed(.backspace)) {
+        value = try editor.backspace(a, value);
+        changed = true;
+    }
+    if (pressed(.delete)) {
+        value = try editor.delete(a, value);
+        changed = true;
+    }
+    var codepoint = rl.getCharPressed();
+    while (codepoint > 0) : (codepoint = rl.getCharPressed()) {
+        if (control or codepoint < 32) continue;
+        var bytes: [4]u8 = undefined;
+        const len = std.unicode.utf8Encode(@intCast(codepoint), &bytes) catch continue;
+        value = try editor.replace(a, value, bytes[0..len]);
+        changed = true;
+    }
+    if (changed) try runtime.input(item.node.id, try a.dupeSentinel(u8, value, 0));
+}
+
+fn synchronize(runtime: *bridge.Runtime, tree: *ui.Tree) !bool {
+    const json = try runtime.changes();
+    defer runtime.freeChanges(json);
+    const changed = try tree.apply(json);
     try runtime.acknowledge();
+    return changed;
+}
+
+fn buildScene(tree: *ui.Tree) !ui.Scene {
     return ui.Scene.fromTreeWithText(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = measureRaylib });
 }
 
@@ -179,17 +209,47 @@ pub fn run() void {
     defer if (watching) ui_watch_stop();
     if (watching and !runtime.reload()) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
     rl.setExitKey(.null);
-    rl.disableEventWaiting();
+    const event_waiting = ui_wake_start() != 0;
+    defer if (event_waiting) ui_wake_stop();
+    if (event_waiting) {
+        rl.enableEventWaiting();
+    } else {
+        std.log.warn("Timer wakeup unavailable; using 60 FPS event polling", .{});
+        rl.disableEventWaiting();
+        rl.setTargetFPS(60);
+    }
     var tree = ui.Tree.init(std.heap.page_allocator);
     defer tree.deinit();
-    var scene = buildScene(&runtime, &tree) catch |err| {
+    _ = synchronize(&runtime, &tree) catch |err| {
+        std.log.err("Could not initialize the native tree: {}", .{err});
+        return;
+    };
+    var scene = buildScene(&tree) catch |err| {
         std.log.err("Could not build UI scene: {}", .{err});
         return;
     };
     defer scene.deinit();
+    var scroll_offsets = std.AutoHashMap(u32, f32).init(std.heap.page_allocator);
+    defer scroll_offsets.deinit();
     var focused: ?u32 = null;
+    var editing: ?u32 = null;
+    var editor = ui.TextEdit{};
+    var last_width = rl.getScreenWidth();
+    var last_height = rl.getScreenHeight();
+    var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer scratch.deinit();
     while (!rl.windowShouldClose()) {
+        _ = scratch.reset(.retain_capacity);
         runtime.tick() catch |err| std.log.err("Async UI job failed: {}", .{err});
+        const wheel = rl.getMouseWheelMove();
+        if (wheel != 0) {
+            const mouse = rl.getMousePosition();
+            if (scene.scrollTarget(mouse.x, mouse.y)) |id| {
+                const entry = scroll_offsets.getOrPut(id) catch break;
+                if (!entry.found_existing) entry.value_ptr.* = 0;
+                entry.value_ptr.* -= wheel * 40;
+            }
+        }
         if (watching and ui_watch_changed() != 0) {
             if (runtime.reload()) {
                 std.log.info("Solid Refresh update applied", .{});
@@ -203,33 +263,65 @@ pub fn run() void {
             if (focused) |id| runtime.click(id) catch |err| std.log.err("Click failed: {}", .{err});
         }
         if (rl.isKeyPressed(.tab)) {
+            const reverse = rl.isKeyDown(.left_shift) or rl.isKeyDown(.right_shift);
             var found = focused == null;
             var first: ?u32 = null;
             var selected: ?u32 = null;
+            var previous: ?u32 = null;
             for (scene.items.items) |item| {
                 if (!item.node.clickable) continue;
                 if (first == null) first = item.node.id;
+                if (reverse) {
+                    if (focused == item.node.id) selected = previous;
+                    previous = item.node.id;
+                    continue;
+                }
                 if (found) {
                     selected = item.node.id;
                     break;
                 }
                 if (focused == item.node.id) found = true;
             }
-            focused = selected orelse first;
+            focused = selected orelse (if (reverse) previous else first);
         }
         if (rl.isKeyPressed(.enter)) if (focused) |id| runtime.click(id) catch {};
-        keyboard(&runtime, &scene, focused) catch |err| std.log.err("Text input failed: {}", .{err});
-        const next = buildScene(&runtime, &tree) catch |err| {
+        if (editing != focused) {
+            editing = focused;
+            editor = .{};
+            if (focused) |id| if (scene.find(id)) |item| {
+                editor.move(item.node.value.len, false);
+            };
+        }
+        keyboard(&runtime, &scene, focused, &editor, scratch.allocator()) catch |err| std.log.err("Text input failed: {}", .{err});
+        const changed = synchronize(&runtime, &tree) catch |err| {
             std.log.err("Could not update UI scene: {}", .{err});
             break;
         };
-        scene.deinit();
-        scene = next;
+        if (changed or wheel != 0 or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight()) {
+            const next = buildScene(&tree) catch |err| {
+                std.log.err("Could not lay out UI scene: {}", .{err});
+                break;
+            };
+            scene.deinit();
+            scene = next;
+            last_width = rl.getScreenWidth();
+            last_height = rl.getScreenHeight();
+            scene.applyScroll(&scroll_offsets);
+            var offsets = scroll_offsets.keyIterator();
+            while (offsets.next()) |id| {
+                if (scene.find(id.*) == null) {
+                    _ = scroll_offsets.remove(id.*);
+                    offsets = scroll_offsets.keyIterator();
+                }
+            }
+        }
+        if (focused) |id| if (scene.find(id) == null) {
+            focused = null;
+        };
         rl.beginDrawing();
         rl.clearBackground(background_color);
-        renderScene(&scene, focused) catch |err| std.log.err("Could not render UI: {}", .{err});
+        renderScene(&scene, focused, &editor, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
+        if (event_waiting) ui_wake_schedule(runtime.nextTimeout());
         rl.endDrawing();
-        const timeout = runtime.nextTimeout();
-        if (timeout < 0) glfwWaitEvents() else if (timeout > 0) glfwWaitEventsTimeout(timeout);
     }
 }

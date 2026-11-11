@@ -3,13 +3,34 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 static JSRuntime *runtime;
 static JSContext *context;
 static JSValue host_now(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val; (void)argc; (void)argv;
+#ifdef _WIN32
+    LARGE_INTEGER counter, frequency;
+    QueryPerformanceCounter(&counter);
+    QueryPerformanceFrequency(&frequency);
+    return JS_NewFloat64(ctx, (double)counter.QuadPart * 1000.0 / (double)frequency.QuadPart);
+#else
     struct timespec value;
-    timespec_get(&value, TIME_UTC);
+    clock_gettime(CLOCK_MONOTONIC, &value);
     return JS_NewFloat64(ctx, (double)value.tv_sec * 1000 + value.tv_nsec / 1000000.0);
+#endif
+}
+static JSValue host_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    for (int i = 0; i < argc; i++) {
+        const char *value = JS_ToCString(ctx, argv[i]);
+        if (!value) return JS_EXCEPTION;
+        fprintf(stderr, "%s%s", i ? " " : "", value);
+        JS_FreeCString(ctx, value);
+    }
+    fputc('\n', stderr);
+    return JS_UNDEFINED;
 }
 static void report(void) {
     JSValue e = JS_GetException(context);
@@ -25,11 +46,13 @@ static void report(void) {
 static int jobs(void) {
     JSContext *job_context;
     int result;
-    while ((result = JS_ExecutePendingJob(runtime, &job_context)) > 0) {}
+    unsigned int count = 0;
+    while ((result = JS_ExecutePendingJob(runtime, &job_context)) > 0 && ++count < 1024) {}
     if (result < 0) { report(); return 0; }
     return 1;
 }
 int ui_init(const char *source, size_t len) {
+    if (runtime) return -1;
     runtime = JS_NewRuntime();
     if (!runtime) return 0;
     JS_SetMaxStackSize(runtime, 8 * 1024 * 1024);
@@ -37,15 +60,19 @@ int ui_init(const char *source, size_t len) {
     if (!context) return 0;
     JSValue global = JS_GetGlobalObject(context);
     JS_SetPropertyStr(context, global, "__nativeNow", JS_NewCFunction(context, host_now, "__nativeNow", 0));
+    JS_SetPropertyStr(context, global, "__nativeLog", JS_NewCFunction(context, host_log, "__nativeLog", 1));
     JS_FreeValue(context, global);
     const char *prelude =
         "globalThis.queueMicrotask = fn => Promise.resolve().then(fn);"
-        "globalThis.console ||= {log(){},warn(){},error(){},info(){}};"
+        "globalThis.console ||= {log:__nativeLog,warn:__nativeLog,error:__nativeLog,info:__nativeLog,debug:__nativeLog};"
+        "globalThis.performance ||= {now:__nativeNow};"
         "globalThis.__timers = new Map(); let __timerId = 0;"
         "globalThis.setTimeout = (fn,ms=0,...args) => { const id=++__timerId; __timers.set(id,{fn:()=>fn(...args),at:__nativeNow()+Math.max(0,Number(ms)||0)}); return id; };"
         "globalThis.clearTimeout = id => __timers.delete(id);"
         "globalThis.setInterval = (fn,ms=0,...args) => { const id=++__timerId; const delay=Math.max(1,Number(ms)||0); __timers.set(id,{fn:()=>fn(...args),at:__nativeNow()+delay,repeat:delay}); return id; };"
         "globalThis.clearInterval = clearTimeout;"
+        "globalThis.requestAnimationFrame = fn => setTimeout(()=>fn(performance.now()),16);"
+        "globalThis.cancelAnimationFrame = clearTimeout;"
         "globalThis.__pumpTimers = () => { const now=__nativeNow(); let count=0; for(const [id,t] of __timers) { if(t.at>now)continue; if(++count>100)break; if(t.repeat)t.at=now+t.repeat;else __timers.delete(id); t.fn(); } };"
         "globalThis.__nextTimer = () => { let next=Infinity; for(const t of __timers.values())next=Math.min(next,t.at); return Number.isFinite(next)?Math.max(0,next-__nativeNow())/1000:-1; };";
     JSValue setup = JS_Eval(context, prelude, strlen(prelude), "native-runtime", JS_EVAL_TYPE_GLOBAL);
@@ -92,10 +119,12 @@ int ui_input(uint32_t id, const char *text) {
     return ok && jobs();
 }
 int ui_tick(void) {
+    if (!jobs()) return 0;
     char ignored[32];
     return ui_eval("__pumpTimers()", ignored, sizeof(ignored));
 }
 double ui_next_timeout(void) {
+    if (JS_IsJobPending(runtime)) return 0;
     JSValue value = JS_Eval(context, "__nextTimer()", 13, "scheduler", JS_EVAL_TYPE_GLOBAL);
     double delay = -1;
     if (JS_IsException(value)) report(); else JS_ToFloat64(context, &delay, value);
@@ -103,6 +132,13 @@ double ui_next_timeout(void) {
     return delay;
 }
 void ui_destroy(void) {
+    if (context) {
+        const char *cleanup = "if(typeof uiDispose==='function')uiDispose()";
+        JSValue result = JS_Eval(context, cleanup, strlen(cleanup), "shutdown", JS_EVAL_TYPE_GLOBAL);
+        if (JS_IsException(result)) report();
+        JS_FreeValue(context, result);
+        jobs();
+    }
     if (context) JS_FreeContext(context);
     if (runtime) JS_FreeRuntime(runtime);
     context = NULL; runtime = NULL;

@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/native.js", "./renderer": "./src/renderer.js", "./module-runtime": "./src/module-runtime.js" },
+  "types": "./src/native.d.ts",
+  "files": ["src", "README.md"],
+  "exports": {
+    ".": { "types": "./src/native.d.ts", "default": "./src/native.js" },
+    "./renderer": "./src/renderer.js",
+    "./module-runtime": "./src/module-runtime.js",
+    "./jsx-runtime": { "types": "./src/jsx-runtime.d.ts", "default": "./src/jsx-runtime.js" },
+    "./jsx-dev-runtime": { "types": "./src/jsx-runtime.d.ts", "default": "./src/jsx-runtime.js" }
+  },
   "peerDependencies": { "solid-js": "2.0.0-rc.21", "@solidjs/universal": "2.0.0-rc.21" }
 }

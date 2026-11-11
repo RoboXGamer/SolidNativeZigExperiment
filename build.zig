@@ -1,16 +1,20 @@
 const std = @import("std");
+const core_build = @import("modules/ui_core/build.zig");
+const bridge_build = @import("modules/solid_bridge/build.zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const raylib = b.dependency("raylib_zig", .{ .target = target, .optimize = optimize });
-    const ui_core = b.addModule("ui_core", .{
-        .root_source_file = b.path("modules/ui_core/root.zig"),
+    const ui_core = core_build.addModule(b, .{
+        .source = b.path("modules/ui_core/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const solid_bridge = b.addModule("solid_bridge", .{
-        .root_source_file = b.path("modules/solid_bridge/root.zig"),
+    const solid_bridge = bridge_build.addModule(b, .{
+        .source = b.path("modules/solid_bridge/root.zig"),
+        .c_source = b.path("modules/solid_bridge/quickjs_bridge.c"),
+        .quickjs_source = b.path("vendor/quickjs"),
         .target = target,
         .optimize = optimize,
     });
@@ -24,12 +28,7 @@ pub fn build(b: *std.Build) void {
     module.addImport("solid_bridge", solid_bridge);
     module.linkLibrary(raylib.artifact("raylib"));
     module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = &.{} });
-    solid_bridge.addIncludePath(b.path("vendor/quickjs"));
-    solid_bridge.addCSourceFiles(.{
-        .files = &.{ "modules/solid_bridge/quickjs_bridge.c", "vendor/quickjs/cutils.c", "vendor/quickjs/dtoa.c", "vendor/quickjs/libregexp.c", "vendor/quickjs/libunicode.c", "vendor/quickjs/quickjs.c" },
-        .flags = &.{ "-D_GNU_SOURCE", "-DWIN32_LEAN_AND_MEAN", "-D_WIN32_WINNT=0x0601" },
-    });
-    solid_bridge.link_libc = true;
+    module.addCSourceFile(.{ .file = b.path("src/event_wakeup.c"), .flags = &.{} });
     const tests = b.addTest(.{ .root_module = ui_core });
     const test_step = b.step("test", "Run UI core tests");
     test_step.dependOn(&b.addRunArtifact(tests).step);

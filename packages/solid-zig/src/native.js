@@ -50,9 +50,35 @@ function boxSides(value) {
   return { t: parts[0], r: parts[1], b: parts[2], l: parts[3] };
 }
 
+function flexValues(style) {
+  let grow = 0, shrink = 1, basis = -1;
+  if (typeof style.flex === "number") { grow = style.flex; basis = 0; }
+  else if (style.flex === "none") shrink = 0;
+  else if (style.flex === "auto") grow = 1;
+  else if (typeof style.flex === "string") {
+    const parts = style.flex.trim().split(/\s+/);
+    if (parts.length === 1 && /(?:px|auto|content)$/.test(parts[0])) {
+      grow = 1;
+      basis = parts[0] === "auto" ? -1 : parts[0] === "content" ? -2 : parseFloat(parts[0]);
+    } else {
+      grow = Number(parts[0]);
+      shrink = parts.length > 1 ? Number(parts[1]) : 1;
+      const part = parts[2] ?? "0";
+      basis = part === "auto" ? -1 : part === "content" ? -2 : parseFloat(part);
+    }
+  }
+  return {
+    grow: typeof style.flexGrow === "number" ? style.flexGrow : (Number.isFinite(grow) ? grow : 0),
+    shrink: typeof style.flexShrink === "number" ? style.flexShrink : (Number.isFinite(shrink) ? shrink : 1),
+    basis: typeof style.flexBasis === "number" ? style.flexBasis : style.flexBasis === "auto" ? -1 : style.flexBasis === "content" ? -2 : (Number.isFinite(basis) ? basis : -1),
+  };
+}
+
 function snapshot(node, inherited = {}) {
   const style = node.props.style || {};
   const marginBox = boxSides(style.margin);
+  const paddingBox = boxSides(style.padding);
+  const flex = flexValues(style);
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
@@ -68,7 +94,7 @@ function snapshot(node, inherited = {}) {
     id: node.id,
     type: node.type,
     text: node.text,
-    clickable: typeof node.props.onClick === "function" || node.type === "input",
+    clickable: !node.props.disabled && (typeof node.props.onClick === "function" || node.type === "input"),
     value: node.type === "input" ? String(node.props.value ?? "") : "",
     style: {
       direction: flexDirectionOf(node, style),
@@ -79,9 +105,9 @@ function snapshot(node, inherited = {}) {
       alignItems: typeof style.alignItems === "string" ? style.alignItems : "stretch",
       alignContent: typeof style.alignContent === "string" ? style.alignContent : "stretch",
       alignSelf: typeof style.alignSelf === "string" ? style.alignSelf : "auto",
-      flexGrow: typeof style.flexGrow === "number" ? style.flexGrow : (typeof style.flex === "number" ? style.flex : (typeof style.flex === "string" ? (parseFloat(style.flex.split(/\\s+/)[0]) || 0) : 0)),
-      flexShrink: typeof style.flexShrink === "number" ? style.flexShrink : (typeof style.flex === "string" ? (parseFloat(style.flex.split(/\\s+/)[1]) || 1) : 1),
-      flexBasis: typeof style.flexBasis === "number" ? style.flexBasis : (style.flexBasis === "auto" ? -1 : style.flexBasis === "content" ? -2 : (typeof style.flex === "string" ? (function (t) { return t === "auto" ? -1 : t === "content" ? -2 : (parseFloat(t) || 0); })(style.flex.split(/\\s+/)[2]) : -1)),
+      flexGrow: flex.grow,
+      flexShrink: flex.shrink,
+      flexBasis: flex.basis,
       order: typeof style.order === "number" ? style.order : 0,
       width: typeof style.width === "number" ? style.width : 0,
       height: typeof style.height === "number" ? style.height : 0,
@@ -91,10 +117,10 @@ function snapshot(node, inherited = {}) {
       maxHeight: typeof style.maxHeight === "number" ? style.maxHeight : 0,
       aspectRatio: typeof style.aspectRatio === "number" ? style.aspectRatio : 0,
       padding: typeof style.padding === "number" ? style.padding : 0,
-      paddingTop: typeof style.paddingTop === "number" ? style.paddingTop : 0,
-      paddingRight: typeof style.paddingRight === "number" ? style.paddingRight : 0,
-      paddingBottom: typeof style.paddingBottom === "number" ? style.paddingBottom : 0,
-      paddingLeft: typeof style.paddingLeft === "number" ? style.paddingLeft : 0,
+      paddingTop: typeof style.paddingTop === "number" ? style.paddingTop : (paddingBox?.t ?? 0),
+      paddingRight: typeof style.paddingRight === "number" ? style.paddingRight : (paddingBox?.r ?? 0),
+      paddingBottom: typeof style.paddingBottom === "number" ? style.paddingBottom : (paddingBox?.b ?? 0),
+      paddingLeft: typeof style.paddingLeft === "number" ? style.paddingLeft : (paddingBox?.l ?? 0),
       margin: marginBox ? 0 : (typeof style.margin === "number" ? style.margin : (style.margin === "auto" ? -1 : 0)),
       marginTop: style.marginTop === "auto" ? -1 : (typeof style.marginTop === "number" ? style.marginTop : (marginBox ? marginBox.t : 0)),
       marginRight: style.marginRight === "auto" ? -1 : (typeof style.marginRight === "number" ? style.marginRight : (marginBox ? marginBox.r : 0)),
@@ -123,11 +149,6 @@ function snapshot(node, inherited = {}) {
       outlineWidth: typeof style.outlineWidth === "number" ? style.outlineWidth : 0,
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",
-      minWidth: typeof style.minWidth === "number" ? style.minWidth : 0,
-      minHeight: typeof style.minHeight === "number" ? style.minHeight : 0,
-      maxWidth: typeof style.maxWidth === "number" ? style.maxWidth : 0,
-      maxHeight: typeof style.maxHeight === "number" ? style.maxHeight : 0,
-      aspectRatio: typeof style.aspectRatio === "number" ? style.aspectRatio : 0,
       ...textStyle,
     },
     children: node.children.map(child => snapshot(child, textStyle)),
@@ -145,7 +166,7 @@ function findId(node, id) {
 export function mountApp(Component) {
   globalThis.__uiRenderer = renderer;
   globalThis.__uiSolid = solid;
-  if (__NATIVE_HMR__) {
+  if (typeof __NATIVE_HMR__ !== "undefined" && __NATIVE_HMR__) {
     globalThis.__uiModules ||= createModuleHost({
       "solid-js": solid,
       "solid-refresh": refresh,
@@ -170,16 +191,37 @@ export function mountApp(Component) {
     return JSON.stringify({ root: root.id, nodes, removed });
   };
   globalThis.uiCommit = () => { if (pendingCommit) committed = pendingCommit; pendingCommit = undefined; };
+  function dispatch(target, name, type, value) {
+    let stopped = false;
+    const event = {
+      type,
+      target: { id: target.id, value: value ?? target.props.value },
+      currentTarget: undefined,
+      stopPropagation() { stopped = true; },
+    };
+    for (let current = target; current; current = current.parent) {
+      event.currentTarget = { id: current.id, value: current.props.value };
+      if (typeof current.props[name] === "function") current.props[name](event);
+      if (stopped) break;
+    }
+  }
   globalThis.uiDispatchClick = id => {
     const target = findId(root, id);
-    if (target && typeof target.props.onClick === "function") target.props.onClick();
+    if (target && !target.props.disabled) dispatch(target, "onClick", "click");
   };
   globalThis.uiDispatchInput = (id, value) => {
     const target = findId(root, id);
-    if (!target || target.type !== "input") return;
+    if (!target || target.type !== "input" || target.props.disabled || target.props.readOnly) return;
     target.props.value = value;
-    const event = { target: { value }, currentTarget: { value } };
-    if (typeof target.props.onInput === "function") target.props.onInput(event);
+    dispatch(target, "onInput", "input", value);
+  };
+  globalThis.uiDispose = () => {
+    dispose?.();
+    dispose = undefined;
+    globalThis.__uiModules?.dispose();
+    root = renderer.node("root");
+    committed.clear();
+    pendingCommit = undefined;
   };
   mount(Component);
 }

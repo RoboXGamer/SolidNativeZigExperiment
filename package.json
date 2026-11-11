@@ -2,6 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node tools/dev.mjs --app",
     "build:ui": "vite build",
     "dev:ui": "node tools/dev.mjs",
     "dev:app": "vite build --mode native-hmr && node tools/run.mjs",

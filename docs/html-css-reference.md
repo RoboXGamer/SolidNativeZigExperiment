@@ -116,14 +116,28 @@ Goal: exhaustive checklist of what a browser (Chrome) supports, to compare again
 ## Currently Implemented in draft1
 - Elements: root, column, row, label, button, input, text
 - Layout: row/column direction, width, height, padding (per-side), margin (per-side), gap, grid columns (px/fr), min/max, aspect-ratio, box-sizing
+- Block layout (partial, not 100% CSS): vertical block stacking, width resolution with content-box/border-box, sibling margin collapsing (positive and negative), simplified first-child/parent top margin collapsing, collapse-through of empty blocks, BFC via `overflow != visible`, child insets on the inline axis
+- Flexbox: direction (row/column + reverse), wrap/wrap-reverse, gap, order, grow/shrink/shrink-scaled, flex-basis (explicit/auto/content), justify-content (start/center/end/space-between/around/evenly), align-items/align-self (start/center/end/stretch/baseline), align-content (start/center/end/stretch/space-*), auto margins, intrinsic min-content/max-content sizing, min/max clamping during flexing
 - Style: backgroundColor, color, fontSize, border (per-side width/color), borderRadius, outline, boxShadow, overflow
+- Defaults from the JS bridge (the custom elements are flex primitives): containers (`root`, `column`, `row`, `label`, `button`, `input`) default to `display: flex`; `flexDirection` defaults to `row` for `row`/`label`/`button`/`input` and `column` for `root`/`column`; `text` defaults to `display: block`. Explicit `display`/`flexDirection` styles override the defaults. Display and direction must agree, otherwise a box is sized on one axis and its children are laid out on the other.
 - Events: onClick, onInput, value
-- Text: estimated width, DrawText default font
+- Text metrics: layout pulls advance widths, line heights and baseline ascent from an injected `MeasureFn`. The Raylib backend installs one backed by `MeasureText`, so intrinsic sizing, `flex-basis: content`, text line heights and baseline alignment use real font metrics. Headless tests fall back to a documented estimator (`0.5em` per byte, `1.2em` line box).
+- Geometry: `Rect` follows the DOMRect shape (`x`/`y`/`width`/`height` plus derived `left`/`top`/`right`/`bottom`, `contains`, `inset`/`outset`, `intersect`); `Node.padding()`/`border()`/`margin()` expose the box rings once, so no module re-derives them.
 - Overflow clipping: nested scissor via parent tracking
+
+## Block layout gaps (not 100% CSS/Taffy parity)
+- No floats, float context, or clearance (so no float-based layouts)
+- No inline formatting context (IFC): widths and line heights now come from real font metrics, but text is still a single run — no line boxes, wrapping, inline-block baseline alignment, or inline fragmentation. `Text.wrap()` exists as the seam for a future IFC.
+- Margin collapsing covers sibling pairs (including negative margins), collapse-through of empty blocks, and a simplified parent/first-child top collapse; missing parent-child bottom collapse and the full margin-collapse algorithm when padding, borders, clearance and floats interact
+- `height: auto` sums measured content (`naturalHeight`), not a real block-size resolution; percentage heights and `auto`/`min-content`/`max-content` widths are not resolved per spec
+- Shrink-to-fit widths, `display: flow-root`, `table`/`list-item`/`contents`, and blockification of flex/grid children are not implemented
+- Block direction/writing modes, `float` interaction with BFC, and spec `min-width: auto` content sizing in normal flow are missing
+- Still needs: a float context, an inline formatting context built on `Text.wrap()`, and a full block formatting context pass (Taffy's `compute/block.rs` is ~1900 lines plus supporting infrastructure)
 
 ## Not Implemented (Chrome gaps)
 - All HTML elements beyond basic containers/text/buttons/inputs
-- Full flexbox (wrap, justify, align, order, grow/shrink)
+- Block layout remaining gaps: see the section above (floats, IFC, full margin collapsing, auto/percentage sizing, flow-root/table/list-item, writing modes)
+- Flexbox remaining gaps: percentage flex-basis, absolute flex items, writing modes, multi-line text intrinsic contribution (metrics are per-run, not per-line-box), spec-exact intrinsic contribution for nested flex containers
 - Full grid (areas, auto-flow, subgrid)
 - Positioning (absolute/relative/fixed/sticky)
 - Overflow, clipping, scrolling

@@ -5,7 +5,8 @@
     "build:ui": "vite build",
     "dev:ui": "node tools/dev.mjs",
     "dev:app": "vite build --mode native-hmr && node tools/run.mjs",
-    "test:ui": "pnpm run build:ui && node tools/test-ui.mjs",
+    "test:features": "node --conditions=browser tests/features_probe.mjs",
+    "test:bridge": "node --conditions=browser --conditions=development tests/bridge_probe.mjs",
     "test:refresh": "node --conditions=browser --conditions=development tests/refresh_probe.mjs",
     "test:tree": "node --conditions=browser --conditions=development tests/tree_probe.mjs"
   },

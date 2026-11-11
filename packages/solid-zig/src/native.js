@@ -16,19 +16,43 @@ function mount(Component) {
   dispose = nextDispose;
 }
 
-function find(node, type) {
-  if (node.type === type) return node;
-  for (const child of node.children) {
-    const match = find(child, type);
-    if (match) return match;
-  }
+// Containers are flex boxes by default (the custom elements are flex
+// primitives); text nodes stay block leaves. The default direction has to match
+// the axis that height/width resolution assumes, otherwise boxes are sized for
+// one axis and their children laid out on the other.
+function flexDirectionOf(node, style) {
+  if (typeof style.flexDirection === "string") return style.flexDirection;
+  return ["row", "label", "button", "input"].includes(node.type) ? "row" : "column";
 }
-function text(node) {
-  return node.text + node.children.map(text).join("");
+
+function displayOf(node, style) {
+  if (typeof style.display === "string") return style.display;
+  return node.type === "text" ? "block" : "flex";
+}
+
+function spacingValue(value) {
+  if (typeof value === "number") return value;
+  if (value === "auto") return -1;
+  if (typeof value === "string") {
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function boxSides(value) {
+  if (typeof value !== "string") return null;
+  const parts = value.trim().split(/\s+/).filter(v => v.length > 0).map(spacingValue);
+  if (parts.length === 0 || parts.length > 4) return null;
+  if (parts.length === 1) return { t: parts[0], r: parts[0], b: parts[0], l: parts[0] };
+  if (parts.length === 2) return { t: parts[0], r: parts[1], b: parts[0], l: parts[1] };
+  if (parts.length === 3) return { t: parts[0], r: parts[1], b: parts[2], l: parts[1] };
+  return { t: parts[0], r: parts[1], b: parts[2], l: parts[3] };
 }
 
 function snapshot(node, inherited = {}) {
   const style = node.props.style || {};
+  const marginBox = boxSides(style.margin);
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
@@ -47,8 +71,9 @@ function snapshot(node, inherited = {}) {
     clickable: typeof node.props.onClick === "function" || node.type === "input",
     value: node.type === "input" ? String(node.props.value ?? "") : "",
     style: {
-      direction: style.flexDirection || (["row", "label", "button"].includes(node.type) ? "row" : "column"),
-      flexDirection: typeof style.flexDirection === "string" ? style.flexDirection : "row",
+      direction: flexDirectionOf(node, style),
+      display: displayOf(node, style),
+      flexDirection: flexDirectionOf(node, style),
       flexWrap: typeof style.flexWrap === "string" ? style.flexWrap : "nowrap",
       justifyContent: typeof style.justifyContent === "string" ? style.justifyContent : "flex-start",
       alignItems: typeof style.alignItems === "string" ? style.alignItems : "stretch",
@@ -56,9 +81,7 @@ function snapshot(node, inherited = {}) {
       alignSelf: typeof style.alignSelf === "string" ? style.alignSelf : "auto",
       flexGrow: typeof style.flexGrow === "number" ? style.flexGrow : (typeof style.flex === "number" ? style.flex : (typeof style.flex === "string" ? (parseFloat(style.flex.split(/\\s+/)[0]) || 0) : 0)),
       flexShrink: typeof style.flexShrink === "number" ? style.flexShrink : (typeof style.flex === "string" ? (parseFloat(style.flex.split(/\\s+/)[1]) || 1) : 1),
-      flexBasis: typeof style.flexBasis === "number" ? style.flexBasis : (typeof style.flex === "string" ? (parseFloat(style.flex.split(/\\s+/)[2]) || 0) : 0),
-      flexShrink: typeof style.flexShrink === "number" ? style.flexShrink : 1,
-      flexBasis: typeof style.flexBasis === "number" ? style.flexBasis : 0,
+      flexBasis: typeof style.flexBasis === "number" ? style.flexBasis : (style.flexBasis === "auto" ? -1 : style.flexBasis === "content" ? -2 : (typeof style.flex === "string" ? (function (t) { return t === "auto" ? -1 : t === "content" ? -2 : (parseFloat(t) || 0); })(style.flex.split(/\\s+/)[2]) : -1)),
       order: typeof style.order === "number" ? style.order : 0,
       width: typeof style.width === "number" ? style.width : 0,
       height: typeof style.height === "number" ? style.height : 0,
@@ -72,11 +95,11 @@ function snapshot(node, inherited = {}) {
       paddingRight: typeof style.paddingRight === "number" ? style.paddingRight : 0,
       paddingBottom: typeof style.paddingBottom === "number" ? style.paddingBottom : 0,
       paddingLeft: typeof style.paddingLeft === "number" ? style.paddingLeft : 0,
-      margin: typeof style.margin === "number" ? style.margin : 0,
-      marginTop: typeof style.marginTop === "number" ? style.marginTop : 0,
-      marginRight: typeof style.marginRight === "number" ? style.marginRight : 0,
-      marginBottom: typeof style.marginBottom === "number" ? style.marginBottom : 0,
-      marginLeft: typeof style.marginLeft === "number" ? style.marginLeft : 0,
+      margin: marginBox ? 0 : (typeof style.margin === "number" ? style.margin : (style.margin === "auto" ? -1 : 0)),
+      marginTop: style.marginTop === "auto" ? -1 : (typeof style.marginTop === "number" ? style.marginTop : (marginBox ? marginBox.t : 0)),
+      marginRight: style.marginRight === "auto" ? -1 : (typeof style.marginRight === "number" ? style.marginRight : (marginBox ? marginBox.r : 0)),
+      marginBottom: style.marginBottom === "auto" ? -1 : (typeof style.marginBottom === "number" ? style.marginBottom : (marginBox ? marginBox.b : 0)),
+      marginLeft: style.marginLeft === "auto" ? -1 : (typeof style.marginLeft === "number" ? style.marginLeft : (marginBox ? marginBox.l : 0)),
       gap: typeof style.gap === "number" ? style.gap : 0,
       columns,
       backgroundColor: typeof style.backgroundColor === "string" ? style.backgroundColor : "",
@@ -130,9 +153,6 @@ export function mountApp(Component) {
       "native-host": { mountApp },
     });
   }
-  globalThis.uiLabel = () => text(find(root, "label"));
-  globalThis.uiButton = () => text(find(root, "button"));
-  globalThis.uiClick = () => find(root, "button").props.onClick();
   globalThis.uiSnapshot = () => JSON.stringify(snapshot(root));
   globalThis.uiChanges = () => {
     const nodes = [];

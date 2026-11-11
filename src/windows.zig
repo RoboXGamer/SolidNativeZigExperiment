@@ -24,38 +24,61 @@ fn roundness(rect: rl.Rectangle, radius: f32) f32 {
     if (m <= 0) return 0;
     return @min(1, radius / (m / 2));
 }
+
+/// Real font metrics for layout: Raylib owns the glyph atlas, so ask it for
+/// advance widths instead of guessing per character. Chunked to keep a fixed
+/// stack buffer for the NUL-terminated C string.
+fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics {
+    const size: i32 = @intFromFloat(@max(1.0, @round(font_size)));
+    var buf: [512]u8 = undefined;
+    var total: i32 = 0;
+    var offset: usize = 0;
+    while (offset < content.len) {
+        const chunk = @min(content.len - offset, buf.len - 1);
+        @memcpy(buf[0..chunk], content[offset .. offset + chunk]);
+        buf[chunk] = 0;
+        total += rl.measureText(buf[0..chunk :0], size);
+        offset += chunk;
+    }
+    return .{
+        .width = @floatFromInt(total),
+        .height = font_size,
+        .ascent = font_size * ui.text.fallback_ascent_ratio,
+    };
+}
+
 fn renderScene(scene: *ui.Scene, focused: ?u32) !void {
     for (scene.items.items) |item| {
         const n = item.node;
         const b = item.bounds;
         const rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
         const is_button = std.mem.eql(u8, n.type, "button");
+        const is_input = std.mem.eql(u8, n.type, "input");
         const radius = if (n.style.borderTopLeftRadius > 0) n.style.borderTopLeftRadius else n.style.borderRadius;
+
         // true overflow clipping: intersect with all overflow-hidden ancestors
-        var clip_x = b.x;
-        var clip_y = b.y;
-        var clip_w = b.width;
-        var clip_h = b.height;
+        var clip = b;
         var has_clip = false;
         var cur_parent = item.parent_id;
         while (cur_parent) |pid| {
-            // find item
             var found: ?ui.Item = null;
-            for (scene.items.items) |it| { if (it.node.id == pid) { found = it; break; } }
+            for (scene.items.items) |it| {
+                if (it.node.id == pid) {
+                    found = it;
+                    break;
+                }
+            }
             const pitem = found orelse break;
-            if (std.mem.eql(u8, pitem.node.style.overflow, "hidden") or std.mem.eql(u8, pitem.node.style.overflow, "clip") or std.mem.eql(u8, pitem.node.style.overflow, "scroll")) {
-                const pb = pitem.bounds;
-                const nx = @max(clip_x, pb.x);
-                const ny = @max(clip_y, pb.y);
-                const nw = @min(clip_x + clip_w, pb.x + pb.width) - nx;
-                const nh = @min(clip_y + clip_h, pb.y + pb.height) - ny;
-                clip_x = nx; clip_y = ny; clip_w = @max(0, nw); clip_h = @max(0, nh);
+            const ov = pitem.node.style.overflow;
+            if (std.mem.eql(u8, ov, "hidden") or std.mem.eql(u8, ov, "clip") or std.mem.eql(u8, ov, "scroll")) {
+                clip = clip.intersect(pitem.bounds);
                 has_clip = true;
             }
             cur_parent = pitem.parent_id;
         }
-        if (has_clip or std.mem.eql(u8, n.style.overflow, "hidden") or std.mem.eql(u8, n.style.overflow, "clip") or std.mem.eql(u8, n.style.overflow, "scroll")) {
-            rl.beginScissorMode(@intFromFloat(clip_x), @intFromFloat(clip_y), @intFromFloat(clip_w), @intFromFloat(clip_h));
+        const self_overflow = std.mem.eql(u8, n.style.overflow, "hidden") or std.mem.eql(u8, n.style.overflow, "clip") or std.mem.eql(u8, n.style.overflow, "scroll");
+        if (has_clip or self_overflow) {
+            rl.beginScissorMode(@intFromFloat(clip.left()), @intFromFloat(clip.top()), @intFromFloat(clip.width), @intFromFloat(clip.height));
         }
         // box shadow (parsed: "ox oy blur spread color")
         if (n.style.boxShadow.len > 0) {
@@ -69,53 +92,41 @@ fn renderScene(scene: *ui.Scene, focused: ?u32) !void {
             rl.drawRectangleRounded(shad, roundness(shad, radius), 8, color(cstr, rl.Color.init(0, 0, 0, 128)));
             _ = blur;
         }
-        if (std.mem.eql(u8, n.type, "input")) {
-            rl.drawRectangleRec(rect, .dark_gray);
-            const value = try scene.arena.allocator().dupeSentinel(u8, n.value, 0);
-            rl.drawText(value, @intFromFloat(b.x + 10), @intFromFloat(b.y + 10), 20, .white);
-        }
-        if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
-        if (n.style.backgroundColor.len > 0 or is_button) {
-            if (radius > 0) rl.drawRectangleRounded(rect, roundness(rect, radius), 8, color(n.style.backgroundColor, if (is_button) .dark_gray else .blank)) else rl.drawRectangleRec(rect, color(n.style.backgroundColor, if (is_button) .dark_gray else .blank));
+        if (n.style.backgroundColor.len > 0 or is_button or is_input) {
+            const fallback: rl.Color = if (is_button) .dark_gray else if (is_input) .dark_gray else .blank;
+            if (radius > 0) {
+                rl.drawRectangleRounded(rect, roundness(rect, radius), 8, color(n.style.backgroundColor, fallback));
+            } else {
+                rl.drawRectangleRec(rect, color(n.style.backgroundColor, fallback));
+            }
         }
         // per-side borders
-        const bt_w = if (n.style.borderTopWidth > 0) n.style.borderTopWidth else n.style.borderWidth;
-        const br_w = if (n.style.borderRightWidth > 0) n.style.borderRightWidth else n.style.borderWidth;
-        const bb_w = if (n.style.borderBottomWidth > 0) n.style.borderBottomWidth else n.style.borderWidth;
-        const bl_w = if (n.style.borderLeftWidth > 0) n.style.borderLeftWidth else n.style.borderWidth;
-        const uniform = (bt_w == br_w and br_w == bb_w and bb_w == bl_w);
-        if (radius > 0 and uniform and bt_w > 0) {
-            rl.drawRectangleRoundedLinesEx(rect, roundness(rect, radius), 8, bt_w, color(n.style.borderColor, .white));
+        const bw = n.border();
+        const uniform = (bw.top == bw.right and bw.right == bw.bottom and bw.bottom == bw.left);
+        if (radius > 0 and uniform and bw.top > 0) {
+            rl.drawRectangleRoundedLinesEx(rect, roundness(rect, radius), 8, bw.top, color(n.style.borderColor, .white));
         } else {
-            if (bt_w > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y }, bt_w, color(if (n.style.borderTopColor.len > 0) n.style.borderTopColor else n.style.borderColor, .white));
-            if (br_w > 0) rl.drawLineEx(.{ .x = rect.x + rect.width, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, br_w, color(if (n.style.borderRightColor.len > 0) n.style.borderRightColor else n.style.borderColor, .white));
-            if (bb_w > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y + rect.height }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bb_w, color(if (n.style.borderBottomColor.len > 0) n.style.borderBottomColor else n.style.borderColor, .white));
-            if (bl_w > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x, .y = rect.y + rect.height }, bl_w, color(if (n.style.borderLeftColor.len > 0) n.style.borderLeftColor else n.style.borderColor, .white));
+            if (bw.top > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y }, bw.top, color(if (n.style.borderTopColor.len > 0) n.style.borderTopColor else n.style.borderColor, .white));
+            if (bw.right > 0) rl.drawLineEx(.{ .x = rect.x + rect.width, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.right, color(if (n.style.borderRightColor.len > 0) n.style.borderRightColor else n.style.borderColor, .white));
+            if (bw.bottom > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y + rect.height }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.bottom, color(if (n.style.borderBottomColor.len > 0) n.style.borderBottomColor else n.style.borderColor, .white));
+            if (bw.left > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x, .y = rect.y + rect.height }, bw.left, color(if (n.style.borderLeftColor.len > 0) n.style.borderLeftColor else n.style.borderColor, .white));
         }
         if (n.style.outlineWidth > 0) {
             const orect = rl.Rectangle{ .x = rect.x - n.style.outlineWidth, .y = rect.y - n.style.outlineWidth, .width = rect.width + 2 * n.style.outlineWidth, .height = rect.height + 2 * n.style.outlineWidth };
             rl.drawRectangleLinesEx(orect, n.style.outlineWidth, color(n.style.outlineColor, .white));
         }
+        const font_size: i32 = @intFromFloat(n.fontSize());
         if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
             const text = try scene.arena.allocator().dupeSentinel(u8, n.text, 0);
-            const font_size: i32 = @intFromFloat(if (n.style.fontSize > 0) n.style.fontSize else 20);
             rl.drawText(text, @intFromFloat(b.x), @intFromFloat(b.y), font_size, color(n.style.color, .white));
         }
         if (std.mem.eql(u8, n.type, "input")) {
-            rl.drawRectangleRec(rect, .dark_gray);
             const value = try scene.arena.allocator().dupeSentinel(u8, n.value, 0);
-            rl.drawText(value, @intFromFloat(b.x + 10), @intFromFloat(b.y + 10), 20, .white);
+            const pad = n.padding();
+            rl.drawText(value, @intFromFloat(b.x + pad.left), @intFromFloat(b.y + pad.top), font_size, .white);
         }
         if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
-        if (n.style.backgroundColor.len > 0 or is_button) {
-            rl.drawRectangleRec(rect, color(n.style.backgroundColor, if (is_button) .dark_gray else .blank));
-        }
-        if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
-            const text = try scene.arena.allocator().dupeSentinel(u8, n.text, 0);
-            const font_size: i32 = @intFromFloat(if (n.style.fontSize > 0) n.style.fontSize else 20);
-            rl.drawText(text, @intFromFloat(b.x), @intFromFloat(b.y), font_size, color(n.style.color, .white));
-        }
-        if (std.mem.eql(u8, n.style.overflow, "hidden") or std.mem.eql(u8, n.style.overflow, "clip") or std.mem.eql(u8, n.style.overflow, "scroll")) {
+        if (has_clip or self_overflow) {
             rl.endScissorMode();
         }
     }
@@ -152,7 +163,7 @@ fn buildScene(runtime: *bridge.Runtime, tree: *ui.Tree) !ui.Scene {
     defer runtime.freeSnapshot(json);
     _ = try tree.apply(json);
     try runtime.acknowledge();
-    return ui.Scene.fromTree(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()));
+    return ui.Scene.fromTreeWithText(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = measureRaylib });
 }
 
 pub fn run() void {

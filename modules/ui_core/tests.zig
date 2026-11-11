@@ -692,3 +692,210 @@ test "baseline alignment with nested text child" {
     try std.testing.expectApproxEqAbs(@as(f32, 0), btn.y, 0.01);
 }
 
+test "C-TEXT-LINES: multi-line wrap and line height synthesis (TEXT-01, TEXT-04)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":100},"children":[{"id":2,"type":"text","text":"one two three four five six seven","style":{"fontSize":16,"lineHeight":24}}]}
+    ;
+    // Default text measurer: 0.5 * font_size = 8px per char.
+    // "one two three four five six seven" has 33 chars = 264px.
+    // In width 100, words wrap into multiple lines!
+    var scene = try Scene.init(std.testing.allocator, json, 100, 200);
+    defer scene.deinit();
+    const t = scene.find(2).?.bounds;
+    // With lineHeight 24 and multiple lines, height should be a multiple of 24 and > 24
+    try std.testing.expect(t.height >= 48);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), @mod(t.height, 24), 0.01);
+
+    // Now test whiteSpace nowrap: keeps single line
+    const jsonNowrap =
+        \\{"id":1,"type":"root","style":{"display":"block","width":100},"children":[{"id":2,"type":"text","text":"one two three four five six seven","style":{"fontSize":16,"lineHeight":24,"whiteSpace":"nowrap"}}]}
+    ;
+    var sceneNowrap = try Scene.init(std.testing.allocator, jsonNowrap, 100, 200);
+    defer sceneNowrap.deinit();
+    const tNowrap = sceneNowrap.find(2).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 24), tNowrap.height, 0.01);
+}
+
+test "baseline synthesis: first-baseline and last-baseline alignment (TEXT-02)" {
+    // Flex container with two items: item 2 has height 40, item 3 has height 60.
+    const jsonFirst =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","alignItems":"first-baseline","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"height":40}},{"id":3,"type":"column","style":{"height":60}}]}
+    ;
+    var sceneFirst = try Scene.init(std.testing.allocator, jsonFirst, 200, 100);
+    defer sceneFirst.deinit();
+    const b2First = sceneFirst.find(2).?.bounds;
+    const b3First = sceneFirst.find(3).?.bounds;
+    // For boxes without text, baseline is synthesize from bottom.
+    // max baseline is 60. Item 2 baseline is 40 -> shifted by 60 - 40 = 20.
+    try std.testing.expectApproxEqAbs(@as(f32, 20), b2First.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b3First.y, 0.01);
+
+    const jsonLast =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","alignItems":"last-baseline","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"height":40}},{"id":3,"type":"column","style":{"height":60}}]}
+    ;
+    var sceneLast = try Scene.init(std.testing.allocator, jsonLast, 200, 100);
+    defer sceneLast.deinit();
+    const b2Last = sceneLast.find(2).?.bounds;
+    const b3Last = sceneLast.find(3).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 20), b2Last.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b3Last.y, 0.01);
+}
+
+test "IFC: inline formatting context with inline-flex boxes (TEXT-02)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":150},"children":[{"id":2,"type":"column","style":{"display":"inline-flex","width":60,"height":20}},{"id":3,"type":"column","style":{"display":"inline-flex","width":60,"height":20}},{"id":4,"type":"column","style":{"display":"inline-flex","width":60,"height":20}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 150, 100);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    const b3 = scene.find(3).?.bounds;
+    const b4 = scene.find(4).?.bounds;
+    // Item 2 and 3 fit on Line 1 (60 + 60 = 120 <= 150)
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b2.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b2.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), b3.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b3.y, 0.01);
+    // Item 4 wraps to Line 2!
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b4.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), b4.y, 0.01);
+}
+
+test "IFC: textAlign distribution in line boxes" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":100,"textAlign":"right"},"children":[{"id":2,"type":"column","style":{"display":"inline-flex","width":40,"height":20}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    // Right-aligned in 100px width: 100 - 40 = 60
+    try std.testing.expectApproxEqAbs(@as(f32, 60), b2.x, 0.01);
+}
+
+test "C-SCROLL-DESCENDANT: grandchild scroll extent through visible parent (SCROLL-01)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"block","overflow":"visible","width":100,"height":100},"children":[{"id":3,"type":"column","style":{"width":250,"height":300}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+    const ext = scene.scrollExtent(1);
+    // Grandchild is 250 wide and 300 high through visible child 2.
+    // max_scroll_x = 250 - 100 = 150
+    // max_scroll_y = 300 - 100 = 200
+    try std.testing.expectApproxEqAbs(@as(f32, 150), ext.max_scroll_x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 200), ext.max_scroll_y, 0.01);
+
+    // When parent clips/scrolls, grandchild overflow is isolated from root!
+    const jsonClipped =
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"block","overflow":"hidden","width":100,"height":100},"children":[{"id":3,"type":"column","style":{"width":250,"height":300}}]}]}
+    ;
+    var sceneClipped = try Scene.init(std.testing.allocator, jsonClipped, 100, 100);
+    defer sceneClipped.deinit();
+    const extClipped = sceneClipped.scrollExtent(1);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), extClipped.max_scroll_x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), extClipped.max_scroll_y, 0.01);
+}
+
+test "C-NESTED-WHEEL: scroll chaining across nested scroll containers (SCROLL-02)" {
+    // Outer scroll container 1 (100x100) containing child 2 (height 200) -> max_scroll_y = 100
+    // Inside child 2, inner scroll container 3 (at x=0, y=0, 80x80) containing grandchild 4 (height 120) -> max_scroll_y = 40
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"flex","width":100,"height":200},"children":[{"id":3,"type":"column","style":{"display":"flex","overflow":"scroll","width":80,"height":80},"children":[{"id":4,"type":"column","style":{"width":80,"height":120}}]}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+
+    var offsets = std.AutoHashMap(u32, root.ScrollOffset).init(std.testing.allocator);
+    defer offsets.deinit();
+
+    // Wheel delta_y = 60 inside inner container (x=10, y=10)
+    const chained = scene.chainWheel(10, 10, 0, 60, &offsets);
+    try std.testing.expect(chained);
+
+    // Inner container (id 3) should have consumed 40 (its max_scroll_y)
+    const inner_offset = offsets.get(3).?;
+    try std.testing.expectApproxEqAbs(@as(f32, 40), inner_offset.y, 0.01);
+
+    // Outer container (id 1) should have received remaining 20!
+    const outer_offset = offsets.get(1).?;
+    try std.testing.expectApproxEqAbs(@as(f32, 20), outer_offset.y, 0.01);
+}
+
+test "per-axis overflow: overflowX vs overflowY (SCROLL-01)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","overflowX":"scroll","overflowY":"hidden","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"width":200,"height":200,"flexShrink":0}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+    const root_node = scene.find(1).?.node;
+    try std.testing.expect(root_node.isScrollContainerX());
+    try std.testing.expect(!root_node.isScrollContainerY());
+    try std.testing.expect(root_node.clipsX());
+    try std.testing.expect(root_node.clipsY());
+
+    var offsets = std.AutoHashMap(u32, root.ScrollOffset).init(std.testing.allocator);
+    defer offsets.deinit();
+    try offsets.put(1, .{ .x = 50, .y = 50 });
+
+    scene.applyScrollOffsets(&offsets);
+    // Y must be clamped to 0 because overflowY is not scrollable!
+    try std.testing.expectApproxEqAbs(@as(f32, 50), offsets.get(1).?.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), offsets.get(1).?.y, 0.01);
+}
+
+test "input focusable vs clickable separation and tab navigation (INPUT-02)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","width":100,"height":100},"children":[{"id":2,"type":"button","clickable":false},{"id":3,"type":"column","tabIndex":0},{"id":4,"type":"column","tabIndex":-1},{"id":5,"type":"column","focusable":true}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+
+    // Disabled button: not clickable, not focusable
+    const btn = scene.find(2).?.node;
+    try std.testing.expect(!btn.clickable);
+    try std.testing.expect(!btn.isFocusable());
+    try std.testing.expect(!btn.isFocusableForTab());
+
+    // tabIndex 0: focusable, included in Tab order
+    const col0 = scene.find(3).?.node;
+    try std.testing.expect(col0.isFocusable());
+    try std.testing.expect(col0.isFocusableForTab());
+
+    // tabIndex -1: programmatically focusable, excluded from Tab order
+    const colNeg = scene.find(4).?.node;
+    try std.testing.expect(colNeg.isFocusable());
+    try std.testing.expect(!colNeg.isFocusableForTab());
+
+    // focusable true: focusable, included in Tab order
+    const colFoc = scene.find(5).?.node;
+    try std.testing.expect(colFoc.isFocusable());
+    try std.testing.expect(colFoc.isFocusableForTab());
+}
+
+test "text_edit: grapheme clusters and pointer caret positioning (INPUT-01)" {
+    const text_edit = @import("text_edit.zig");
+    // UTF-8 string: "A" (1 byte), "é" (2 bytes), "e\u{0301}" (e + combining acute = 3 bytes grapheme), "B" (1 byte)
+    const s = "A\u{00E9}e\u{0301}B";
+    try std.testing.expectEqual(@as(usize, 0), text_edit.prevGrapheme(s, 1));
+    try std.testing.expectEqual(@as(usize, 1), text_edit.nextGrapheme(s, 0));
+    // next after index 1 (at \u{00E9}) advances by 2 bytes to 3
+    try std.testing.expectEqual(@as(usize, 3), text_edit.nextGrapheme(s, 1));
+    // next after index 3 (at e + combining acute) advances 3 bytes to 6
+    try std.testing.expectEqual(@as(usize, 6), text_edit.nextGrapheme(s, 3));
+    // prev from 6 goes back to 3
+    try std.testing.expectEqual(@as(usize, 3), text_edit.prevGrapheme(s, 6));
+
+    // Pointer caret positioning
+    const t = root.Text{};
+    const str = "hello world";
+    // Each char is 0.5 * 16 = 8px wide.
+    // 'h'=8, 'e'=16, 'l'=24, 'l'=32, 'o'=40
+    // Click at x=18 (closer to 16 than 24) -> caret at 2 ('e')
+    const pos = text_edit.positionForX(str, 18, 16, t);
+    try std.testing.expectEqual(@as(usize, 2), pos);
+
+    // Click past end -> caret at len
+    const posEnd = text_edit.positionForX(str, 200, 16, t);
+    try std.testing.expectEqual(str.len, posEnd);
+}
+
+

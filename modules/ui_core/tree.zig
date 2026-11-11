@@ -1,7 +1,7 @@
 //! Persistent node storage for incremental bridge commits.
 const std = @import("std");
 const core = @import("root.zig");
-const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", clickable: bool = false, intrinsicAspectRatio: ?f32 = null, style: core.Style = .{}, children: []const u32 = &.{} };
+const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, intrinsicAspectRatio: ?f32 = null, style: core.Style = .{}, children: []const u32 = &.{} };
 const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, removed: []const u32 = &.{} };
 const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode };
 pub const Tree = struct {
@@ -55,6 +55,12 @@ pub const Tree = struct {
             copy.style.borderLeftColor = try a.dupe(u8, n.style.borderLeftColor);
             copy.style.boxSizing = try a.dupe(u8, n.style.boxSizing);
             copy.style.overflow = try a.dupe(u8, n.style.overflow);
+            copy.style.overflowX = try a.dupe(u8, n.style.overflowX);
+            copy.style.overflowY = try a.dupe(u8, n.style.overflowY);
+            copy.style.scrollbarGutter = try a.dupe(u8, n.style.scrollbarGutter);
+            copy.style.scrollbarWidth = try a.dupe(u8, n.style.scrollbarWidth);
+            copy.style.whiteSpace = try a.dupe(u8, n.style.whiteSpace);
+            copy.style.textAlign = try a.dupe(u8, n.style.textAlign);
             copy.style.outlineColor = try a.dupe(u8, n.style.outlineColor);
             copy.style.boxShadow = try a.dupe(u8, n.style.boxShadow);
             const s_info = @typeInfo(core.Style).@"struct";
@@ -101,6 +107,6 @@ pub const Tree = struct {
         const n = (self.nodes.get(id) orelse return error.UnknownNode).node;
         const children = try allocator.alloc(core.Node, n.children.len);
         for (n.children, 0..) |child, i| children[i] = try self.materialize(allocator, child, depth + 1);
-        return .{ .id = n.id, .type = n.type, .text = n.text, .value = n.value, .clickable = n.clickable, .intrinsicAspectRatio = n.intrinsicAspectRatio, .style = n.style, .children = children };
+        return .{ .id = n.id, .type = n.type, .text = n.text, .value = n.value, .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .intrinsicAspectRatio = n.intrinsicAspectRatio, .style = n.style, .children = children };
     }
 };

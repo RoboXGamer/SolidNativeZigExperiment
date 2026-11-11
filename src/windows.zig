@@ -27,8 +27,6 @@ fn roundness(rect: rl.Rectangle, radius: f32) f32 {
 }
 
 /// Real font metrics for layout: Raylib owns the glyph atlas, so ask it for
-/// advance widths instead of guessing per character. Chunked to keep a fixed
-/// stack buffer for the NUL-terminated C string.
 fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics {
     const size: i32 = @intFromFloat(@max(1.0, @round(font_size)));
     var buf: [512]u8 = undefined;
@@ -42,14 +40,19 @@ fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics
         total += rl.measureText(buf[0..chunk :0], size);
         offset += chunk;
     }
+    const h = font_size * ui.text.fallback_line_height_ratio;
+    const asc = font_size * ui.text.fallback_ascent_ratio;
+    const desc = font_size * ui.text.fallback_descent_ratio;
     return .{
         .width = @floatFromInt(total),
-        .height = font_size,
-        .ascent = font_size * ui.text.fallback_ascent_ratio,
+        .height = h,
+        .ascent = asc,
+        .descent = desc,
+        .leading = @max(0, h - (asc + desc)),
     };
 }
 
-fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator: std.mem.Allocator) !void {
+fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_offsets: *std.AutoHashMap(u32, ui.ScrollOffset), allocator: std.mem.Allocator) !void {
     for (scene.items.items) |item| {
         const n = item.node;
         if (std.mem.eql(u8, n.type, "__layout_root")) continue;
@@ -62,7 +65,11 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator:
         var clip = scene.clipFor(item);
         if (is_input) clip = clip.intersect(b);
         if (clip.isEmpty()) continue;
-        rl.beginScissorMode(@intFromFloat(clip.left()), @intFromFloat(clip.top()), @intFromFloat(clip.width), @intFromFloat(clip.height));
+        const clip_x: i32 = @intFromFloat(@floor(clip.left()));
+        const clip_y: i32 = @intFromFloat(@floor(clip.top()));
+        const clip_w: i32 = @intFromFloat(@ceil(clip.width));
+        const clip_h: i32 = @intFromFloat(@ceil(clip.height));
+        rl.beginScissorMode(clip_x, clip_y, clip_w, clip_h);
         defer rl.endScissorMode();
         // box shadow (parsed: "ox oy blur spread color")
         if (n.style.boxShadow.len > 0) {
@@ -99,11 +106,22 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator:
             const orect = rl.Rectangle{ .x = rect.x - n.style.outlineWidth, .y = rect.y - n.style.outlineWidth, .width = rect.width + 2 * n.style.outlineWidth, .height = rect.height + 2 * n.style.outlineWidth };
             rl.drawRectangleLinesEx(orect, n.style.outlineWidth, color(n.style.outlineColor, .white));
         }
-        const font_size: i32 = @intFromFloat(n.fontSize());
+        const font_size_int: i32 = @intFromFloat(@max(1.0, @round(n.fontSize())));
         if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
-            const text = try allocator.dupeSentinel(u8, n.text, 0);
             const content = n.contentBox(b);
-            rl.drawText(text, @intFromFloat(content.x), @intFromFloat(content.y), font_size, color(n.style.color, .white));
+            const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else scene.text.lineHeight(n.fontSize())) else scene.text.lineHeight(n.fontSize());
+            const lines = scene.text.shapeLines(allocator, n.text, n.fontSize(), content.width, n.style.whiteSpace) catch &.{};
+            for (lines, 0..) |sline, line_idx| {
+                var line_x = content.x;
+                if (std.mem.eql(u8, n.style.textAlign, "center")) {
+                    line_x += @max(0, (content.width - sline.width) / 2);
+                } else if (std.mem.eql(u8, n.style.textAlign, "right")) {
+                    line_x += @max(0, content.width - sline.width);
+                }
+                const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
+                const c_text = try allocator.dupeSentinel(u8, sline.text, 0);
+                rl.drawText(c_text, @intFromFloat(@round(line_x)), @intFromFloat(@round(line_y)), font_size_int, color(n.style.color, .white));
+            }
         }
         if (std.mem.eql(u8, n.type, "input")) {
             const value = try allocator.dupeSentinel(u8, n.value, 0);
@@ -112,18 +130,33 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator:
             const text_y = content.y;
             if (focused == n.id) {
                 editor.clamp(n.value);
-                const caret = measureRaylib(null, n.value[0..editor.cursor], @floatFromInt(font_size)).width;
+                const caret = measureRaylib(null, n.value[0..editor.cursor], @floatFromInt(font_size_int)).width;
                 text_x -= @max(0, caret - @max(0, content.width - 4));
                 const selected = editor.selection();
-                const start = measureRaylib(null, n.value[0..selected.start], @floatFromInt(font_size)).width;
-                const end = measureRaylib(null, n.value[0..selected.end], @floatFromInt(font_size)).width;
+                const start = measureRaylib(null, n.value[0..selected.start], @floatFromInt(font_size_int)).width;
+                const end = measureRaylib(null, n.value[0..selected.end], @floatFromInt(font_size_int)).width;
                 if (selected.start != selected.end) {
-                    rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size) }, .blue);
+                    rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size_int) }, .blue);
                 } else {
-                    rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size)) }, 1, .white);
+                    rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
                 }
             }
-            rl.drawText(value, @intFromFloat(text_x), @intFromFloat(text_y), font_size, color(n.style.color, .white));
+            rl.drawText(value, @intFromFloat(text_x), @intFromFloat(text_y), font_size_int, color(n.style.color, .white));
+        }
+        // Scrollbar rendering
+        if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {
+            const extent = scene.scrollExtent(n.id);
+            if (extent.max_scroll_y > 0) {
+                const track_w: f32 = if (std.mem.eql(u8, n.style.scrollbarWidth, "thin")) 4 else 8;
+                const track_h = rect.height;
+                const track_x = rect.x + rect.width - track_w;
+                const track_y = rect.y;
+                rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, rl.Color.init(0, 0, 0, 40));
+                const thumb_h = @max(16, track_h * (rect.height / extent.total_height));
+                const cur_offset = if (scroll_offsets.get(n.id)) |so| so.y else 0;
+                const thumb_y = track_y + (cur_offset / extent.max_scroll_y) * (track_h - thumb_h);
+                rl.drawRectangleRec(.{ .x = track_x, .y = thumb_y, .width = track_w, .height = thumb_h }, rl.Color.init(255, 255, 255, 100));
+            }
         }
         if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
     }
@@ -231,7 +264,7 @@ pub fn run() void {
         return;
     };
     defer scene.deinit();
-    var scroll_offsets = std.AutoHashMap(u32, f32).init(std.heap.page_allocator);
+    var scroll_offsets = std.AutoHashMap(u32, ui.ScrollOffset).init(std.heap.page_allocator);
     defer scroll_offsets.deinit();
     var focused: ?u32 = null;
     var editing: ?u32 = null;
@@ -246,11 +279,7 @@ pub fn run() void {
         const wheel = rl.getMouseWheelMove();
         if (wheel != 0) {
             const mouse = rl.getMousePosition();
-            if (scene.scrollTarget(mouse.x, mouse.y)) |id| {
-                const entry = scroll_offsets.getOrPut(id) catch break;
-                if (!entry.found_existing) entry.value_ptr.* = 0;
-                entry.value_ptr.* -= wheel * 40;
-            }
+            _ = scene.chainWheel(mouse.x, mouse.y, 0, -wheel * 40, &scroll_offsets);
         }
         if (watching and ui_watch_changed() != 0) {
             if (runtime.reload()) {
@@ -262,7 +291,29 @@ pub fn run() void {
         if (rl.isMouseButtonPressed(.left)) {
             const mouse = rl.getMousePosition();
             focused = scene.hitTest(mouse.x, mouse.y);
-            if (focused) |id| runtime.click(id) catch |err| std.log.err("Click failed: {}", .{err});
+            if (focused) |id| {
+                if (scene.find(id)) |item| {
+                    if (std.mem.eql(u8, item.node.type, "input")) {
+                        const content = item.node.contentBox(item.bounds);
+                        const rel_x = mouse.x - content.x;
+                        const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), scene.text);
+                        editor.move(idx, false);
+                    }
+                }
+                runtime.click(id) catch |err| std.log.err("Click failed: {}", .{err});
+            }
+        } else if (rl.isMouseButtonDown(.left)) {
+            if (focused) |id| {
+                if (scene.find(id)) |item| {
+                    if (std.mem.eql(u8, item.node.type, "input")) {
+                        const mouse = rl.getMousePosition();
+                        const content = item.node.contentBox(item.bounds);
+                        const rel_x = mouse.x - content.x;
+                        const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), scene.text);
+                        editor.move(idx, true);
+                    }
+                }
+            }
         }
         if (rl.isKeyPressed(.tab)) {
             const reverse = rl.isKeyDown(.left_shift) or rl.isKeyDown(.right_shift);
@@ -271,7 +322,7 @@ pub fn run() void {
             var selected: ?u32 = null;
             var previous: ?u32 = null;
             for (scene.items.items) |item| {
-                if (!item.node.clickable) continue;
+                if (!item.node.isFocusableForTab()) continue;
                 if (first == null) first = item.node.id;
                 if (reverse) {
                     if (focused == item.node.id) selected = previous;
@@ -288,6 +339,13 @@ pub fn run() void {
         }
         if (rl.isKeyPressed(.enter)) if (focused) |id| {
             if (scene.find(id) != null) runtime.click(id) catch {};
+        };
+        if (rl.isKeyPressed(.space)) if (focused) |id| {
+            if (scene.find(id)) |item| {
+                if (std.mem.eql(u8, item.node.type, "button")) {
+                    runtime.click(id) catch {};
+                }
+            }
         };
         if (editing != focused) {
             editing = focused;
@@ -310,7 +368,7 @@ pub fn run() void {
             scene = next;
             last_width = rl.getScreenWidth();
             last_height = rl.getScreenHeight();
-            scene.applyScroll(&scroll_offsets);
+            scene.applyScrollOffsets(&scroll_offsets);
             var offsets = scroll_offsets.keyIterator();
             while (offsets.next()) |id| {
                 if (scene.find(id.*) == null) {
@@ -324,7 +382,7 @@ pub fn run() void {
         };
         rl.beginDrawing();
         rl.clearBackground(background_color);
-        renderScene(&scene, focused, &editor, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
+        renderScene(&scene, focused, &editor, &scroll_offsets, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
         if (event_waiting) ui_wake_schedule(runtime.nextTimeout());
         rl.endDrawing();
     }

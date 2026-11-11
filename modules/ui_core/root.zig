@@ -22,6 +22,11 @@ pub const Text = text.Text;
 pub const Metrics = text.Metrics;
 pub const MeasureFn = text.MeasureFn;
 pub const TextEdit = @import("text_edit.zig").TextEdit;
+pub const text_edit = @import("text_edit.zig");
+pub const ScrollOffset = scene.ScrollOffset;
+pub const ScrollExtent = scene.ScrollExtent;
+pub const layout_block = @import("layout_block.zig");
+pub const layout_flex = @import("layout_flex.zig");
 
 test {
     std.testing.refAllDecls(@import("tests.zig"));

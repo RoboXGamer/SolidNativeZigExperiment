@@ -263,12 +263,46 @@ export function snapshot(node, inherited = {}) {
       if (/^\d+(?:\.\d+)?px$/.test(track)) return Number(track.slice(0, -2));
       throw Error(`Unsupported grid track: ${track}; use px or fr tracks`);
     });
+
+  const isButton = node.type === "button";
+  const isInput = node.type === "input";
+  const clickable = !node.props.disabled && (typeof node.props.onClick === "function" || isButton || isInput);
+  const tabIndex = typeof node.props.tabIndex === "number" ? Math.trunc(node.props.tabIndex) : null;
+  const focusable = Boolean(node.props.focusable) || (tabIndex != null) || (!node.props.disabled && (isInput || isButton));
+
+  let overflowX = typeof style.overflowX === "string" ? style.overflowX : "";
+  let overflowY = typeof style.overflowY === "string" ? style.overflowY : "";
+  let overflow = typeof style.overflow === "string" ? style.overflow : "visible";
+  if (typeof style.overflow === "string") {
+    const parts = splitSpacing(style.overflow.trim());
+    if (parts.length === 2) {
+      if (!overflowX) overflowX = parts[0];
+      if (!overflowY) overflowY = parts[1];
+    }
+  }
+
+  let lineHeight = null;
+  let lineHeightCss = null;
+  if (typeof style.lineHeight === "number") {
+    lineHeight = style.lineHeight;
+  } else if (typeof style.lineHeight === "string") {
+    const trimmed = style.lineHeight.trim();
+    const num = Number(trimmed);
+    if (Number.isFinite(num) && num > 0 && !/[a-z%]/i.test(trimmed)) {
+      lineHeight = num;
+    } else if (trimmed) {
+      lineHeightCss = trimmed;
+    }
+  }
+
   return {
     id: node.id,
     type: node.type,
     text: node.text,
-    clickable: !node.props.disabled && (typeof node.props.onClick === "function" || node.type === "input"),
-    value: node.type === "input" ? String(node.props.value ?? "") : "",
+    clickable,
+    focusable,
+    tabIndex,
+    value: isInput ? String(node.props.value ?? "") : "",
     style: {
       direction: style.direction ?? "ltr",
       writingMode: style.writingMode,
@@ -307,7 +341,15 @@ export function snapshot(node, inherited = {}) {
       borderBottomRightRadius: typeof style.borderBottomRightRadius === "number" ? style.borderBottomRightRadius : 0,
       borderBottomLeftRadius: typeof style.borderBottomLeftRadius === "number" ? style.borderBottomLeftRadius : 0,
       boxSizing: typeof style.boxSizing === "string" ? style.boxSizing : "content-box",
-      overflow: typeof style.overflow === "string" ? style.overflow : "visible",
+      overflow,
+      overflowX,
+      overflowY,
+      scrollbarGutter: typeof style.scrollbarGutter === "string" ? style.scrollbarGutter : "",
+      scrollbarWidth: typeof style.scrollbarWidth === "string" ? style.scrollbarWidth : "",
+      whiteSpace: typeof style.whiteSpace === "string" ? style.whiteSpace : "normal",
+      textAlign: typeof style.textAlign === "string" ? style.textAlign : "left",
+      lineHeight,
+      lineHeightCss: lineHeightCss ?? "",
       outlineWidth: typeof style.outlineWidth === "number" ? style.outlineWidth : 0,
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",

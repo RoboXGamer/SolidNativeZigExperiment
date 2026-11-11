@@ -1,6 +1,8 @@
 # Solid + Raylib experiment
 
-This is a small proof of concept: the Solid Vite plugin compiles JSX for a custom universal renderer, which maintains a JavaScript tree in QuickJS-NG; Zig reads the counter label and draws a fixed button with Raylib. It is not yet a general-purpose native renderer or layout engine.
+This is an early native UI experiment. The Solid Vite plugin compiles JSX for a custom universal renderer in QuickJS-NG. Zig receives a snapshot of that tree, lays out nodes, draws them with Raylib, and sends clicks back by node ID.
+
+`modules/ui_core` contains backend-independent scene parsing, basic row/column layout, and hit testing. `modules/solid_bridge` wraps the QuickJS runtime and snapshot/click interface. The application in `src` supplies the Raylib backend and Windows development watcher. These are separate build modules, but are not yet independently packaged libraries.
 
 ## Setup
 
@@ -22,4 +24,4 @@ This is an experimental, Counter-only HMR adapter, not general module loading: S
 
 Run `pnpm run test:ui` on Windows to check the counter through QuickJS without opening a window. `pnpm run test:refresh` checks Solid Refresh and the universal renderer in Node's development runtime.
 
-Raylib waits for events; application timers and background updates do not yet wake the window. Layout, hit testing, and mapping the tree to drawing are intentionally fixed for this counter.
+Run `zig build test` for the native core tests and `pnpm run test:tree` for Solid tree/control-flow tests. The current layout supports simple rows and columns, numeric width/height, padding and gap, and basic hex colors and font size. It is not Flexbox or CSS Grid. Text width is estimated and text shaping, clipping, scrolling, keyboard focus and text input are not implemented. The bridge currently sends a full tree snapshot on each wake, not incremental mutation batches. Raylib waits for events; application timers and background updates do not yet wake the window. HMR remains Counter-only, and the requested full set of Solid primitives and components has not yet been verified.

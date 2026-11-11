@@ -1,50 +1,4 @@
-﻿#include "quickjs.h"
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-static JSRuntime *runtime;
-static JSContext *context;
-static void report(void) {
-    JSValue e = JS_GetException(context);
-    const char *s = JS_ToCString(context, e);
-    fprintf(stderr, "QuickJS: %s\n", s ? s : "unknown error");
-    if (s) JS_FreeCString(context, s);
-    JS_FreeValue(context, e);
-}
-static int jobs(void) {
-    JSContext *job_context;
-    int result;
-    while ((result = JS_ExecutePendingJob(runtime, &job_context)) > 0) {}
-    if (result < 0) { report(); return 0; }
-    return 1;
-}
-int ui_init(const char *source, size_t len) {
-    runtime = JS_NewRuntime();
-    if (!runtime) return 0;
-    JS_SetMaxStackSize(runtime, 8 * 1024 * 1024);
-    context = JS_NewContext(runtime);
-    if (!context) return 0;
-    JSValue value = JS_Eval(context, source, len, "ui-bundle.js", JS_EVAL_TYPE_GLOBAL);
-    if (JS_IsException(value)) { report(); JS_FreeValue(context, value); return 0; }
-    JS_FreeValue(context, value);
-    return jobs();
-}
-int ui_eval(const char *code, char *out, size_t capacity) {
-    JSValue value = JS_Eval(context, code, strlen(code), "host", JS_EVAL_TYPE_GLOBAL);
-    if (JS_IsException(value)) { report(); JS_FreeValue(context, value); return 0; }
-    const char *text = JS_ToCString(context, value);
-    if (!text) { JS_FreeValue(context, value); return 0; }
-    snprintf(out, capacity, "%s", text);
-    JS_FreeCString(context, text);
-    JS_FreeValue(context, value);
-    return jobs();
-}
-void ui_destroy(void) {
-    if (context) JS_FreeContext(context);
-    if (runtime) JS_FreeRuntime(runtime);
-    context = NULL; runtime = NULL;
-}
-
 #ifdef _WIN32
 #include <windows.h>
 extern void glfwPostEmptyEvent(void);
@@ -71,7 +25,8 @@ static DWORD WINAPI watch_main(LPVOID unused) {
         for (DWORD offset = 0; offset < bytes;) {
             FILE_NOTIFY_INFORMATION *entry = (FILE_NOTIFY_INFORMATION *)(buffer + offset);
             const wchar_t name[] = L"ui-hmr.js";
-            if (entry->FileNameLength == sizeof(name) - sizeof(wchar_t) &&
+            if ((entry->Action == FILE_ACTION_RENAMED_NEW_NAME || entry->Action == FILE_ACTION_ADDED || entry->Action == FILE_ACTION_MODIFIED) &&
+                entry->FileNameLength == sizeof(name) - sizeof(wchar_t) &&
                 _wcsnicmp(entry->FileName, name, entry->FileNameLength / sizeof(wchar_t)) == 0) {
                 InterlockedExchange(&watch_changed, 1);
                 glfwPostEmptyEvent();
@@ -113,21 +68,3 @@ void ui_watch_stop(void) {}
 #endif
 
 
-int ui_reload(void) {
-    FILE *file = fopen("src/ui-hmr.js", "rb");
-    if (!file) return 0;
-    if (fseek(file, 0, SEEK_END) != 0) { fclose(file); return 0; }
-    long size = ftell(file);
-    if (size <= 0 || size > 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) { fclose(file); return 0; }
-    char *source = malloc((size_t)size + 1);
-    if (!source) { fclose(file); return 0; }
-    size_t read = fread(source, 1, (size_t)size, file);
-    fclose(file);
-    if (read != (size_t)size) { free(source); return 0; }
-    source[size] = '\0';
-    JSValue result = JS_Eval(context, source, (size_t)size, "vite-hmr", JS_EVAL_TYPE_GLOBAL);
-    free(source);
-    if (JS_IsException(result)) { report(); JS_FreeValue(context, result); return 0; }
-    JS_FreeValue(context, result);
-    return jobs();
-}

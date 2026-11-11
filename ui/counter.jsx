@@ -1,10 +1,12 @@
-import { createSignal } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
 
 export function Counter() {
-  const [count, setCount] = createSignal(50);
+  const [count, setCount] = createSignal(2);
+  const doubleCount = createMemo(() => count() * 2);
   return (
-    <column>
+    <column style={{ padding: 20, gap: 8 }}>
       <label>Count: {count()}</label>
+      <label>Double Count: {doubleCount()}</label>
       <button onClick={() => setCount(count() + 1)}>Increment</button>
     </column>
   );

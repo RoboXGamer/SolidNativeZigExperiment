@@ -1,55 +1,81 @@
 ﻿import { createServer } from "vite";
+import { transformAsync } from "@babel/core";
+import commonjs from "@babel/plugin-transform-modules-commonjs";
 import { writeFile, rename } from "node:fs/promises";
-
 const port = Number(process.env.DRAFT1_VITE_PORT || 5173);
 const server = await createServer({ server: { host: "127.0.0.1", port, strictPort: true } });
 await server.listen();
-const url = `http://127.0.0.1:${port}`;
-const counterPath = "/ui/counter.jsx";
-let pending = Promise.resolve();
-
-async function loadCounter() {
-  const response = await fetch(`${url}${counterPath}?t=${Date.now()}`);
-  if (!response.ok) throw new Error(`Vite transform: HTTP ${response.status}`);
-  let code = await response.text();
-  code = code.replace(/^import \{ createHotContext as __vite__createHotContext \} from "\/@vite\/client";import\.meta\.hot = __vite__createHotContext\("[^"]+"\);/, "");
-  code = code.replace(/import \{ ([\w$]+) as ([\w$]+) \} from "\/ui\/renderer\.js";/g, "const $2 = globalThis.__uiRenderer.$1;");
-  code = code.replace(/import \{ ([\w$,\s]+) \} from "\/node_modules\/\.vite\/deps\/solid-js\.js(?:\?[^\"]*)?";/g,
-    (_, names) => names.split(",").map(part => {
-      const [imported, local] = part.trim().split(/\s+as\s+/);
-      return `const ${local || imported} = globalThis.__uiSolid.${imported};`;
-    }).join("\n"));
-  code = code.replace(/import \{ ([\w$]+) as ([\w$]+) \} from "\/node_modules\/\.vite\/deps\/solid-js_refresh\.js(?:\?[^\"]*)?";/g,
-    "const $2 = globalThis.__uiRefresh.$1;");
-  code = code.replace(/export \{ Counter \};/, "");
-  code = code.replace(/if \(import\.meta\.hot\) import\.meta\.hot\.accept\(\);/, "");
-  code = code.replaceAll("import.meta.hot", "globalThis.__uiHot");
-  code = code.replace(/\/\/# sourceMappingURL=.*$/m, "");
-  if (/\b(?:import|export)\s/.test(code) || !/\$\$component|_\$\$component/.test(code)) {
-    throw new Error("Unsupported component imports/exports; restart the app after changing its module dependencies");
-  }
-  const patch = `(function () {\nconst previousAccept = globalThis.__uiHot.callback;\n${code}\nif (typeof previousAccept !== "function") throw Error("Solid Refresh boundary missing");\npreviousAccept({ Counter });\n})();\n`;
-  await writeFile("src/ui-hmr.tmp", patch, "utf8");
-  await rename("src/ui-hmr.tmp", "src/ui-hmr.js");
-  console.log("[native-hmr] sent Counter update to QuickJS");
+const origin = `http://127.0.0.1:${port}`;
+const entry = "/ui/app.js";
+const clean = id => id.split("?")[0];
+function external(id) {
+  if (id === "/ui/native.js" || id === "/packages/solid-zig/src/native.js") return "native-host";
+  if (id === "/ui/renderer.js" || id === "/packages/solid-zig/src/renderer.js") return "native-renderer";
+  if (id.includes("solid-js_refresh")) return "solid-refresh";
+  if (id.includes("solid-js.js")) return "solid-js";
+  return null;
 }
-
-// Load once so Vite's module graph knows the explicit accept boundary.
-await fetch(`${url}${counterPath}`);
-const token = server.config.webSocketToken;
-const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${encodeURIComponent(token)}`, "vite-hmr");
-ws.addEventListener("open", () => console.log("[native-hmr] connected to Vite; run pnpm dev:app in another terminal"));
+async function compileGraph() {
+  const graph = {};
+  const visiting = new Set();
+  async function visit(id) {
+    id = clean(id);
+    if (visiting.has(id)) return;
+    visiting.add(id);
+    const response = await fetch(`${origin}${id}`);
+    if (!response.ok) throw Error(`Vite transform failed: ${id} (${response.status})`);
+    const source = await response.text();
+    const dependencies = new Set();
+    const rewrite = () => ({ visitor: {
+      ImportDeclaration(path) {
+        const value = path.node.source.value;
+        if (value === "/@vite/client") { path.remove(); return; }
+        const dependency = clean(value);
+        path.node.source.value = external(dependency) || dependency;
+        if (!external(dependency)) dependencies.add(dependency);
+      },
+      ExportNamedDeclaration(path) {
+        if (path.node.source) {
+          const dependency = clean(path.node.source.value);
+          path.node.source.value = external(dependency) || dependency;
+          if (!external(dependency)) dependencies.add(dependency);
+        }
+      },
+      ExpressionStatement(path) {
+        const e = path.node.expression;
+        if (e.type === "AssignmentExpression" && e.right.type === "CallExpression" && e.right.callee.name === "__vite__createHotContext") path.remove();
+      },
+      MetaProperty(path) { path.replaceWith({ type: "Identifier", name: "__meta" }); },
+      ImportExpression(path) {
+        if (path.node.source.type !== "StringLiteral") throw path.buildCodeFrameError("Native dynamic imports must use a literal module path");
+        const dependency = clean(new URL(path.node.source.value, origin + id).pathname);
+        dependencies.add(dependency);
+        path.replaceWith({ type: "CallExpression", callee: { type: "MemberExpression", object: { type: "Identifier", name: "__meta" }, property: { type: "Identifier", name: "import" }, computed: false }, arguments: [{ type: "StringLiteral", value: dependency }] });
+      },
+    } });
+    const result = await transformAsync(source, { filename: id, configFile: false, babelrc: false, sourceType: "module", plugins: [rewrite, commonjs], comments: false });
+    graph[id] = result.code;
+    await Promise.all([...dependencies].map(visit));
+  }
+  await visit(entry);
+  return graph;
+}
+async function publish() {
+  const graph = await compileGraph();
+  await writeFile("src/ui-hmr.tmp", `globalThis.__uiModules.apply(${JSON.stringify(graph)}, ${JSON.stringify(entry)});\n`, "utf8");
+  await rename("src/ui-hmr.tmp", "src/ui-hmr.js");
+  console.log(`[native-hmr] published ${Object.keys(graph).length} application modules`);
+}
+let pending = Promise.resolve();
+await publish();
+const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${encodeURIComponent(server.config.webSocketToken)}`, "vite-hmr");
+ws.addEventListener("open", () => console.log("[native-hmr] connected; run pnpm dev:app"));
 ws.addEventListener("message", event => {
   const message = JSON.parse(event.data);
-  if (message.type === "update" && message.updates.some(u => u.path === counterPath || u.acceptedPath === counterPath)) {
-    pending = pending.then(loadCounter).catch(error => console.error("[native-hmr]", error.message));
-  } else if (message.type === "error") {
-    console.error("[vite]", message.err?.message || "transform failed");
-  } else if (message.type === "full-reload") {
-    console.warn("[native-hmr] Vite requested a full reload; rebuild UI and restart Zig for changes outside Counter");
-  }
+  if (message.type === "update" || message.type === "full-reload") pending = pending.then(publish).catch(error => console.error("[native-hmr]", error.message));
+  if (message.type === "error") console.error("[vite]", message.err?.message);
 });
-ws.addEventListener("error", () => console.error("[native-hmr] Vite websocket error"));
+ws.addEventListener("error", () => console.error("[native-hmr] websocket error"));
 async function stop() { ws.close(); await server.close(); process.exit(); }
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);

@@ -1,0 +1,15 @@
+﻿import assert from "node:assert/strict";
+import { createModuleHost } from "../ui/module-runtime.js";
+const state = {};
+const host = createModuleHost({ host: state });
+const main = 'const dep = require("dep"); require("host").value = dep.value;';
+host.apply({ main, dep: 'exports.value = 1;' }, "main");
+assert.equal(state.value, 1);
+host.apply({ main, dep: 'exports.value = 2;' }, "main");
+assert.equal(state.value, 2, "ordinary dependency changes propagate to the entry");
+assert.throws(() => host.apply({ main: 'this is invalid !' }, "main"));
+const boundary = 'require("host").mounts = (require("host").mounts || 0) + 1; exports.value = 1; __meta.hot.accept(next => { require("host").accepted = next.value; });';
+host.apply({ boundary }, "boundary");
+host.apply({ boundary: boundary.replace('exports.value = 1', 'exports.value = 2') }, "boundary");
+assert.equal(state.accepted, 2, "previous accept handler receives the new module exports");
+console.log("Native module graph tests passed");

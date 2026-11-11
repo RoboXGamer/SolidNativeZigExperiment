@@ -1,0 +1,96 @@
+﻿(function () {
+  const s = globalThis.__uiSolid;
+  const required = "createDeferred createEffect createMemo createOptimistic createSignal flush from isPending latest untrack createOptimisticStore createProjection createStore merge omit reconcile action affects onFlush onSettled refresh until children createContext createUniqueId lazy lazyModule useContext Errored For Loading Repeat Reveal Show Switch Match".split(" ");
+  for (const name of required) if (typeof s[name] !== "function") throw Error(`Missing Solid API: ${name}`);
+  const assert = (condition, message) => { if (!condition) throw Error(message); };
+  const r = globalThis.__uiRenderer;
+  function checkComponent(Component, props, expected) {
+    const root = r.node("root");
+    const cleanup = r.render(() => s.createComponent(Component, props), root);
+    s.flush();
+    const text = n => n.text + n.children.map(text).join("");
+    assert(text(root) === expected, `component ${Component.name}: ${text(root)} !== ${expected}`);
+    cleanup();
+  }
+  checkComponent(s.Show, { when: true, children: "shown" }, "shown");
+  checkComponent(s.For, { each: [1, 2], children: n => String(n) }, "12");
+  checkComponent(s.Repeat, { count: 3, children: n => String(n) }, "012");
+  checkComponent(s.Switch, { get children() { return [s.createComponent(s.Match, { when: false, children: "no" }), s.createComponent(s.Match, { when: true, children: "yes" })]; } }, "yes");
+  checkComponent(s.Loading, { fallback: "waiting", children: "ready" }, "ready");
+  checkComponent(s.Reveal, { children: "revealed" }, "revealed");
+  checkComponent(s.Errored, { fallback: "caught", get children() { throw Error("expected test error"); } }, "caught");
+  let asyncCheck;
+  let dispose;
+  s.createRoot(d => {
+    dispose = d;
+    const [value, set] = s.createSignal(1, { ownedWrite: true });
+    const doubled = s.createMemo(() => value() * 2);
+    const deferred = s.createDeferred(() => value() * 3);
+    let effect = 0;
+    s.createEffect(value, n => { effect = n; });
+    s.flush();
+    assert(doubled() === 2, "memo initial");
+    assert(deferred() === 3, "deferred initial");
+    set(3); s.flush();
+    assert(doubled() === 6 && effect === 3, "memo/effect update");
+    assert(s.untrack(value) === 3 && s.latest(value) === 3 && !s.isPending(value), "read helpers");
+    const [store, setStore] = s.createStore({ name: "before", list: [] }, { ownedWrite: true });
+    setStore(draft => { draft.name = "after"; draft.list.push(7); }); s.flush();
+    assert(store.name === "after" && store.list[0] === 7, "store update");
+    const projection = s.createProjection(draft => { draft.result = value() + 1; }, {});
+    assert(projection.result === 4, "projection");
+    assert(s.merge({ a: 1 }, { b: 2 }).b === 2, "merge");
+    assert(!("a" in s.omit({ a: 1, b: 2 }, "a")), "omit");
+    setStore(s.reconcile({ name: "reconciled", list: [9] })); s.flush();
+    assert(store.name === "reconciled" && store.list[0] === 9, "reconcile");
+    const context = s.createContext("fallback");
+    assert(s.useContext(context) === "fallback", "context default");
+    assert(s.createUniqueId() !== s.createUniqueId(), "unique IDs");
+    const resolvedChildren = s.children(() => ["a", ["b"]]);
+    assert(resolvedChildren.toArray().join("") === "ab", "children flattening");
+    let settled = false;
+    s.onSettled(() => { settled = true; }); s.flush();
+    assert(settled, "onSettled");
+    const [optimistic, setOptimistic] = s.createOptimistic("original");
+    const [optimisticStore, setOptimisticStore] = s.createOptimisticStore({ name: "original" });
+    const mutate = s.action(function* () {
+      setOptimistic("pending");
+      setOptimisticStore(draft => { draft.name = "pending"; });
+      s.affects(optimistic);
+      yield Promise.resolve();
+    });
+    asyncCheck = async () => {
+      await mutate(); s.flush();
+      assert(optimistic() === "original" && optimisticStore.name === "original", "optimistic rollback after action");
+      const done = await s.until(() => true);
+      assert(done === true, "until");
+      let flushed = false;
+      s.onFlush(() => { flushed = true; });
+      await Promise.resolve();
+      assert(flushed, "onFlush");
+      let calls = 0;
+      const derived = s.runWithOwner(null, () => s.createMemo(() => ++calls));
+      derived();
+      await s.refresh(derived);
+      assert(derived() >= 2, "refresh");
+      const module = s.lazyModule(() => Promise.resolve({ value: 42 }));
+      assert((await module()).value === 42 && module.peek().value === 42, "lazyModule");
+      const Lazy = s.lazy(() => Promise.resolve({ default: () => "lazy-ready" }));
+      await Lazy.preload();
+      checkComponent(Lazy, {}, "lazy-ready");
+    };
+    let emit;
+    const external = s.from(setValue => { emit = setValue; return () => {}; });
+    const iterator = external[Symbol.asyncIterator]();
+    const next = iterator.next();
+    emit(12);
+    next.then(result => { globalThis.__fromPassed = result.value === 12; iterator.return(); });
+  });
+  globalThis.__featureResult = "pending";
+  asyncCheck().then(() => {
+    dispose();
+    setTimeout(() => {
+      Promise.resolve().then(() => { globalThis.__featureResult = globalThis.__fromPassed ? "passed" : "from failed"; });
+    }, 5);
+  }).catch(error => { globalThis.__featureResult = String(error) + " " + error.stack; });
+})();

@@ -8,10 +8,10 @@ pub const Tree = @import("tree.zig").Tree;
 const scene = @import("scene.zig");
 
 pub const Style = scene.Style;
+pub const sizing = @import("sizing.zig");
 pub const Node = scene.Node;
 pub const Item = scene.Item;
 pub const Scene = scene.Scene;
-pub const auto_margin = scene.auto_margin;
 
 pub const geometry = @import("geometry.zig");
 pub const Rect = geometry.Rect;

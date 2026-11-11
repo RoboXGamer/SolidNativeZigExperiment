@@ -16,14 +16,14 @@ pub fn collapsePair(a: f32, b: f32) f32 {
     return a + b;
 }
 
-pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) std.mem.Allocator.Error!void {
+pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anyerror!void {
     const pad = n.padding();
     const bd = n.border();
 
     var cursor_y: f32 = 0;
     var prev_mb: f32 = 0;
     var first_child = true;
-    const parent_bfc = !std.mem.eql(u8, n.style.overflow, "visible");
+    const parent_bfc = std.mem.eql(u8, n.style.display, "flow-root") or !std.mem.eql(u8, n.style.overflow, "visible");
     const parent_can_collapse_top = pad.top == 0 and bd.top == 0 and !parent_bfc;
 
     for (n.children) |*child| {
@@ -33,19 +33,30 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) std.
         const child_bd = child.border();
         const child_pad = child.padding();
         const child_inset_x = child_pad.horizontal() + child_bd.horizontal();
-        const child_w = if (child.style.width > 0)
-            (if (std.mem.eql(u8, child.style.boxSizing, "content-box")) child.style.width + child_inset_x else child.style.width)
+        var child_w = child.constrain(if (child.style.width) |width|
+            child.borderSize(width, child_inset_x)
         else
-            inner_width;
-        const child_h = self.naturalHeight(child);
+            @max(0, inner_width - child_mg.horizontal()), true);
+        if (child.style.width == null and child.style.height != null) {
+            if (child.aspectRatio()) |ratio| {
+                const inset_y = child_pad.vertical() + child_bd.vertical();
+                const border_height = child.constrain(child.borderSize(child.style.height.?, inset_y), false);
+                const basis = if (std.mem.eql(u8, child.style.boxSizing, "content-box")) @max(0, border_height - inset_y) else border_height;
+                child_w = child.constrain(child.borderSize(basis * ratio, child_inset_x), true);
+            }
+        }
+        const free = @max(0, inner_width - child_w - child_mg.horizontal());
+        const auto_count: u8 = @intFromBool(child.style.marginLeftAuto) + @as(u8, @intFromBool(child.style.marginRightAuto));
+        const auto_left = if (child.style.marginLeftAuto and auto_count > 0) free / @as(f32, @floatFromInt(auto_count)) else 0;
+        const child_h = self.naturalHeightForWidth(child, child_w);
 
         // A box with no content, no fixed height and no padding/border collapses
         // through: its top and bottom margins join the adjoining margins.
-        const is_empty = child_h == 0 and child.style.height == 0 and child.children.len == 0 and
+        const is_empty = child_h == 0 and child.style.height == null and child.children.len == 0 and
             child_pad.vertical() == 0 and child_bd.vertical() == 0;
 
         const content_top = bounds.y + pad.top + bd.top;
-        const x = bounds.x + pad.left + bd.left + child_mg.left;
+        const x = bounds.x + pad.left + bd.left + child_mg.left + auto_left;
 
         if (is_empty) {
             // The empty box renders at zero height; its margins merge into the

@@ -52,6 +52,7 @@ fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics
 fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator: std.mem.Allocator) !void {
     for (scene.items.items) |item| {
         const n = item.node;
+        if (std.mem.eql(u8, n.type, "__layout_root")) continue;
         const b = item.bounds;
         const rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
         const is_button = std.mem.eql(u8, n.type, "button");
@@ -101,17 +102,18 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator:
         const font_size: i32 = @intFromFloat(n.fontSize());
         if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
             const text = try allocator.dupeSentinel(u8, n.text, 0);
-            rl.drawText(text, @intFromFloat(b.x), @intFromFloat(b.y), font_size, color(n.style.color, .white));
+            const content = n.contentBox(b);
+            rl.drawText(text, @intFromFloat(content.x), @intFromFloat(content.y), font_size, color(n.style.color, .white));
         }
         if (std.mem.eql(u8, n.type, "input")) {
             const value = try allocator.dupeSentinel(u8, n.value, 0);
-            const pad = n.padding();
-            var text_x = b.x + pad.left;
-            const text_y = b.y + pad.top;
+            const content = n.contentBox(b);
+            var text_x = content.x;
+            const text_y = content.y;
             if (focused == n.id) {
                 editor.clamp(n.value);
                 const caret = measureRaylib(null, n.value[0..editor.cursor], @floatFromInt(font_size)).width;
-                text_x -= @max(0, caret - @max(0, b.width - pad.horizontal() - 4));
+                text_x -= @max(0, caret - @max(0, content.width - 4));
                 const selected = editor.selection();
                 const start = measureRaylib(null, n.value[0..selected.start], @floatFromInt(font_size)).width;
                 const end = measureRaylib(null, n.value[0..selected.end], @floatFromInt(font_size)).width;
@@ -284,7 +286,9 @@ pub fn run() void {
             }
             focused = selected orelse (if (reverse) previous else first);
         }
-        if (rl.isKeyPressed(.enter)) if (focused) |id| runtime.click(id) catch {};
+        if (rl.isKeyPressed(.enter)) if (focused) |id| {
+            if (scene.find(id) != null) runtime.click(id) catch {};
+        };
         if (editing != focused) {
             editing = focused;
             editor = .{};

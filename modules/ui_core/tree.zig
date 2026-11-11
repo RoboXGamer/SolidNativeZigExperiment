@@ -1,7 +1,7 @@
 //! Persistent node storage for incremental bridge commits.
 const std = @import("std");
 const core = @import("root.zig");
-const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", clickable: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
+const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", clickable: bool = false, intrinsicAspectRatio: ?f32 = null, style: core.Style = .{}, children: []const u32 = &.{} };
 const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, removed: []const u32 = &.{} };
 const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode };
 pub const Tree = struct {
@@ -37,6 +37,7 @@ pub const Tree = struct {
             copy.text = try a.dupe(u8, n.text);
             copy.value = try a.dupe(u8, n.value);
             copy.style.direction = try a.dupe(u8, n.style.direction);
+            copy.style.writingMode = try a.dupe(u8, n.style.writingMode);
             copy.style.display = try a.dupe(u8, n.style.display);
             copy.style.flexDirection = try a.dupe(u8, n.style.flexDirection);
             copy.style.flexWrap = try a.dupe(u8, n.style.flexWrap);
@@ -56,6 +57,11 @@ pub const Tree = struct {
             copy.style.overflow = try a.dupe(u8, n.style.overflow);
             copy.style.outlineColor = try a.dupe(u8, n.style.outlineColor);
             copy.style.boxShadow = try a.dupe(u8, n.style.boxShadow);
+            inline for (@typeInfo(core.Style).@"struct".fields) |field| {
+                if (field.type == ?[]const u8) {
+                    if (@field(n.style, field.name)) |value| @field(copy.style, field.name) = try a.dupe(u8, value);
+                }
+            }
             copy.children = try a.dupe(u32, n.children);
             try staged.put(n.id, .{ .arena = arena, .node = copy });
         }
@@ -94,6 +100,6 @@ pub const Tree = struct {
         const n = (self.nodes.get(id) orelse return error.UnknownNode).node;
         const children = try allocator.alloc(core.Node, n.children.len);
         for (n.children, 0..) |child, i| children[i] = try self.materialize(allocator, child, depth + 1);
-        return .{ .id = n.id, .type = n.type, .text = n.text, .value = n.value, .clickable = n.clickable, .style = n.style, .children = children };
+        return .{ .id = n.id, .type = n.type, .text = n.text, .value = n.value, .clickable = n.clickable, .intrinsicAspectRatio = n.intrinsicAspectRatio, .style = n.style, .children = children };
     }
 };

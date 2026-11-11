@@ -4,19 +4,15 @@
 //! backend font measurement flows into min/max-content sizing and `flex-basis:
 //! content` instead of a per-character estimate.
 //!
-//! Margin values use `auto_margin` (-1) as the "auto" sentinel (the JS bridge
-//! serializes `margin: "auto"` to it). `flexBasis` uses -1 for `auto`, -2 for
-//! `content` and values >= 0 for explicit main-axis sizes.
 const std = @import("std");
 const root = @import("root.zig");
-pub const auto_margin = root.auto_margin;
 const Node = root.Node;
 const Rect = root.Rect;
 const Scene = root.Scene;
 
 const ItemInfo = struct {
     child: *const Node,
-    // Margins from the node's margin ring, auto sentinel preserved.
+    // Fixed margins; auto is tracked independently below.
     mt: f32 = 0,
     mr: f32 = 0,
     mb: f32 = 0,
@@ -40,14 +36,6 @@ const ItemInfo = struct {
     cross_after_auto: bool = false,
 };
 
-fn isAuto(v: f32) bool {
-    return v == auto_margin;
-}
-
-fn fixed(v: f32) f32 {
-    return if (v == auto_margin) 0 else v;
-}
-
 fn isRowFlex(n: *const Node) bool {
     return std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse");
 }
@@ -56,15 +44,21 @@ fn frameWidth(n: *const Node) f32 {
     return n.padding().horizontal() + n.border().horizontal();
 }
 
+fn preferred(n: *const Node, horizontal: bool) ?f32 {
+    const value = (if (horizontal) n.style.width else n.style.height) orelse return null;
+    const frame = if (horizontal) frameWidth(n) else n.padding().vertical() + n.border().vertical();
+    return n.constrain(n.borderSize(value, frame), horizontal);
+}
+
 /// Content height (border box, excludes the node's own margins).
 fn contentHeight(scene: *const Scene, n: *const Node) f32 {
-    if (n.style.height > 0) return n.style.height;
+    if (preferred(n, false)) |height| return height;
     return scene.naturalHeight(n);
 }
 
 /// Max-content width (border box) measured with the backend text metrics.
 fn maxContentWidth(scene: *const Scene, n: *const Node) f32 {
-    if (n.style.width > 0) return n.style.width;
+    if (preferred(n, true)) |width| return width;
     if (std.mem.eql(u8, n.type, "text")) return scene.text.maxContentWidth(n.text, n.fontSize()) + frameWidth(n);
     var inner: f32 = 0;
     if (isRowFlex(n)) {
@@ -83,7 +77,7 @@ fn maxContentWidth(scene: *const Scene, n: *const Node) f32 {
 
 /// Min-content width (border box): widest unbreakable word, recursively.
 fn minContentWidth(scene: *const Scene, n: *const Node) f32 {
-    if (n.style.width > 0) return n.style.width;
+    if (preferred(n, true)) |width| return width;
     if (std.mem.eql(u8, n.type, "text")) return scene.text.minContentWidth(n.text, n.fontSize()) + frameWidth(n);
     var inner: f32 = 0;
     if (isRowFlex(n)) {
@@ -102,50 +96,56 @@ fn minContentWidth(scene: *const Scene, n: *const Node) f32 {
 
 fn hypotheticalCross(scene: *const Scene, child: *const Node, is_row: bool) f32 {
     if (is_row) {
-        return if (child.style.height > 0) child.style.height else contentHeight(scene, child);
+        return preferred(child, false) orelse contentHeight(scene, child);
     }
-    return if (child.style.width > 0) child.style.width else maxContentWidth(scene, child);
+    return preferred(child, true) orelse maxContentWidth(scene, child);
 }
 
 fn clampCross(child: *const Node, is_row: bool, v: f32) f32 {
-    var s = v;
-    if (is_row) {
-        if (child.style.minHeight > 0 and s < child.style.minHeight) s = child.style.minHeight;
-        if (child.style.maxHeight > 0 and s > child.style.maxHeight) s = child.style.maxHeight;
-    } else {
-        if (child.style.minWidth > 0 and s < child.style.minWidth) s = child.style.minWidth;
-        if (child.style.maxWidth > 0 and s > child.style.maxWidth) s = child.style.maxWidth;
-    }
-    return s;
+    return child.constrain(v, !is_row);
 }
 
 fn resolveMainBasis(scene: *const Scene, child: *const Node, is_row: bool) f32 {
-    const b = child.style.flexBasis;
-    if (b >= 0) return b; // explicit basis (border box in this engine)
-    if (b == -2) return if (is_row) maxContentWidth(scene, child) else contentHeight(scene, child);
+    if (child.style.flexBasis) |b| return child.borderSize(b, if (is_row) frameWidth(child) else child.padding().vertical() + child.border().vertical());
+    if (child.style.flexBasisContent) return if (is_row) maxContentWidth(scene, child) else contentHeight(scene, child);
     // flex-basis: auto -> main size property, else content size.
-    if (is_row) {
-        return if (child.style.width > 0) child.style.width else maxContentWidth(scene, child);
+    const main_preferred = preferred(child, is_row);
+    if (main_preferred) |value| return value;
+    if (preferred(child, !is_row)) |cross| {
+        if (child.aspectRatio()) |ratio| {
+            const main_frame = if (is_row) frameWidth(child) else child.padding().vertical() + child.border().vertical();
+            const cross_frame = if (is_row) child.padding().vertical() + child.border().vertical() else frameWidth(child);
+            const basis = if (std.mem.eql(u8, child.style.boxSizing, "content-box")) @max(0, cross - cross_frame) else cross;
+            return child.borderSize(if (is_row) basis * ratio else basis / ratio, main_frame);
+        }
     }
-    return if (child.style.height > 0) child.style.height else contentHeight(scene, child);
+    if (is_row) {
+        return maxContentWidth(scene, child);
+    }
+    return contentHeight(scene, child);
 }
 
 fn minMainSize(scene: *const Scene, child: *const Node, is_row: bool) f32 {
     // CSS min-width/min-height: auto resolves to the content-based minimum
     // for overflow: visible items, otherwise zero.
     if (is_row) {
-        if (child.style.minWidth > 0) return child.style.minWidth;
-        if (std.mem.eql(u8, child.style.overflow, "visible")) return minContentWidth(scene, child);
+        if (child.style.minWidth) |value| return child.borderSize(value, frameWidth(child));
+        if (std.mem.eql(u8, child.style.overflow, "visible")) {
+            var content = child.*;
+            content.style.width = null;
+            const intrinsic = minContentWidth(scene, &content);
+            return if (preferred(child, true)) |width| @min(width, intrinsic) else intrinsic;
+        }
         return 0;
     }
-    if (child.style.minHeight > 0) return child.style.minHeight;
+    if (child.style.minHeight) |value| return child.borderSize(value, child.padding().vertical() + child.border().vertical());
     if (std.mem.eql(u8, child.style.overflow, "visible")) return contentHeight(scene, child);
     return 0;
 }
 
 fn maxMainSize(child: *const Node, is_row: bool) f32 {
-    if (is_row) return if (child.style.maxWidth > 0) child.style.maxWidth else std.math.inf(f32);
-    return if (child.style.maxHeight > 0) child.style.maxHeight else std.math.inf(f32);
+    const max = (if (is_row) child.style.maxWidth else child.style.maxHeight) orelse return std.math.inf(f32);
+    return child.borderSize(max, if (is_row) frameWidth(child) else child.padding().vertical() + child.border().vertical());
 }
 
 fn alignOf(container: *const Node, child: *const Node) []const u8 {
@@ -221,7 +221,7 @@ fn distribute(infos: []ItemInfo, frozen: []bool, start: usize, end: usize, main_
     }
 }
 
-pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inner_height: f32) std.mem.Allocator.Error!void {
+pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inner_height: f32) anyerror!void {
     const is_row = isRowFlex(n);
     const reverse = std.mem.eql(u8, n.style.flexDirection, "row-reverse") or std.mem.eql(u8, n.style.flexDirection, "column-reverse");
     const wrap_reverse = std.mem.eql(u8, n.style.flexWrap, "wrap-reverse");
@@ -247,7 +247,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     for (0..count) |k| {
         const child = &n.children[order[k]];
         var info = ItemInfo{ .child = child };
-        const child_mg = child.marginRaw();
+        const child_mg = child.margin();
         info.mt = child_mg.top;
         info.mr = child_mg.right;
         info.mb = child_mg.bottom;
@@ -258,14 +258,14 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         const cross_before = if (is_row) info.mt else info.ml;
         const cross_after = if (is_row) info.mb else info.mr;
 
-        info.main_before_auto = isAuto(before);
-        info.main_after_auto = isAuto(after);
-        info.cross_before_auto = isAuto(cross_before);
-        info.cross_after_auto = isAuto(cross_after);
-        info.main_before = fixed(before);
-        info.main_after = fixed(after);
-        info.cross_before = fixed(cross_before);
-        info.cross_after = fixed(cross_after);
+        info.main_before_auto = if (is_row) child.style.marginLeftAuto else child.style.marginTopAuto;
+        info.main_after_auto = if (is_row) child.style.marginRightAuto else child.style.marginBottomAuto;
+        info.cross_before_auto = if (is_row) child.style.marginTopAuto else child.style.marginLeftAuto;
+        info.cross_after_auto = if (is_row) child.style.marginBottomAuto else child.style.marginRightAuto;
+        info.main_before = before;
+        info.main_after = after;
+        info.cross_before = cross_before;
+        info.cross_after = cross_after;
 
         info.grow = @max(0, child.style.flexGrow);
         info.shrink = @max(0, child.style.flexShrink);
@@ -304,6 +304,37 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         line_count += 1;
     }
 
+    // Resolve main sizes before cross measurement so a ratio uses the flexed
+    // main size, and the line reserves the resulting cross size.
+    for (0..line_count) |li| {
+        const start = line_start[li];
+        const end = line_end[li];
+        var used: f32 = gap * @as(f32, @floatFromInt(if (end - start > 1) end - start - 1 else 0));
+        var grow_total: f32 = 0;
+        var shrink_total: f32 = 0;
+        for (start..end) |k| {
+            const info = &infos[k];
+            used += info.base_main + info.main_before + info.main_after;
+            grow_total += info.grow;
+            shrink_total += info.shrink * info.base_main;
+        }
+        const free = main_avail - used;
+        if (free > 0 and grow_total > 0) distribute(infos, frozen, start, end, main_avail, gap, true) else if (free < 0 and shrink_total > 0) distribute(infos, frozen, start, end, main_avail, gap, false);
+        for (start..end) |k| {
+            const info = &infos[k];
+            const child = info.child;
+            const cross_auto = if (is_row) child.style.height == null else child.style.width == null;
+            if (cross_auto) if (child.aspectRatio()) |ratio| {
+                const main_frame = if (is_row) frameWidth(child) else child.padding().vertical() + child.border().vertical();
+                const cross_frame = if (is_row) child.padding().vertical() + child.border().vertical() else frameWidth(child);
+                const content_sizing = std.mem.eql(u8, child.style.boxSizing, "content-box");
+                const basis = if (content_sizing) @max(0, info.main_size - main_frame) else info.main_size;
+                const cross = if (is_row) basis / ratio else basis * ratio;
+                info.cross_size = child.constrain(child.borderSize(cross, cross_frame), !is_row);
+            };
+        }
+    }
+
     // Hypothetical line cross sizes (including fixed cross margins).
     const line_cross = try allocator.alloc(f32, line_count);
     for (0..line_count) |li| {
@@ -337,7 +368,8 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
             const info = &infos[k];
             if (info.cross_before_auto or info.cross_after_auto) continue;
             if (!std.mem.eql(u8, alignOf(n, info.child), "stretch")) continue;
-            const definite = if (is_row) info.child.style.height > 0 else info.child.style.width > 0;
+            if (info.child.aspectRatio() != null) continue;
+            const definite = if (is_row) info.child.style.height != null else info.child.style.width != null;
             if (definite) continue;
             const available = line_cross[li] - info.cross_before - info.cross_after;
             info.cross_size = clampCross(info.child, is_row, @max(0, available));
@@ -384,33 +416,15 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         const nline = end - start;
         if (nline == 0) continue;
 
-        for (start..end) |k| infos[k].main_size = infos[k].base_main;
-
-        // Flex grow / shrink.
+        // Flexible main sizes were resolved before cross measurement.
         var used: f32 = gap * @as(f32, @floatFromInt(if (nline > 1) nline - 1 else 0));
-        var grow_total: f32 = 0;
-        var shrink_total: f32 = 0;
         var main_auto_count: usize = 0;
         for (start..end) |k| {
             const info = &infos[k];
-            used += info.base_main + info.main_before + info.main_after;
-            grow_total += info.grow;
-            shrink_total += info.shrink * info.base_main;
+            used += info.main_size + info.main_before + info.main_after;
             main_auto_count += @as(usize, @intFromBool(info.main_before_auto)) + @as(usize, @intFromBool(info.main_after_auto));
         }
-        const initial_free = main_avail - used;
-        if (initial_free > 0 and grow_total > 0) {
-            distribute(infos, frozen, start, end, main_avail, gap, true);
-        } else if (initial_free < 0 and shrink_total > 0) {
-            distribute(infos, frozen, start, end, main_avail, gap, false);
-        }
-
         // Auto margins absorb positive free space after flexing.
-        used = gap * @as(f32, @floatFromInt(if (nline > 1) nline - 1 else 0));
-        for (start..end) |k| {
-            const info = &infos[k];
-            used += info.main_size + info.main_before + info.main_after;
-        }
         var free = main_avail - used;
         var auto_each: f32 = 0;
         if (main_auto_count > 0) {

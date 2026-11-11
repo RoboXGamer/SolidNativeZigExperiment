@@ -117,6 +117,19 @@ pub fn computeBlockLayout(
     var line_h: f32 = 0;
 
     for (n.children, 0..) |*child, i| {
+        if (child.isOutOfFlow()) {
+            if (children_out) |out| {
+                out[i] = .{
+                    .x = 0,
+                    .y = 0,
+                    .width = 0,
+                    .height = 0,
+                    .used_margin = .{},
+                    .is_empty = true,
+                };
+            }
+            continue;
+        }
         const child_mg = child.margin();
         const child_bd = child.border();
         const child_pad = child.padding();
@@ -362,6 +375,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
     _ = computeBlockLayout(self, n, inner_width, child_layouts);
 
     for (n.children, 0..) |*child, i| {
+        if (child.isOutOfFlow()) continue;
         const cl = child_layouts[i];
         const child_rect = Rect{
             .x = content_left + cl.x,

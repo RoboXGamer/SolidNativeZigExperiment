@@ -1,27 +1,30 @@
 {
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "node tools/dev.mjs --app",
-    "build:ui": "vite build",
-    "dev:ui": "node tools/dev.mjs",
-    "dev:app": "vite build --mode native-hmr && node tools/run.mjs",
-    "test": "npm run test:features && npm run test:bridge && npm run test:refresh && npm run test:tree && npm run test:select && npm run test:packages",
-    "test:packages": "node packages/solid-zig/tests/text-overflow.mjs && node packages/solid-zig/tests/box-style.mjs && node packages/solid-zig/tests/flex-block.mjs",
-    "test:features": "node --conditions=browser tests/features_probe.mjs",
-    "test:bridge": "node --conditions=browser --conditions=development tests/bridge_probe.mjs",
-    "test:refresh": "node --conditions=browser --conditions=development tests/refresh_probe.mjs",
-    "test:tree": "node --conditions=browser --conditions=development tests/tree_probe.mjs",
-    "test:select": "node --conditions=browser --conditions=development packages/solid-zig/tests/select-control.mjs"
-  },
-  "dependencies": {
-    "@solidjs/universal": "2.0.0-rc.21",
-    "solid-js": "2.0.0-rc.21"
-  },
-  "devDependencies": {
-    "@babel/core": "8.1.0",
-    "@babel/plugin-transform-modules-commonjs": "8.0.1",
-    "@solidjs/vite-plugin": "3.0.0-next.50",
-    "vite": "8.3.7"
-  }
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "node tools/dev.mjs --app",
+                    "build:ui":  "vite build",
+                    "dev:ui":  "node tools/dev.mjs",
+                    "dev:app":  "vite build --mode native-hmr \u0026\u0026 node tools/run.mjs",
+                    "test":  "pnpm run test:features \u0026\u0026 pnpm run test:bridge \u0026\u0026 pnpm run test:refresh \u0026\u0026 pnpm run test:tree \u0026\u0026 pnpm run test:select \u0026\u0026 pnpm run test:packages",
+                    "test:packages":  "node packages/solid-zig/tests/text-overflow.mjs \u0026\u0026 node packages/solid-zig/tests/box-style.mjs \u0026\u0026 node packages/solid-zig/tests/flex-block.mjs \u0026\u0026 node packages/solid-zig/tests/phase-e-css.mjs",
+                    "test:features":  "node --conditions=browser tests/features_probe.mjs",
+                    "test:bridge":  "node --conditions=browser --conditions=development tests/bridge_probe.mjs",
+                    "test:refresh":  "node --conditions=browser --conditions=development tests/refresh_probe.mjs",
+                    "test:tree":  "node --conditions=browser --conditions=development tests/tree_probe.mjs",
+                    "test:select":  "node --conditions=browser --conditions=development packages/solid-zig/tests/select-control.mjs",
+                    "setup":  "node tools/setup.mjs",
+                    "test:native":  "zig build test-native",
+                    "test:smoke":  "node tools/smoke-native.mjs"
+                },
+    "dependencies":  {
+                         "@solidjs/universal":  "2.0.0-rc.21",
+                         "solid-js":  "2.0.0-rc.21"
+                     },
+    "devDependencies":  {
+                            "@babel/core":  "8.1.0",
+                            "@babel/plugin-transform-modules-commonjs":  "8.0.1",
+                            "@solidjs/vite-plugin":  "3.0.0-next.50",
+                            "vite":  "8.3.7"
+                        }
 }

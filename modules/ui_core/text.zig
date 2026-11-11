@@ -10,6 +10,31 @@
 //! API falls back to a metric estimate, so behaviour stays defined everywhere.
 const std = @import("std");
 
+/// CSS collapsing for the scene projection. The authoring tree keeps its text.
+pub fn collapseWhitespace(a: std.mem.Allocator, input: []const u8) ![]const u8 {
+    const result = try a.alloc(u8, input.len);
+    var length: usize = 0;
+    var pending = false;
+    for (input) |c| {
+        if (c == ' ' or c == '\t' or c == '\r' or c == '\n' or c == 0x0c) {
+            pending = length > 0;
+            continue;
+        }
+        if (pending) {
+            result[length] = ' ';
+            length += 1;
+            pending = false;
+        }
+        result[length] = c;
+        length += 1;
+    }
+    if (std.mem.eql(u8, input, result[0..length])) {
+        a.free(result);
+        return input;
+    }
+    return result[0..length];
+}
+
 pub const default_font_size: f32 = 20;
 
 /// Average advance of the Raylib built-in font, in em fractions. Only used when
@@ -35,6 +60,7 @@ pub const Metrics = struct {
 /// `ctx` is backend-owned state (a font handle, a cache, ...). It is opaque so
 /// `ui_core` keeps no dependency on the renderer.
 pub const MeasureFn = *const fn (ctx: ?*anyopaque, content: []const u8, font_size: f32) Metrics;
+pub const PositionFn = *const fn (?*anyopaque, []const u8, f32, f32) usize;
 
 pub const ShapedLine = struct {
     text: []const u8,
@@ -51,6 +77,7 @@ pub const Wrap = struct {
 pub const Text = struct {
     ctx: ?*anyopaque = null,
     measure_fn: ?MeasureFn = null,
+    position_fn: ?PositionFn = null,
 
     pub fn isMeasured(self: Text) bool {
         return self.measure_fn != null;
@@ -101,9 +128,9 @@ pub const Text = struct {
         return if (m.leading > 0) m.leading else @max(0, self.lineHeight(px) - (self.ascent(px) + self.descent(px)));
     }
 
-fn trimCarriageReturn(s: []const u8) []const u8 {
-    return if (s.len > 0 and s[s.len - 1] == '\r') s[0 .. s.len - 1] else s;
-}
+    fn trimCarriageReturn(s: []const u8) []const u8 {
+        return if (s.len > 0 and s[s.len - 1] == '\r') s[0 .. s.len - 1] else s;
+    }
 
     /// Widest line of an unwrapped run; `\n` starts a new line.
     pub fn maxContentWidth(self: Text, content: []const u8, font_size: f32) f32 {
@@ -185,15 +212,15 @@ fn trimCarriageReturn(s: []const u8) []const u8 {
         const asc = self.ascent(font_size);
         const is_nowrap = std.mem.eql(u8, white_space, "nowrap");
 
-        var list = std.ArrayList(ShapedLine).init(allocator);
-        errdefer list.deinit();
+        var list: std.ArrayList(ShapedLine) = .empty;
+        errdefer list.deinit(allocator);
 
         if (is_nowrap or available <= 0) {
             var it = std.mem.splitScalar(u8, content, '\n');
             while (it.next()) |raw_line| {
                 const line = trimCarriageReturn(raw_line);
                 const w = self.width(line, font_size);
-                try list.append(.{
+                try list.append(allocator, .{
                     .text = line,
                     .width = w,
                     .height = line_h,
@@ -201,7 +228,7 @@ fn trimCarriageReturn(s: []const u8) []const u8 {
                 });
                 if (is_nowrap) break;
             }
-            return list.toOwnedSlice();
+            return list.toOwnedSlice(allocator);
         }
 
         const space_w = self.width(" ", font_size);
@@ -209,7 +236,7 @@ fn trimCarriageReturn(s: []const u8) []const u8 {
         while (hard_lines.next()) |raw_line| {
             const hard_line = trimCarriageReturn(raw_line);
             if (hard_line.len == 0) {
-                try list.append(.{ .text = "", .width = 0, .height = line_h, .ascent = asc });
+                try list.append(allocator, .{ .text = "", .width = 0, .height = line_h, .ascent = asc });
                 continue;
             }
 
@@ -232,7 +259,7 @@ fn trimCarriageReturn(s: []const u8) []const u8 {
                     line_w += space_w + w;
                 } else {
                     const slice = hard_line[line_start.?..line_end];
-                    try list.append(.{
+                    try list.append(allocator, .{
                         .text = slice,
                         .width = line_w,
                         .height = line_h,
@@ -246,7 +273,7 @@ fn trimCarriageReturn(s: []const u8) []const u8 {
 
             if (line_start) |start| {
                 const slice = hard_line[start..line_end];
-                try list.append(.{
+                try list.append(allocator, .{
                     .text = slice,
                     .width = line_w,
                     .height = line_h,
@@ -255,7 +282,7 @@ fn trimCarriageReturn(s: []const u8) []const u8 {
             }
         }
 
-        return list.toOwnedSlice();
+        return list.toOwnedSlice(allocator);
     }
 };
 

@@ -77,12 +77,16 @@ fn maxContentWidth(scene: *const Scene, n: *const Node) f32 {
     const is_row = isRowFlex(n);
     const gap = n.mainGap(is_row);
     if (is_row) {
-        for (n.children, 0..) |*c, i| {
-            if (i > 0) inner += gap;
+        var first = true;
+        for (n.children) |*c| {
+            if (c.isOutOfFlow()) continue;
+            if (!first) inner += gap;
             inner += maxContentWidth(scene, c);
+            first = false;
         }
     } else {
         for (n.children) |*c| {
+            if (c.isOutOfFlow()) continue;
             const w = maxContentWidth(scene, c);
             if (w > inner) inner = w;
         }
@@ -101,12 +105,16 @@ fn minContentWidth(scene: *const Scene, n: *const Node) f32 {
     const is_row = isRowFlex(n);
     const gap = n.mainGap(is_row);
     if (is_row) {
-        for (n.children, 0..) |*c, i| {
-            if (i > 0) inner += gap;
+        var first = true;
+        for (n.children) |*c| {
+            if (c.isOutOfFlow()) continue;
+            if (!first) inner += gap;
             inner += minContentWidth(scene, c);
+            first = false;
         }
     } else {
         for (n.children) |*c| {
+            if (c.isOutOfFlow()) continue;
             const w = minContentWidth(scene, c);
             if (w > inner) inner = w;
         }
@@ -273,8 +281,15 @@ pub fn baselineOf(scene: *const Scene, child: *const Node) f32 {
     return firstBaselineOf(scene, child);
 }
 
-fn orderedIndices(n: *const Node, out: []usize, count: usize) void {
-    for (0..count) |i| out[i] = i;
+fn orderedInFlowIndices(n: *const Node, out: []usize) void {
+    var idx: usize = 0;
+    for (n.children, 0..) |*child, i| {
+        if (!child.isOutOfFlow()) {
+            out[idx] = i;
+            idx += 1;
+        }
+    }
+    const count = out.len;
     var i: usize = 1;
     while (i < count) : (i += 1) {
         const cur = out[i];
@@ -418,8 +433,10 @@ fn resolveFlexibleLengths(infos: []ItemInfo, start: usize, end: usize, main_avai
 
 pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inner_height: f32) anyerror!void {
     const is_row = isRowFlex(n);
-    const reverse = std.mem.eql(u8, n.style.flexDirection, "row-reverse") or std.mem.eql(u8, n.style.flexDirection, "column-reverse");
-    const wrap_reverse = std.mem.eql(u8, n.style.flexWrap, "wrap-reverse");
+    const rtl = std.mem.eql(u8, n.style.direction, "rtl");
+    const reversed = std.mem.eql(u8, n.style.flexDirection, "row-reverse") or std.mem.eql(u8, n.style.flexDirection, "column-reverse");
+    const reverse = reversed != (is_row and rtl);
+    const wrap_reverse = std.mem.eql(u8, n.style.flexWrap, "wrap-reverse") != (!is_row and rtl);
     const main_avail = if (is_row) inner_width else inner_height;
     const cross_avail = if (is_row) inner_height else inner_width;
     const wrap = (std.mem.eql(u8, n.style.flexWrap, "wrap") or wrap_reverse) and main_avail > 0;
@@ -428,17 +445,23 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     const count = n.children.len;
     if (count == 0) return;
 
+    var in_flow_count: usize = 0;
+    for (n.children) |*child| {
+        if (!child.isOutOfFlow()) in_flow_count += 1;
+    }
+    if (in_flow_count == 0) return;
+
     const pad = n.padding();
     const bd = n.border();
 
     const allocator = self.arena.allocator();
-    const order = try allocator.alloc(usize, count);
-    orderedIndices(n, order, count);
+    const order = try allocator.alloc(usize, in_flow_count);
+    orderedInFlowIndices(n, order);
 
-    const infos = try allocator.alloc(ItemInfo, count);
-    const main_start = try allocator.alloc(f32, count);
+    const infos = try allocator.alloc(ItemInfo, in_flow_count);
+    const main_start = try allocator.alloc(f32, in_flow_count);
 
-    for (0..count) |k| {
+    for (0..in_flow_count) |k| {
         const child = &n.children[order[k]];
         var info = ItemInfo{ .child = child };
         const child_mg = child.margin();
@@ -477,13 +500,13 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     }
 
     // Break the ordered items into flex lines.
-    const line_start = try allocator.alloc(usize, count);
-    const line_end = try allocator.alloc(usize, count);
+    const line_start = try allocator.alloc(usize, in_flow_count);
+    const line_end = try allocator.alloc(usize, in_flow_count);
     var line_count: usize = 0;
     {
         var start: usize = 0;
         var used: f32 = 0;
-        for (0..count) |k| {
+        for (0..in_flow_count) |k| {
             const info = &infos[k];
             const outer = info.hypothetical_main + info.main_before + info.main_after;
             if (k == start) {
@@ -499,7 +522,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
             }
         }
         line_start[line_count] = start;
-        line_end[line_count] = count;
+        line_end[line_count] = in_flow_count;
         line_count += 1;
     }
 
@@ -592,7 +615,9 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         const free_cross = cross_avail - total;
         var actual_cross_gap = cross_gap;
         var cursor: f32 = 0;
-        const ac = n.style.alignContent;
+        var ac = n.style.alignContent;
+        const safe_ac = std.mem.startsWith(u8, ac, "safe ");
+        if (safe_ac) ac = ac[5..] else if (std.mem.startsWith(u8, ac, "unsafe ")) ac = ac[7..];
         if (std.mem.eql(u8, ac, "center")) {
             cursor = free_cross * 0.5;
         } else if (std.mem.eql(u8, ac, "flex-end") or std.mem.eql(u8, ac, "end")) {
@@ -606,7 +631,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
             cursor = free_cross / @as(f32, @floatFromInt(line_count + 1));
             actual_cross_gap = cross_gap + free_cross / @as(f32, @floatFromInt(line_count + 1));
         }
-        if (cursor < 0) cursor = 0;
+        if (safe_ac and cursor < 0) cursor = 0;
         for (0..line_count) |li| {
             cross_pos[li] = if (wrap_reverse) cross_avail - cursor - line_cross[li] else cursor;
             cursor += line_cross[li] + actual_cross_gap;
@@ -648,20 +673,38 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         // justify-content applies only when no auto margins consumed the free space.
         var lead: f32 = 0;
         var extra_gap: f32 = 0;
-        if (main_auto_count == 0 and free > 0) {
-            const jc = n.style.justifyContent;
-            if (std.mem.eql(u8, jc, "center")) {
-                lead = free * 0.5;
-            } else if (std.mem.eql(u8, jc, "flex-end") or std.mem.eql(u8, jc, "end")) {
-                lead = free;
-            } else if (std.mem.eql(u8, jc, "space-between") and nline > 1) {
-                extra_gap = free / @as(f32, @floatFromInt(nline - 1));
-            } else if (std.mem.eql(u8, jc, "space-around")) {
-                lead = free / @as(f32, @floatFromInt(nline * 2));
-                extra_gap = free / @as(f32, @floatFromInt(nline));
-            } else if (std.mem.eql(u8, jc, "space-evenly")) {
-                lead = free / @as(f32, @floatFromInt(nline + 1));
-                extra_gap = free / @as(f32, @floatFromInt(nline + 1));
+        if (main_auto_count == 0) {
+            var jc = n.style.justifyContent;
+            var is_safe = false;
+            if (std.mem.startsWith(u8, jc, "safe ")) {
+                is_safe = true;
+                jc = jc[5..];
+            } else if (std.mem.startsWith(u8, jc, "unsafe ")) {
+                jc = jc[7..];
+            }
+            if (is_row) {
+                if (std.mem.eql(u8, jc, "right")) jc = if (reverse) "flex-start" else "flex-end" else if (std.mem.eql(u8, jc, "left")) jc = if (reverse) "flex-end" else "flex-start" else if (std.mem.eql(u8, jc, "start")) jc = if (reverse == rtl) "flex-start" else "flex-end" else if (std.mem.eql(u8, jc, "end")) jc = if (reverse == rtl) "flex-end" else "flex-start";
+            }
+            if (is_safe and free < 0) {
+                lead = 0;
+            } else {
+                if (std.mem.eql(u8, jc, "center")) {
+                    lead = free * 0.5;
+                } else if (std.mem.eql(u8, jc, "flex-end") or std.mem.eql(u8, jc, "end") or (is_row and std.mem.eql(u8, jc, "right"))) {
+                    lead = free;
+                } else if (std.mem.eql(u8, jc, "flex-start") or std.mem.eql(u8, jc, "start") or (is_row and std.mem.eql(u8, jc, "left"))) {
+                    lead = 0;
+                } else if (free > 0) {
+                    if (std.mem.eql(u8, jc, "space-between") and nline > 1) {
+                        extra_gap = free / @as(f32, @floatFromInt(nline - 1));
+                    } else if (std.mem.eql(u8, jc, "space-around")) {
+                        lead = free / @as(f32, @floatFromInt(nline * 2));
+                        extra_gap = free / @as(f32, @floatFromInt(nline));
+                    } else if (std.mem.eql(u8, jc, "space-evenly")) {
+                        lead = free / @as(f32, @floatFromInt(nline + 1));
+                        extra_gap = free / @as(f32, @floatFromInt(nline + 1));
+                    }
+                }
             }
         }
 
@@ -713,13 +756,22 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
             } else if (info.cross_after_auto) {
                 offset = 0;
             } else {
-                const al = alignOf(n, child);
-                if (std.mem.eql(u8, al, "center")) {
-                    if (remaining > 0) offset = remaining * 0.5;
+                var al = alignOf(n, child);
+                var is_safe = false;
+                if (std.mem.startsWith(u8, al, "safe ")) {
+                    is_safe = true;
+                    al = al[5..];
+                } else if (std.mem.startsWith(u8, al, "unsafe ")) {
+                    al = al[7..];
+                }
+                if (is_safe and remaining < 0) {
+                    offset = 0;
+                } else if (std.mem.eql(u8, al, "center")) {
+                    offset = remaining * 0.5;
                 } else if (std.mem.eql(u8, al, "flex-end") or std.mem.eql(u8, al, "end")) {
-                    if (remaining > 0) offset = if (wrap_reverse) 0 else remaining;
+                    offset = if (wrap_reverse) 0 else remaining;
                 } else if (std.mem.eql(u8, al, "flex-start") or std.mem.eql(u8, al, "start")) {
-                    if (remaining > 0) offset = if (wrap_reverse) remaining else 0;
+                    offset = if (wrap_reverse) remaining else 0;
                 } else if ((std.mem.eql(u8, al, "baseline") or std.mem.eql(u8, al, "first-baseline")) and is_row) {
                     const b = baselineOf(self, child);
                     if (b < max_baseline) offset = max_baseline - b;
@@ -763,6 +815,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
 
     // Emit children in document order to preserve tab/focus order (FLEX-06).
     for (n.children, 0..) |*child, i| {
+        if (child.isOutOfFlow()) continue;
         try self.layout(child, placements[i].rect, n.id);
         self.setUsedMargin(child.id, placements[i].used_margin);
     }

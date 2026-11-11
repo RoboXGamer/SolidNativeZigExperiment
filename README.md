@@ -2,15 +2,14 @@
 
 This is an early native UI experiment. The Solid Vite plugin compiles JSX for a custom universal renderer in QuickJS-NG. The JavaScript host compares its retained tree with the last acknowledged commit and sends changed nodes and removals to Zig. Zig retains those nodes, lays them out, draws with Raylib, and routes input back by node ID.
 
-`modules/ui_core` contains backend-independent retained tree storage, box model, geometry, text metrics, block/flex layout, basic grid columns, clipping, hit testing, scrolling, and UTF-8 editing state. The renderer injects a `MeasureFn` (the Raylib backend passes `MeasureText`); headless callers have a documented estimator. `modules/solid_bridge` owns QuickJS jobs, timers and the change/input interface. `packages/solid-zig` contains the JavaScript renderer and module host. Each Zig module has its own build helper and standalone build entry point. The application in `src` supplies Raylib and the Windows watchers. These modules remain local development code; no library release has been made.
+`modules/ui_core` contains backend-independent retained tree storage, box model, geometry, text metrics, block/flex/grid layout, positioning and transitions, clipping, hit testing, scrolling, and UTF-8 editing state. The renderer injects a `MeasureFn` (the Windows sample shares Uniscribe shaping between measurement and paint); headless callers have a documented estimator. `modules/solid_bridge` owns QuickJS jobs, timers and the change/input interface. `packages/solid-zig` contains the JavaScript renderer and module host. Each Zig module has its own build helper and standalone build entry point. The application in `src` supplies Raylib and the Windows watchers. These modules remain local development code; no library release has been made.
 
 ## Setup
 
 Requires Zig 0.17.0, Node.js, pnpm, and Git. From this directory:
 
 ```powershell
-git clone https://github.com/quickjs-ng/quickjs.git vendor/quickjs
-git -C vendor/quickjs checkout 6a9fe9af5ca0bf7c49ae697edef44864272317d1
+node tools/setup.mjs
 pnpm install --frozen-lockfile
 pnpm run build:ui
 zig build run
@@ -30,10 +29,17 @@ Run `pnpm build:ui` before `zig build run` for the production bundle. Run comman
 
 Run `pnpm run test:refresh` to check Solid Refresh and the universal renderer in Node's development runtime.
 
-Existing checks are `zig build test`, `pnpm test:tree`, `pnpm test:features`, `pnpm test:bridge`, `pnpm test:refresh`, and `node tests/module_host.mjs`. The API surface probe is not proof that every primitive works end-to-end in the desktop application. The latest continuation has not been built, tested or run, following the request to pause testing.
+The implemented Aâ€“E paths now include the native select control, box/block/flex
+layout, expanded grid/positioning/alignment, shaped text, scrolling and editing,
+cached paint effects, subtree transforms/opacity and runtime transitions. Native
+render tests and an actual Solid/QuickJS application smoke test supplement the
+core and JavaScript suites. See [the current implementation and verification
+handoff](docs/tasks/phase-e-broaden-css.md) for commands, ownership and limits.
 
-The current layout supports the implemented block/flex subset and basic fixed/fr column tracks. Flex workspace now scales with the actual child count. Text widths use backend font metrics; ascent remains an estimate in the Raylib sample. The sample uses clipping-aware hit testing, vertical wheel scrolling, tab/shift-tab focus, and single-line selection/editing with clipboard shortcuts. A Windows waitable timer wakes Raylib for JavaScript deadlines; no continuous idle frame loop is needed when that worker is available. Layout is cached until tree, viewport, or scroll state changes. The JavaScript diff still walks the tree on each synchronization; a changed tree still triggers a full layout pass.
-
-This is not full CSS or a complete desktop toolkit: floats, inline line boxes/wrapping, full margin collapsing, percentage sizing, full grid, text shaping, IME, accessibility, pointer selection and mature widgets remain work. Shadows ignore blur, colors currently accept six-digit hex, and the C bridge currently allows one live runtime per process. See [the layout feature reference](docs/html-css-reference.md) for the earlier layout inventory and remaining CSS scope; its status list predates this continuation.
-
-The [2026-11-11 compatibility audit](C:/Users/A5IN/Coding/learning/zig/draft1/docs/compatibility-audit-2026-11-11.md) assesses commit `8873c31` against the local Taffy/Solid references and a pinned cumulative Baseline 2024 CSS inventory. It records source-derived defects, missing features, a defined planning-coverage rubric and future acceptance cases. Its percentages are source-review estimates, not measured CSS conformance. The select control is not implemented; the current demo uses a custom button dropdown.
+The Windows host waits for events while idle and schedules frames for active
+JavaScript timers or native transitions. Paint textures are cached; tree/layout
+updates still rebuild the scene. This is a native UI experiment, not a complete
+browser engine or a released desktop toolkit. Stylesheet/cascade/query systems,
+advanced CSS families, complete controls/accessibility and full browser-oracle
+conformance remain in the catalog backlog. The 2026-11-11 audit is historical;
+its old percentages must not be treated as current measurements.

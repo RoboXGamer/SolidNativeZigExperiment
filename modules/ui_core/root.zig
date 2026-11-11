@@ -27,7 +27,14 @@ pub const ScrollOffset = scene.ScrollOffset;
 pub const ScrollExtent = scene.ScrollExtent;
 pub const layout_block = @import("layout_block.zig");
 pub const layout_flex = @import("layout_flex.zig");
+pub const layout_grid = @import("layout_grid.zig");
+pub const transform = @import("transform.zig");
+pub const gradient = @import("gradient.zig");
+pub const paint = @import("paint.zig");
+pub const animation = @import("animation.zig");
+pub const transitions = @import("transitions.zig");
 
 test {
     std.testing.refAllDecls(@import("tests.zig"));
+    std.testing.refAllDecls(@import("phase_e_regressions.zig"));
 }

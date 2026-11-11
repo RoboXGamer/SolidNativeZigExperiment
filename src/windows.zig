@@ -8,6 +8,7 @@ extern fn ui_watch_stop() void;
 extern fn ui_wake_start() c_int;
 extern fn ui_wake_schedule(seconds: f64) void;
 extern fn ui_wake_stop() void;
+extern fn getenv([*:0]const u8) ?[*:0]const u8;
 
 const source = @embedFile("ui-bundle.js");
 const window_width = 1280;
@@ -15,9 +16,44 @@ const window_height = 720;
 const background_color = rl.Color.init(51, 51, 51, 255);
 
 fn color(value: []const u8, fallback: rl.Color) rl.Color {
-    if (value.len != 7 or value[0] != '#') return fallback;
-    const rgb = std.fmt.parseInt(u32, value[1..], 16) catch return fallback;
-    return rl.Color.init(@intCast((rgb >> 16) & 255), @intCast((rgb >> 8) & 255), @intCast(rgb & 255), 255);
+    return colorWithOpacity(value, fallback, 1.0);
+}
+
+fn colorWithOpacity(value: []const u8, fallback: rl.Color, opacity: f32) rl.Color {
+    var c = fallback;
+    const trimmed = std.mem.trim(u8, value, " \t\r\n");
+    if (trimmed.len == 7 and trimmed[0] == '#') {
+        if (std.fmt.parseInt(u32, trimmed[1..], 16)) |rgb| {
+            c = rl.Color.init(@intCast((rgb >> 16) & 255), @intCast((rgb >> 8) & 255), @intCast(rgb & 255), 255);
+        } else |_| {}
+    } else if (trimmed.len == 9 and trimmed[0] == '#') {
+        if (std.fmt.parseInt(u32, trimmed[1..], 16)) |rgba| {
+            c = rl.Color.init(@intCast((rgba >> 24) & 255), @intCast((rgba >> 16) & 255), @intCast((rgba >> 8) & 255), @intCast(rgba & 255));
+        } else |_| {}
+    } else if (std.mem.startsWith(u8, trimmed, "rgb(") or std.mem.startsWith(u8, trimmed, "rgba(")) {
+        const start = std.mem.indexOfScalar(u8, trimmed, '(') orelse 0;
+        const end = std.mem.lastIndexOfScalar(u8, trimmed, ')') orelse trimmed.len;
+        var it = std.mem.tokenizeAny(u8, trimmed[start + 1 .. end], ",/ \t");
+        const r_str = it.next();
+        const g_str = it.next();
+        const b_str = it.next();
+        const a_str = it.next();
+        if (r_str != null and g_str != null and b_str != null) {
+            const r = std.fmt.parseInt(u8, std.mem.trim(u8, r_str.?, " "), 10) catch 0;
+            const g = std.fmt.parseInt(u8, std.mem.trim(u8, g_str.?, " "), 10) catch 0;
+            const b = std.fmt.parseInt(u8, std.mem.trim(u8, b_str.?, " "), 10) catch 0;
+            var a: u8 = 255;
+            if (a_str) |as| {
+                const a_flt = std.fmt.parseFloat(f32, std.mem.trim(u8, as, " ")) catch 1.0;
+                a = @intFromFloat(std.math.clamp(a_flt * 255.0, 0, 255));
+            }
+            c = rl.Color.init(r, g, b, a);
+        }
+    }
+    const op = std.math.clamp(opacity, 0.0, 1.0);
+    const alpha_f = @as(f32, @floatFromInt(c.a)) * op;
+    c.a = @intFromFloat(std.math.clamp(alpha_f, 0, 255));
+    return c;
 }
 
 fn roundness(rect: rl.Rectangle, radius: f32) f32 {
@@ -27,153 +63,100 @@ fn roundness(rect: rl.Rectangle, radius: f32) f32 {
 }
 
 /// Real font metrics for layout: Raylib owns the glyph atlas, so ask it for
-fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics {
-    const size: i32 = @intFromFloat(@max(1.0, @round(font_size)));
-    var buf: [512]u8 = undefined;
-    var total: i32 = 0;
-    var offset: usize = 0;
-    while (offset < content.len) {
-        var chunk = @min(content.len - offset, buf.len - 1);
-        while (offset + chunk < content.len and chunk > 0 and content[offset + chunk] & 0xc0 == 0x80) chunk -= 1;
-        @memcpy(buf[0..chunk], content[offset .. offset + chunk]);
-        buf[chunk] = 0;
-        total += rl.measureText(buf[0..chunk :0], size);
-        offset += chunk;
+const text_backend = @import("text_backend.zig");
+const DrawContext = struct { focused: ?u32, editor: *ui.TextEdit, scroll_offsets: *std.AutoHashMap(u32, ui.ScrollOffset), text_cache: *text_backend.Cache };
+fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std.mem.Allocator) !void {
+    const ctx: *DrawContext = @ptrCast(@alignCast(context));
+    const focused = ctx.focused;
+    const editor = ctx.editor;
+    const scroll_offsets = ctx.scroll_offsets;
+    const n = item.node;
+    if (std.mem.eql(u8, n.type, "__layout_root")) return;
+    const b = item.bounds;
+    const rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
+
+    const radius = if (n.style.borderTopLeftRadius > 0) n.style.borderTopLeftRadius else n.style.borderRadius;
+    const op: f32 = 1;
+
+    // per-side borders
+    const bw = n.border();
+    const uniform = (bw.top == bw.right and bw.right == bw.bottom and bw.bottom == bw.left);
+    if (radius > 0 and uniform and bw.top > 0) {
+        rl.drawRectangleRoundedLinesEx(rect, roundness(rect, radius), 8, bw.top, colorWithOpacity(n.style.borderColor, .white, op));
+    } else {
+        if (bw.top > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y }, bw.top, colorWithOpacity(if (n.style.borderTopColor.len > 0) n.style.borderTopColor else n.style.borderColor, .white, op));
+        if (bw.right > 0) rl.drawLineEx(.{ .x = rect.x + rect.width, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.right, colorWithOpacity(if (n.style.borderRightColor.len > 0) n.style.borderRightColor else n.style.borderColor, .white, op));
+        if (bw.bottom > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y + rect.height }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.bottom, colorWithOpacity(if (n.style.borderBottomColor.len > 0) n.style.borderBottomColor else n.style.borderColor, .white, op));
+        if (bw.left > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x, .y = rect.y + rect.height }, bw.left, colorWithOpacity(if (n.style.borderLeftColor.len > 0) n.style.borderLeftColor else n.style.borderColor, .white, op));
     }
-    const h = font_size * ui.text.fallback_line_height_ratio;
-    const asc = font_size * ui.text.fallback_ascent_ratio;
-    const desc = font_size * ui.text.fallback_descent_ratio;
-    return .{
-        .width = @floatFromInt(total),
-        .height = h,
-        .ascent = asc,
-        .descent = desc,
-        .leading = @max(0, h - (asc + desc)),
-    };
-}
+    if (n.style.outlineWidth > 0) {
+        const orect = rl.Rectangle{ .x = rect.x - n.style.outlineWidth, .y = rect.y - n.style.outlineWidth, .width = rect.width + 2 * n.style.outlineWidth, .height = rect.height + 2 * n.style.outlineWidth };
+        rl.drawRectangleLinesEx(orect, n.style.outlineWidth, colorWithOpacity(n.style.outlineColor, .white, op));
+    }
+    const font_size_int: i32 = @intFromFloat(@max(1.0, @round(n.fontSize())));
+    if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
+        const content = n.contentBox(b);
+        const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else scene.text.lineHeight(n.fontSize())) else scene.text.lineHeight(n.fontSize());
+        const lines = scene.text.shapeLines(allocator, n.text, n.fontSize(), content.width, n.style.whiteSpace) catch &.{};
+        for (lines, 0..) |sline, line_idx| {
+            var line_x = content.x;
+            if (std.mem.eql(u8, n.style.textAlign, "center")) {
+                line_x += @max(0, (content.width - sline.width) / 2);
+            } else if (std.mem.eql(u8, n.style.textAlign, "right")) {
+                line_x += @max(0, content.width - sline.width);
+            }
+            const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
 
-fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_offsets: *std.AutoHashMap(u32, ui.ScrollOffset), allocator: std.mem.Allocator) !void {
-    for (scene.items.items) |item| {
-        const n = item.node;
-        if (std.mem.eql(u8, n.type, "__layout_root")) continue;
-        const b = item.bounds;
-        const rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
-        const is_button = std.mem.eql(u8, n.type, "button");
-        const is_input = std.mem.eql(u8, n.type, "input");
-        const is_select = std.mem.eql(u8, n.type, "select");
-        const is_option = std.mem.eql(u8, n.type, "option");
-        const radius = if (n.style.borderTopLeftRadius > 0) n.style.borderTopLeftRadius else n.style.borderRadius;
-
-        var clip = scene.clipFor(item);
-        if (is_input) clip = clip.intersect(b);
-        if (clip.isEmpty()) continue;
-        const clip_x: i32 = @intFromFloat(@floor(clip.left()));
-        const clip_y: i32 = @intFromFloat(@floor(clip.top()));
-        const clip_w: i32 = @intFromFloat(@ceil(clip.width));
-        const clip_h: i32 = @intFromFloat(@ceil(clip.height));
-        rl.beginScissorMode(clip_x, clip_y, clip_w, clip_h);
-        defer rl.endScissorMode();
-        // box shadow (parsed: "ox oy blur spread color")
-        if (n.style.boxShadow.len > 0) {
-            var it = std.mem.tokenizeAny(u8, n.style.boxShadow, " ");
-            const ox = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const oy = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const blur = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const spread = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const cstr = it.next() orelse "#000000";
-            const shad = rl.Rectangle{ .x = rect.x + ox - spread, .y = rect.y + oy - spread, .width = rect.width + 2 * spread, .height = rect.height + 2 * spread };
-            rl.drawRectangleRounded(shad, roundness(shad, radius), 8, color(cstr, rl.Color.init(0, 0, 0, 128)));
-            _ = blur;
+            try ctx.text_cache.draw(sline.text, line_x, line_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op));
         }
-        if (n.style.backgroundColor.len > 0 or is_button or is_input or is_select or is_option) {
-            const fallback: rl.Color = if (is_button or is_select) .dark_gray else if (is_input) .dark_gray else if (is_option) rl.Color.init(40, 40, 40, 255) else .blank;
-            if (radius > 0) {
-                rl.drawRectangleRounded(rect, roundness(rect, radius), 8, color(n.style.backgroundColor, fallback));
+    }
+    if (std.mem.eql(u8, n.type, "select")) {
+        const display_text = if (n.text.len > 0) n.text else n.value;
+        const content = n.contentBox(b);
+        if (display_text.len > 0) {
+            try ctx.text_cache.draw(display_text, content.x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .white, op));
+        }
+        const arrow_x = b.x + b.width - 20;
+        if (arrow_x > content.x) {
+            try ctx.text_cache.draw("v", arrow_x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .light_gray, op));
+        }
+    }
+    if (std.mem.eql(u8, n.type, "input")) {
+        const content = n.contentBox(b);
+        var text_x = content.x;
+        const text_y = content.y;
+        if (focused == n.id) {
+            editor.clamp(n.value);
+            const caret = text_backend.measure(null, n.value[0..editor.cursor], @floatFromInt(font_size_int)).width;
+            text_x -= @max(0, caret - @max(0, content.width - 4));
+            const selected = editor.selection();
+            const start = text_backend.measure(null, n.value[0..selected.start], @floatFromInt(font_size_int)).width;
+            const end = text_backend.measure(null, n.value[0..selected.end], @floatFromInt(font_size_int)).width;
+            if (selected.start != selected.end) {
+                rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size_int) }, .blue);
             } else {
-                rl.drawRectangleRec(rect, color(n.style.backgroundColor, fallback));
+                rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
             }
         }
-        // per-side borders
-        const bw = n.border();
-        const uniform = (bw.top == bw.right and bw.right == bw.bottom and bw.bottom == bw.left);
-        if (radius > 0 and uniform and bw.top > 0) {
-            rl.drawRectangleRoundedLinesEx(rect, roundness(rect, radius), 8, bw.top, color(n.style.borderColor, .white));
-        } else {
-            if (bw.top > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y }, bw.top, color(if (n.style.borderTopColor.len > 0) n.style.borderTopColor else n.style.borderColor, .white));
-            if (bw.right > 0) rl.drawLineEx(.{ .x = rect.x + rect.width, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.right, color(if (n.style.borderRightColor.len > 0) n.style.borderRightColor else n.style.borderColor, .white));
-            if (bw.bottom > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y + rect.height }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.bottom, color(if (n.style.borderBottomColor.len > 0) n.style.borderBottomColor else n.style.borderColor, .white));
-            if (bw.left > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x, .y = rect.y + rect.height }, bw.left, color(if (n.style.borderLeftColor.len > 0) n.style.borderLeftColor else n.style.borderColor, .white));
-        }
-        if (n.style.outlineWidth > 0) {
-            const orect = rl.Rectangle{ .x = rect.x - n.style.outlineWidth, .y = rect.y - n.style.outlineWidth, .width = rect.width + 2 * n.style.outlineWidth, .height = rect.height + 2 * n.style.outlineWidth };
-            rl.drawRectangleLinesEx(orect, n.style.outlineWidth, color(n.style.outlineColor, .white));
-        }
-        const font_size_int: i32 = @intFromFloat(@max(1.0, @round(n.fontSize())));
-        if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
-            const content = n.contentBox(b);
-            const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else scene.text.lineHeight(n.fontSize())) else scene.text.lineHeight(n.fontSize());
-            const lines = scene.text.shapeLines(allocator, n.text, n.fontSize(), content.width, n.style.whiteSpace) catch &.{};
-            for (lines, 0..) |sline, line_idx| {
-                var line_x = content.x;
-                if (std.mem.eql(u8, n.style.textAlign, "center")) {
-                    line_x += @max(0, (content.width - sline.width) / 2);
-                } else if (std.mem.eql(u8, n.style.textAlign, "right")) {
-                    line_x += @max(0, content.width - sline.width);
-                }
-                const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
-                const c_text = try allocator.dupeSentinel(u8, sline.text, 0);
-                rl.drawText(c_text, @intFromFloat(@round(line_x)), @intFromFloat(@round(line_y)), font_size_int, color(n.style.color, .white));
-            }
-        }
-        if (std.mem.eql(u8, n.type, "select")) {
-            const display_text = if (n.text.len > 0) n.text else n.value;
-            const content = n.contentBox(b);
-            if (display_text.len > 0) {
-                const text = try allocator.dupeSentinel(u8, display_text, 0);
-                rl.drawText(text, @intFromFloat(content.x), @intFromFloat(content.y), font_size_int, color(n.style.color, .white));
-            }
-            const arrow_x = b.x + b.width - 20;
-            if (arrow_x > content.x) {
-                rl.drawText("v", @intFromFloat(arrow_x), @intFromFloat(content.y), font_size_int, color(n.style.color, .light_gray));
-            }
-        }
-        if (std.mem.eql(u8, n.type, "input")) {
-            const value = try allocator.dupeSentinel(u8, n.value, 0);
-            const content = n.contentBox(b);
-            var text_x = content.x;
-            const text_y = content.y;
-            if (focused == n.id) {
-                editor.clamp(n.value);
-                const caret = measureRaylib(null, n.value[0..editor.cursor], @floatFromInt(font_size_int)).width;
-                text_x -= @max(0, caret - @max(0, content.width - 4));
-                const selected = editor.selection();
-                const start = measureRaylib(null, n.value[0..selected.start], @floatFromInt(font_size_int)).width;
-                const end = measureRaylib(null, n.value[0..selected.end], @floatFromInt(font_size_int)).width;
-                if (selected.start != selected.end) {
-                    rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size_int) }, .blue);
-                } else {
-                    rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
-                }
-            }
-            rl.drawText(value, @intFromFloat(text_x), @intFromFloat(text_y), font_size_int, color(n.style.color, .white));
-        }
-        // Scrollbar rendering
-        if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {
-            const extent = scene.scrollExtent(n.id);
-            if (extent.max_scroll_y > 0) {
-                const track_w: f32 = if (std.mem.eql(u8, n.style.scrollbarWidth, "thin")) 4 else 8;
-                const track_h = rect.height;
-                const track_x = rect.x + rect.width - track_w;
-                const track_y = rect.y;
-                rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, rl.Color.init(0, 0, 0, 40));
-                const thumb_h = @max(16, track_h * (rect.height / extent.total_height));
-                const cur_offset = if (scroll_offsets.get(n.id)) |so| so.y else 0;
-                const thumb_y = track_y + (cur_offset / extent.max_scroll_y) * (track_h - thumb_h);
-                rl.drawRectangleRec(.{ .x = track_x, .y = thumb_y, .width = track_w, .height = thumb_h }, rl.Color.init(255, 255, 255, 100));
-            }
-        }
-        if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
+        try ctx.text_cache.draw(n.value, text_x, text_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op));
+        if (focused == n.id) text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + scene.text.width(n.value[0..editor.cursor], n.fontSize())), @intFromFloat(text_y + scene.text.lineHeight(n.fontSize())));
     }
+    // Scrollbar rendering
+    if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {
+        const extent = scene.scrollExtent(n.id);
+        if (extent.max_scroll_y > 0) {
+            const track_w: f32 = if (std.mem.eql(u8, n.style.scrollbarWidth, "thin")) 4 else 8;
+            const track_h = rect.height;
+            const track_x = rect.x + rect.width - track_w;
+            const track_y = rect.y;
+            rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, rl.Color.init(0, 0, 0, 40));
+            const thumb_h = @max(16, track_h * (rect.height / extent.total_height));
+            const cur_offset = if (scroll_offsets.get(n.id)) |so| so.y else 0;
+            const thumb_y = track_y + (cur_offset / extent.max_scroll_y) * (track_h - thumb_h);
+            rl.drawRectangleRec(.{ .x = track_x, .y = thumb_y, .width = track_w, .height = thumb_h }, rl.Color.init(255, 255, 255, 100));
+        }
+    }
+    if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
 }
 
 fn pressed(key: rl.KeyboardKey) bool {
@@ -256,23 +239,31 @@ fn synchronize(runtime: *bridge.Runtime, tree: *ui.Tree) !bool {
 }
 
 fn buildScene(tree: *ui.Tree) !ui.Scene {
-    return ui.Scene.fromTreeWithText(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = measureRaylib });
+    return ui.Scene.fromTreeWithText(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = text_backend.measure, .position_fn = text_backend.position });
 }
 
 pub fn run() void {
+    const smoke = getenv("SOLID_NATIVE_SMOKE") != null;
     var runtime = bridge.Runtime.init(source) catch |err| {
         std.log.err("Could not initialize Solid UI: {}", .{err});
         return;
     };
     defer runtime.deinit();
-    rl.setConfigFlags(.{ .window_resizable = true, .vsync_hint = true });
+    rl.setConfigFlags(.{ .window_resizable = true, .vsync_hint = true, .window_hidden = smoke });
     rl.initWindow(window_width, window_height, "Solid + Zig experiment");
     defer rl.closeWindow();
+    var renderer = @import("renderer.zig").Renderer.init(std.heap.page_allocator) catch |err| {
+        std.log.err("Renderer initialization failed: {}", .{err});
+        return;
+    };
+    defer renderer.deinit();
+    var text_cache = text_backend.Cache.init(std.heap.page_allocator);
+    defer text_cache.deinit();
     const watching = ui_watch_start() != 0;
     defer if (watching) ui_watch_stop();
     if (watching and !runtime.reload()) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
     rl.setExitKey(.null);
-    const event_waiting = ui_wake_start() != 0;
+    const event_waiting = !smoke and ui_wake_start() != 0;
     defer if (event_waiting) ui_wake_stop();
     if (event_waiting) {
         rl.enableEventWaiting();
@@ -281,6 +272,8 @@ pub fn run() void {
         rl.disableEventWaiting();
         rl.setTargetFPS(60);
     }
+    var timeline = ui.transitions.Timeline.init(std.heap.page_allocator);
+    defer timeline.deinit();
     var tree = ui.Tree.init(std.heap.page_allocator);
     defer tree.deinit();
     _ = synchronize(&runtime, &tree) catch |err| {
@@ -301,6 +294,7 @@ pub fn run() void {
     var last_height = rl.getScreenHeight();
     var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer scratch.deinit();
+    var smoke_frames: usize = 0;
     while (!rl.windowShouldClose()) {
         _ = scratch.reset(.retain_capacity);
         runtime.tick() catch |err| std.log.err("Async UI job failed: {}", .{err});
@@ -322,8 +316,13 @@ pub fn run() void {
             if (focused) |id| {
                 if (scene.find(id)) |item| {
                     if (std.mem.eql(u8, item.node.type, "input")) {
+                        if (editing != focused) {
+                            editor = .{};
+                            editing = focused;
+                        }
                         const content = item.node.contentBox(item.bounds);
-                        const rel_x = mouse.x - content.x;
+                        const local = scene.localPoint(item, mouse.x, mouse.y) orelse ui.transform.Point{ .x = mouse.x, .y = mouse.y };
+                        const rel_x = local.x - content.x;
                         const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), scene.text);
                         editor.move(idx, false);
                     }
@@ -346,26 +345,16 @@ pub fn run() void {
             }
         }
         if (rl.isKeyPressed(.tab)) {
-            const reverse = rl.isKeyDown(.left_shift) or rl.isKeyDown(.right_shift);
-            var found = focused == null;
-            var first: ?u32 = null;
-            var selected: ?u32 = null;
-            var previous: ?u32 = null;
-            for (scene.items.items) |item| {
-                if (!item.node.isFocusableForTab()) continue;
-                if (first == null) first = item.node.id;
-                if (reverse) {
-                    if (focused == item.node.id) selected = previous;
-                    previous = item.node.id;
-                    continue;
-                }
-                if (found) {
-                    selected = item.node.id;
+            const ids = scene.getFocusOrder(scratch.allocator()) catch &.{};
+            if (ids.len > 0) {
+                var index: ?usize = null;
+                for (ids, 0..) |id, i| if (focused == id) {
+                    index = i;
                     break;
-                }
-                if (focused == item.node.id) found = true;
-            }
-            focused = selected orelse (if (reverse) previous else first);
+                };
+                const reverse = rl.isKeyDown(.left_shift) or rl.isKeyDown(.right_shift);
+                focused = ids[if (index) |i| (if (reverse) (i + ids.len - 1) % ids.len else (i + 1) % ids.len) else (if (reverse) ids.len - 1 else 0)];
+            } else focused = null;
         }
         if (rl.isKeyPressed(.enter)) if (focused) |id| {
             if (scene.find(id)) |item| {
@@ -393,11 +382,13 @@ pub fn run() void {
             std.log.err("Could not update UI scene: {}", .{err});
             break;
         };
-        if (changed or wheel != 0 or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight()) {
-            const next = buildScene(&tree) catch |err| {
+        if (changed or timeline.active() or wheel != 0 or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight()) {
+            var next = buildScene(&tree) catch |err| {
                 std.log.err("Could not lay out UI scene: {}", .{err});
                 break;
             };
+            if (changed) timeline.retarget(&scene, &next, rl.getTime()) catch |err| std.log.err("Transition retarget failed: {}", .{err});
+            timeline.apply(&next, rl.getTime()) catch |err| std.log.err("Transition sample failed: {}", .{err});
             scene.deinit();
             scene = next;
             last_width = rl.getScreenWidth();
@@ -416,8 +407,19 @@ pub fn run() void {
         };
         rl.beginDrawing();
         rl.clearBackground(background_color);
-        renderScene(&scene, focused, &editor, &scroll_offsets, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
-        if (event_waiting) ui_wake_schedule(runtime.nextTimeout());
+        var draw_context = DrawContext{ .focused = focused, .editor = &editor, .scroll_offsets = &scroll_offsets, .text_cache = &text_cache };
+        renderer.render(&scene, &draw_context, drawItem, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
+        if (event_waiting) {
+            const timeout = runtime.nextTimeout();
+            ui_wake_schedule(if (timeline.active()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
+        }
         rl.endDrawing();
+        if (smoke) {
+            smoke_frames += 1;
+            if (smoke_frames >= 3) {
+                std.log.info("Native application smoke completed: {d} scene items", .{scene.items.items.len});
+                break;
+            }
+        }
     }
 }

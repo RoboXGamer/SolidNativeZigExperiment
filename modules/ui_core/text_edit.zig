@@ -2,60 +2,71 @@
 const std = @import("std");
 const text_mod = @import("text.zig");
 
+const unicode = @import("unicode/graphemes.zig");
 pub fn isCombining(cp: u21) bool {
-    return (cp >= 0x0300 and cp <= 0x036F) or
-        (cp >= 0x1DC0 and cp <= 0x1DFF) or
-        (cp >= 0x20D0 and cp <= 0x20FF) or
-        (cp >= 0xFE00 and cp <= 0xFE0F) or
-        (cp >= 0xFE20 and cp <= 0xFE2F) or
-        (cp == 0x200D);
+    const p = unicode.property(cp);
+    return p == .extend or p == .spacingmark or p == .zwj;
 }
-
+fn control(p: unicode.Property) bool {
+    return p == .cr or p == .lf or p == .control;
+}
+fn codepoint(value: []const u8, offset: usize) struct { cp: u21, len: usize } {
+    const len = std.unicode.utf8ByteSequenceLength(value[offset]) catch return .{ .cp = 0xfffd, .len = 1 };
+    if (offset + len > value.len) return .{ .cp = 0xfffd, .len = 1 };
+    return .{ .cp = std.unicode.utf8Decode(value[offset .. offset + len]) catch 0xfffd, .len = len };
+}
+/// Unicode 16.0 UAX #29 extended grapheme boundaries, including GB9c and GB11.
 pub fn nextGrapheme(value: []const u8, from: usize) usize {
     if (from >= value.len) return value.len;
-    var it = std.unicode.Utf8View.init(value[from..]) catch return from + 1;
-    var iter = it.iterator();
-    var end = from;
-    if (iter.nextCodepointSlice()) |slice| {
-        end += slice.len;
-        while (iter.nextCodepoint()) |cp| {
-            if (isCombining(cp)) {
-                var buf: [4]u8 = undefined;
-                const len = std.unicode.utf8Encode(cp, &buf) catch break;
-                end += len;
-            } else {
-                break;
-            }
+    const first = codepoint(value, from);
+    var previous = unicode.property(first.cp);
+    var end = from + first.len;
+    var regional: usize = if (previous == .regional_indicator) 1 else 0;
+    var pictographic = unicode.isPictographic(first.cp);
+    var after_zwj = false;
+    var consonant = unicode.conjunct(first.cp) == .consonant;
+    var linker = false;
+    while (end < value.len) {
+        const c = codepoint(value, end);
+        const prop = unicode.property(c.cp);
+        const indic = unicode.conjunct(c.cp);
+        const joins = if (previous == .cr and prop == .lf) true else if (control(previous) or control(prop)) false else if (previous == .l and (prop == .l or prop == .v or prop == .lv or prop == .lvt)) true else if ((previous == .lv or previous == .v) and (prop == .v or prop == .t)) true else if ((previous == .lvt or previous == .t) and prop == .t) true else if (prop == .extend or prop == .zwj or prop == .spacingmark or previous == .prepend) true else if (consonant and linker and indic == .consonant) true else if (after_zwj and unicode.isPictographic(c.cp)) true else if (previous == .regional_indicator and prop == .regional_indicator and regional % 2 == 1) true else false;
+        if (!joins) break;
+        after_zwj = prop == .zwj and pictographic;
+        if (unicode.isPictographic(c.cp)) pictographic = true else if (prop != .extend) pictographic = false;
+        if (indic == .consonant) {
+            consonant = true;
+            linker = false;
+        } else if (indic == .linker) {
+            linker = consonant or linker;
+        } else if (indic != .extend) {
+            consonant = false;
+            linker = false;
         }
+        if (prop == .regional_indicator) regional += 1 else regional = 0;
+        previous = prop;
+        end += c.len;
     }
     return end;
 }
-
 fn prevCodepoint(value: []const u8, idx: usize) usize {
     if (idx == 0) return 0;
-    var i = idx - 1;
-    while (i > 0 and (value[i] & 0xc0) == 0x80) i -= 1;
+    var i = @min(idx, value.len) - 1;
+    while (i > 0 and value[i] & 0xc0 == 0x80) i -= 1;
     return i;
 }
-
 pub fn prevGrapheme(value: []const u8, from: usize) usize {
-    if (from == 0) return 0;
-    var cur = prevCodepoint(value, from);
-    while (cur > 0) {
-        const cp_len = std.unicode.utf8ByteSequenceLength(value[cur]) catch 1;
-        const cp_end = @min(value.len, cur + cp_len);
-        if (std.unicode.utf8Decode(value[cur..cp_end])) |cp| {
-            if (isCombining(cp)) {
-                cur = prevCodepoint(value, cur);
-                continue;
-            }
-        } else |_| {}
-        break;
+    var previous: usize = 0;
+    var offset: usize = 0;
+    while (offset < @min(from, value.len)) {
+        previous = offset;
+        offset = nextGrapheme(value, offset);
     }
-    return cur;
+    return previous;
 }
 
 pub fn positionForX(value: []const u8, click_x: f32, font_size: f32, t: text_mod.Text) usize {
+    if (t.position_fn) |f| return @min(value.len, f(t.ctx, value, click_x, font_size));
     if (click_x <= 0) return 0;
     var offset: usize = 0;
     var prev_w: f32 = 0;

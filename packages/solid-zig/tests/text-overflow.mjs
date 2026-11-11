@@ -40,7 +40,7 @@ const node = (style, props = {}) => ({
   // Numeric line-height
   const s = snapshot(node({ lineHeight: 28 })).style;
   assert.equal(s.lineHeight, 28);
-  assert.equal(s.lineHeightCss, "");
+  assert.equal(s.lineHeightCss, null);
 }
 
 {

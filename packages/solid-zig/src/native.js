@@ -27,23 +27,38 @@ function flexDirectionOf(node, style) {
 
 function displayOf(node, style) {
   if (typeof style.display === "string") return style.display;
-  return node.type === "text" ? "block" : "flex";
+  if (node.type === "text") return "block";
+  if (node.type === "grid") return "grid";
+  return "flex";
 }
 
-function spacingValue(value) {
-  if (typeof value === "number") return value;
-  if (value === "auto") return -1;
-  if (typeof value === "string") {
-    const n = parseFloat(value);
-    return Number.isFinite(n) ? n : 0;
+function spacingValue(value, { auto = false, negative = false } = {}) {
+  if (auto && value === "auto") return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value !== "number" || !Number.isFinite(value) || (!negative && value < 0)) throw Error(`Invalid length: ${value}`);
+  return value;
+}
+
+function splitSpacing(value) {
+  const parts = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === "(") depth++;
+    else if (value[i] === ")") { if (--depth < 0) throw Error(`Invalid spacing: ${value}`); }
+    else if (/\s/.test(value[i]) && depth === 0) {
+      if (i > start) parts.push(value.slice(start, i));
+      start = i + 1;
+    }
   }
-  return 0;
+  if (depth !== 0) throw Error(`Invalid spacing: ${value}`);
+  if (start < value.length) parts.push(value.slice(start));
+  return parts;
 }
 
-function boxSides(value) {
-  if (typeof value !== "string") return null;
-  const parts = value.trim().split(/\s+/).filter(v => v.length > 0).map(spacingValue);
-  if (parts.length === 0 || parts.length > 4) return null;
+function boxSides(value, options) {
+  if (value == null) return null;
+  const parts = (typeof value === "string" ? splitSpacing(value.trim()) : [value]).map(v => spacingValue(v, options));
+  if (parts.length === 0 || parts.length > 4) throw Error(`Invalid spacing: ${value}`);
   if (parts.length === 1) return { t: parts[0], r: parts[0], b: parts[0], l: parts[0] };
   if (parts.length === 2) return { t: parts[0], r: parts[1], b: parts[0], l: parts[1] };
   if (parts.length === 3) return { t: parts[0], r: parts[1], b: parts[2], l: parts[1] };
@@ -51,39 +66,108 @@ function boxSides(value) {
 }
 
 function flexValues(style) {
-  let grow = 0, shrink = 1, basis = -1;
+  let grow = 0, shrink = 1, basis = "auto";
   if (typeof style.flex === "number") { grow = style.flex; basis = 0; }
   else if (style.flex === "none") shrink = 0;
   else if (style.flex === "auto") grow = 1;
   else if (typeof style.flex === "string") {
-    const parts = style.flex.trim().split(/\s+/);
-    if (parts.length === 1 && /(?:px|auto|content)$/.test(parts[0])) {
+    const parts = splitSpacing(style.flex.trim());
+    if (parts.length < 1 || parts.length > 3) throw Error(`Invalid flex: ${style.flex}`);
+    if (parts.length === 1 && (parts[0] === "auto" || parts[0] === "content" || /[a-z%(]/i.test(parts[0]))) {
       grow = 1;
-      basis = parts[0] === "auto" ? -1 : parts[0] === "content" ? -2 : parseFloat(parts[0]);
+      basis = parts[0];
     } else {
       grow = Number(parts[0]);
       shrink = parts.length > 1 ? Number(parts[1]) : 1;
       const part = parts[2] ?? "0";
-      basis = part === "auto" ? -1 : part === "content" ? -2 : parseFloat(part);
+      basis = part;
     }
   }
+  if (style.flexGrow != null) grow = style.flexGrow;
+  if (style.flexShrink != null) shrink = style.flexShrink;
+  if (typeof grow !== "number" || !Number.isFinite(grow) || grow < 0 || typeof shrink !== "number" || !Number.isFinite(shrink) || shrink < 0) throw Error("Invalid flex factor");
   return {
-    grow: typeof style.flexGrow === "number" ? style.flexGrow : (Number.isFinite(grow) ? grow : 0),
-    shrink: typeof style.flexShrink === "number" ? style.flexShrink : (Number.isFinite(shrink) ? shrink : 1),
-    basis: typeof style.flexBasis === "number" ? style.flexBasis : style.flexBasis === "auto" ? -1 : style.flexBasis === "content" ? -2 : (Number.isFinite(basis) ? basis : -1),
+    grow,
+    shrink,
+    basis: style.flexBasis ?? basis,
   };
 }
 
-function snapshot(node, inherited = {}) {
-  const style = node.props.style || {};
-  const marginBox = boxSides(style.margin);
-  const paddingBox = boxSides(style.padding);
+// Inline object declarations are applied in insertion order. Logical and
+// physical declarations targeting the same side therefore obey last-declared
+// precedence; the mode and direction are computed for the whole style object.
+export function physicalStyle(style, inherited = {}) {
+  const mode = style.writingMode ?? inherited.writingMode ?? "horizontal-tb";
+  const direction = style.direction ?? inherited.direction ?? "ltr";
+  if (!["horizontal-tb", "vertical-rl", "vertical-lr"].includes(mode) || !["ltr", "rtl"].includes(direction)) throw Error("Unsupported writing mode or direction");
+  const vertical = mode !== "horizontal-tb";
+  const inlineStart = vertical ? (direction === "ltr" ? "Top" : "Bottom") : (direction === "ltr" ? "Left" : "Right");
+  const inlineEnd = vertical ? (direction === "ltr" ? "Bottom" : "Top") : (direction === "ltr" ? "Right" : "Left");
+  const blockStart = vertical ? (mode === "vertical-rl" ? "Right" : "Left") : "Top";
+  const blockEnd = vertical ? (mode === "vertical-rl" ? "Left" : "Right") : "Bottom";
+  const logical = { InlineStart: inlineStart, InlineEnd: inlineEnd, BlockStart: blockStart, BlockEnd: blockEnd };
+  const sizes = { inlineSize: vertical ? "height" : "width", blockSize: vertical ? "width" : "height",
+    minInlineSize: vertical ? "minHeight" : "minWidth", minBlockSize: vertical ? "minWidth" : "minHeight",
+    maxInlineSize: vertical ? "maxHeight" : "maxWidth", maxBlockSize: vertical ? "maxWidth" : "maxHeight" };
+  const result = { writingMode: mode, direction };
+  for (const [key, value] of Object.entries(style)) {
+    if (value == null) continue;
+    if (key === "margin" || key === "padding" || key === "borderWidth" || key === "border") {
+      const options = key === "margin" ? { auto: true, negative: true } : {};
+      const sides = boxSides(value, options);
+      const isBorder = key === "borderWidth" || key === "border";
+      const prefix = isBorder ? "border" : key;
+      const suffix = isBorder ? "Width" : "";
+      for (const [letter, side] of [["t", "Top"], ["r", "Right"], ["b", "Bottom"], ["l", "Left"]]) result[prefix + side + suffix] = sides[letter];
+      continue;
+    }
+    if (sizes[key]) { result[sizes[key]] = value; continue; }
+    const edge = key.match(/^(margin|padding|border)(InlineStart|InlineEnd|BlockStart|BlockEnd)(Width)?$/);
+    if (edge) { result[edge[1] + logical[edge[2]] + (edge[3] ?? "")] = value; continue; }
+    const pair = key.match(/^(margin|padding|border)(Inline|Block)(Width)?$/);
+    if (pair) {
+      const parts = typeof value === "string" ? splitSpacing(value.trim()) : [value];
+      if (parts.length < 1 || parts.length > 2) throw Error(`Invalid logical sides: ${value}`);
+      result[pair[1] + logical[pair[2] + "Start"] + (pair[3] ?? "")] = parts[0];
+      result[pair[1] + logical[pair[2] + "End"] + (pair[3] ?? "")] = parts[1] ?? parts[0];
+      continue;
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+export function snapshot(node, inherited = {}) {
+  const style = physicalStyle(node.props.style || {}, inherited);
+  const marginBox = boxSides(style.margin, { auto: true, negative: true });
+  const paddingBox = boxSides(style.padding, {});
+  const marginSide = (key, side) => style[key] == null ? marginBox?.[side] : spacingValue(style[key], { auto: true, negative: true });
+  const paddingSide = (key, side) => style[key] == null ? paddingBox?.[side] : spacingValue(style[key]);
+  const margin = { t: marginSide("marginTop", "t"), r: marginSide("marginRight", "r"), b: marginSide("marginBottom", "b"), l: marginSide("marginLeft", "l") };
+  const size = value => value == null ? null : spacingValue(value, { auto: true });
+  const border = value => value == null ? null : spacingValue(value);
+  const lengths = {};
+  function emitLength(key, value) {
+    lengths[key] = typeof value === "number" ? value : null;
+    lengths[key + "Css"] = typeof value === "string" ? value : null;
+  }
+  for (const key of ["width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight"]) emitLength(key, size(style[key]));
+  for (const [key, side] of [["Top", "t"], ["Right", "r"], ["Bottom", "b"], ["Left", "l"]]) {
+    emitLength("padding" + key, paddingSide("padding" + key, side));
+    emitLength("margin" + key, margin[side] === "auto" ? null : margin[side]);
+    emitLength("border" + key + "Width", border(style["border" + key + "Width"]));
+  }
   const flex = flexValues(style);
+  const basis = flex.basis === "auto" || flex.basis === "content" ? flex.basis : spacingValue(flex.basis);
+  if (style.aspectRatio != null && (typeof style.aspectRatio !== "number" || !Number.isFinite(style.aspectRatio) || style.aspectRatio <= 0)) throw Error(`Invalid aspect ratio: ${style.aspectRatio}`);
+  if (style.fontSize != null && (typeof style.fontSize !== "number" || !Number.isFinite(style.fontSize) || style.fontSize <= 0)) throw Error(`Invalid font size: ${style.fontSize}`);
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
+    writingMode: style.writingMode,
+    direction: style.direction,
   };
-  const columns = style.gridTemplateColumns == null ? [] :
+  const columns = displayOf(node, style) !== "grid" || style.gridTemplateColumns == null ? [] :
     (Array.isArray(style.gridTemplateColumns) ? style.gridTemplateColumns : String(style.gridTemplateColumns).trim().split(/\s+/)).map(track => {
       if (typeof track === "number") return track;
       if (/^\d+(?:\.\d+)?fr$/.test(track)) return -Number(track.slice(0, -2));
@@ -97,7 +181,8 @@ function snapshot(node, inherited = {}) {
     clickable: !node.props.disabled && (typeof node.props.onClick === "function" || node.type === "input"),
     value: node.type === "input" ? String(node.props.value ?? "") : "",
     style: {
-      direction: flexDirectionOf(node, style),
+      direction: style.direction ?? "ltr",
+      writingMode: style.writingMode,
       display: displayOf(node, style),
       flexDirection: flexDirectionOf(node, style),
       flexWrap: typeof style.flexWrap === "string" ? style.flexWrap : "nowrap",
@@ -107,25 +192,14 @@ function snapshot(node, inherited = {}) {
       alignSelf: typeof style.alignSelf === "string" ? style.alignSelf : "auto",
       flexGrow: flex.grow,
       flexShrink: flex.shrink,
-      flexBasis: flex.basis,
+      flexBasis: typeof basis === "number" ? basis : null,
+      flexBasisCss: typeof basis === "string" && basis !== "auto" && basis !== "content" ? basis : null,
+      flexBasisContent: basis === "content",
       order: typeof style.order === "number" ? style.order : 0,
-      width: typeof style.width === "number" ? style.width : 0,
-      height: typeof style.height === "number" ? style.height : 0,
-      minWidth: typeof style.minWidth === "number" ? style.minWidth : 0,
-      minHeight: typeof style.minHeight === "number" ? style.minHeight : 0,
-      maxWidth: typeof style.maxWidth === "number" ? style.maxWidth : 0,
-      maxHeight: typeof style.maxHeight === "number" ? style.maxHeight : 0,
-      aspectRatio: typeof style.aspectRatio === "number" ? style.aspectRatio : 0,
-      padding: typeof style.padding === "number" ? style.padding : 0,
-      paddingTop: typeof style.paddingTop === "number" ? style.paddingTop : (paddingBox?.t ?? 0),
-      paddingRight: typeof style.paddingRight === "number" ? style.paddingRight : (paddingBox?.r ?? 0),
-      paddingBottom: typeof style.paddingBottom === "number" ? style.paddingBottom : (paddingBox?.b ?? 0),
-      paddingLeft: typeof style.paddingLeft === "number" ? style.paddingLeft : (paddingBox?.l ?? 0),
-      margin: marginBox ? 0 : (typeof style.margin === "number" ? style.margin : (style.margin === "auto" ? -1 : 0)),
-      marginTop: style.marginTop === "auto" ? -1 : (typeof style.marginTop === "number" ? style.marginTop : (marginBox ? marginBox.t : 0)),
-      marginRight: style.marginRight === "auto" ? -1 : (typeof style.marginRight === "number" ? style.marginRight : (marginBox ? marginBox.r : 0)),
-      marginBottom: style.marginBottom === "auto" ? -1 : (typeof style.marginBottom === "number" ? style.marginBottom : (marginBox ? marginBox.b : 0)),
-      marginLeft: style.marginLeft === "auto" ? -1 : (typeof style.marginLeft === "number" ? style.marginLeft : (marginBox ? marginBox.l : 0)),
+      ...lengths,
+      aspectRatio: style.aspectRatio ?? null,
+      marginTopAuto: margin.t === "auto", marginRightAuto: margin.r === "auto",
+      marginBottomAuto: margin.b === "auto", marginLeftAuto: margin.l === "auto",
       gap: typeof style.gap === "number" ? style.gap : 0,
       columns,
       backgroundColor: typeof style.backgroundColor === "string" ? style.backgroundColor : "",
@@ -134,17 +208,12 @@ function snapshot(node, inherited = {}) {
       borderRightColor: typeof style.borderRightColor === "string" ? style.borderRightColor : "",
       borderBottomColor: typeof style.borderBottomColor === "string" ? style.borderBottomColor : "",
       borderLeftColor: typeof style.borderLeftColor === "string" ? style.borderLeftColor : "",
-      borderWidth: typeof style.borderWidth === "number" ? style.borderWidth : 0,
-      borderTopWidth: typeof style.borderTopWidth === "number" ? style.borderTopWidth : 0,
-      borderRightWidth: typeof style.borderRightWidth === "number" ? style.borderRightWidth : 0,
-      borderBottomWidth: typeof style.borderBottomWidth === "number" ? style.borderBottomWidth : 0,
-      borderLeftWidth: typeof style.borderLeftWidth === "number" ? style.borderLeftWidth : 0,
       borderRadius: typeof style.borderRadius === "number" ? style.borderRadius : 0,
       borderTopLeftRadius: typeof style.borderTopLeftRadius === "number" ? style.borderTopLeftRadius : 0,
       borderTopRightRadius: typeof style.borderTopRightRadius === "number" ? style.borderTopRightRadius : 0,
       borderBottomRightRadius: typeof style.borderBottomRightRadius === "number" ? style.borderBottomRightRadius : 0,
       borderBottomLeftRadius: typeof style.borderBottomLeftRadius === "number" ? style.borderBottomLeftRadius : 0,
-      boxSizing: typeof style.boxSizing === "string" ? style.boxSizing : "border-box",
+      boxSizing: typeof style.boxSizing === "string" ? style.boxSizing : "content-box",
       overflow: typeof style.overflow === "string" ? style.overflow : "visible",
       outlineWidth: typeof style.outlineWidth === "number" ? style.outlineWidth : 0,
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",

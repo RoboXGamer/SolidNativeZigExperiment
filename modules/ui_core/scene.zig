@@ -304,6 +304,32 @@ pub const Scene = struct {
     }
 
     fn resolveStyle(self: *const Scene, n: *Node, context: sizing.Context, containing_width: ?f32, containing_height: ?f32, inline_size: ?f32) !void {
+        if (n.style.fontSizeCss) |css| {
+            var font_context = context;
+            font_context.font_size = context.font_size orelse text_mod.default_font_size;
+            font_context.percentage = font_context.font_size;
+            const used = try sizing.resolve(css, font_context);
+            n.style.fontSize = switch (used) {
+                .length => |v| if (v > 0) v else return error.InvalidFontSize,
+                else => return error.InvalidFontSize,
+            };
+            n.style.fontSizeCss = null;
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.isolation, "auto")) n.style.isolation = "auto" else if (std.ascii.eqlIgnoreCase(n.style.isolation, "isolate")) n.style.isolation = "isolate" else return error.InvalidIsolation;
+        var valid_position = false;
+        inline for (.{ "static", "relative", "absolute", "fixed", "sticky" }) |position| if (std.ascii.eqlIgnoreCase(n.style.position, position)) {
+            n.style.position = position;
+            valid_position = true;
+        };
+        if (!valid_position) return error.InvalidPosition;
+        if (n.style.opacityCss) |css| {
+            var ctx = context;
+            ctx.percentage = 1;
+            ctx.font_size = n.fontSize();
+            n.style.opacity = (try sizing.resolveNumber(css, ctx)) orelse return error.UnresolvedLengthContext;
+        }
+        if (std.math.isNan(n.style.opacity)) n.style.opacity = 0;
+        n.style.opacity = std.math.clamp(n.style.opacity, 0, 1);
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
         inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left" }) |name| {
             const is_inset = std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "right") or std.mem.eql(u8, name, "bottom") or std.mem.eql(u8, name, "left");
@@ -311,7 +337,7 @@ pub const Scene = struct {
             if (@field(n.style, name)) |number| {
                 if (!std.math.isFinite(number) or (number < 0 and !allow_negative)) return error.InvalidLength;
             }
-            if (if (@field(n.style, name ++ "Css")) |value| value.len > 0 else false) {
+            if ((!is_inset or n.isPositioned()) and (if (@field(n.style, name ++ "Css")) |value| value.len > 0 else false)) {
                 const css = @field(n.style, name ++ "Css").?;
                 // Older bridge snapshots encoded an absent optional CSS value as "".
 
@@ -379,13 +405,47 @@ pub const Scene = struct {
         if (n.intrinsicAspectRatio) |value| if (!std.math.isFinite(value) or value <= 0) return error.InvalidLength;
     }
 
+    fn colorTokens(self: *Scene, input: []const u8, current: []const u8) ![]const u8 {
+        var first: ?usize = null;
+        var i: usize = 0;
+        while (i + 12 <= input.len) : (i += 1) if (std.ascii.eqlIgnoreCase(input[i .. i + 12], "currentColor")) {
+            first = i;
+            break;
+        };
+        if (first == null) return input;
+        var out: std.ArrayList(u8) = .empty;
+        i = 0;
+        while (i < input.len) {
+            if (i + 12 <= input.len and std.ascii.eqlIgnoreCase(input[i .. i + 12], "currentColor")) {
+                try out.appendSlice(self.arena.allocator(), current);
+                i += 12;
+            } else {
+                try out.append(self.arena.allocator(), input[i]);
+                i += 1;
+            }
+        }
+        return out.toOwnedSlice(self.arena.allocator());
+    }
+    fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) void {
+        if (child.style.fontSize == 0 and child.style.fontSizeCss == null) child.style.fontSize = parent.fontSize();
+        if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (parent.style.color.len > 0) parent.style.color else "#ffffff";
+        inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow" }) |field| {
+            @field(child.style, field) = self.colorTokens(@field(child.style, field), child.style.color) catch @field(child.style, field);
+        }
+        if (child.style.borderColor.len == 0) child.style.borderColor = child.style.color;
+        if (child.style.outlineColor.len == 0) child.style.outlineColor = child.style.color;
+    }
+
     fn prepareChildren(self: *Scene, n: *Node, width: f32, height: ?f32) anyerror!void {
         n.children = try self.arena.allocator().dupe(Node, n.children);
         for (n.children) |*child| {
             if (child.isOutOfFlow()) continue;
             const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
             const inline_size: ?f32 = if (vertical) height else width;
-            try self.resolveStyle(child, self.length_context, width, height, inline_size);
+            self.inheritComputedStyle(child, n);
+            var child_context = self.length_context;
+            child_context.font_size = n.fontSize();
+            try self.resolveStyle(child, child_context, width, height, inline_size);
             if (child.style.flexBasisCss) |css| {
                 const trimmed = std.mem.trim(u8, css, " \t\r\n");
                 if (std.mem.eql(u8, trimmed, "content")) {
@@ -458,6 +518,8 @@ pub const Scene = struct {
         scene.length_context.viewport_inline = scene.length_context.viewport_inline orelse if (vertical) height else width;
         scene.length_context.viewport_block = scene.length_context.viewport_block orelse if (vertical) width else height;
         try scene.resolveStyle(root, scene.length_context, width, height, if (std.mem.eql(u8, root.style.writingMode, "horizontal-tb")) width else height);
+        scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
+        scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
         if (!std.mem.eql(u8, source.style.display, "none")) try scene.layout(root, .{ .x = 0, .y = 0, .width = width, .height = height }, null);
@@ -486,6 +548,8 @@ pub const Scene = struct {
         scene.length_context.viewport_inline = scene.length_context.viewport_inline orelse if (vertical) height else width;
         scene.length_context.viewport_block = scene.length_context.viewport_block orelse if (vertical) width else height;
         try scene.resolveStyle(root, scene.length_context, width, height, if (std.mem.eql(u8, root.style.writingMode, "horizontal-tb")) width else height);
+        scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
+        scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
         if (!std.mem.eql(u8, source.style.display, "none")) try scene.layout(root, .{ .x = 0, .y = 0, .width = @max(width, 0), .height = @max(height, 0) }, null);
@@ -1070,6 +1134,7 @@ pub const Scene = struct {
 
     pub fn establishesContext(self: *const Scene, item: Item) bool {
         const st = item.node.style;
+        if (std.mem.eql(u8, st.isolation, "isolate")) return true;
         if (item.parent_id == null or st.opacity < 1 or (st.transform.len > 0 and !std.mem.eql(u8, st.transform, "none"))) return true;
         if (std.mem.eql(u8, st.position, "fixed") or std.mem.eql(u8, st.position, "sticky")) return true;
         if (st.zIndex != null) {

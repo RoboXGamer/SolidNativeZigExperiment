@@ -249,8 +249,25 @@ export function physicalStyle(style, inherited = {}) {
   return result;
 }
 
+function opacityValue(value) {
+  if (value == null) return { number: 1, css: null };
+  if (typeof value === "number" && Number.isFinite(value)) return {number: Math.max(0, Math.min(1, value)),css:null};
+  if (typeof value === "string") {
+    const str=value.trim();
+    if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%?$/i.test(str)) {
+      const number=Number(str.endsWith("%")?str.slice(0,-1):str)/(str.endsWith("%")?100:1);
+      return {number:Math.max(0,Math.min(1,number)),css:null};
+    }
+    if(/^(?:calc|min|max|clamp|abs|sign|round|mod|rem|sin|cos|tan|asin|acos|atan|atan2|pow|sqrt|hypot|log|exp)\(/i.test(str)) return {number:1,css:str};
+  }
+  throw Error("Invalid opacity: " + value);
+}
+
 export function snapshot(node, inherited = {}) {
   const style = physicalStyle(node.props.style || {}, inherited);
+  const opacity=opacityValue(style.opacity);
+  const isolation=style.isolation == null ? "auto" : String(style.isolation).trim().toLowerCase();
+  if(!["auto","isolate"].includes(isolation)) throw Error("Invalid isolation: "+style.isolation);
   const marginBox = boxSides(style.margin, { auto: true, negative: true });
   const paddingBox = boxSides(style.padding, {});
   const marginSide = (key, side) => style[key] == null ? marginBox?.[side] : spacingValue(style[key], { auto: true, negative: true });
@@ -305,10 +322,11 @@ export function snapshot(node, inherited = {}) {
   const rowGapParsed = parseGap(style.rowGap);
   const colGapParsed = parseGap(style.columnGap);
   if (style.aspectRatio != null && (typeof style.aspectRatio !== "number" || !Number.isFinite(style.aspectRatio) || style.aspectRatio <= 0)) throw Error(`Invalid aspect ratio: ${style.aspectRatio}`);
-  if (style.fontSize != null && (typeof style.fontSize !== "number" || !Number.isFinite(style.fontSize) || style.fontSize <= 0)) throw Error(`Invalid font size: ${style.fontSize}`);
+  if (style.fontSize != null && !(typeof style.fontSize === "string" && style.fontSize.trim()) && (typeof style.fontSize !== "number" || !Number.isFinite(style.fontSize) || style.fontSize <= 0)) throw Error(`Invalid font size: ${style.fontSize}`);
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
+    fontSizeCss: typeof style.fontSize === "string" ? style.fontSize.trim() : null,
     whiteSpace: style.whiteSpace ?? inherited.whiteSpace ?? "normal",
     textAlign: style.textAlign ?? inherited.textAlign ?? "left",
     lineHeight: style.lineHeight ?? inherited.lineHeight,
@@ -467,7 +485,7 @@ export function snapshot(node, inherited = {}) {
       outlineWidth: typeof style.outlineWidth === "number" ? style.outlineWidth : 0,
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",
-      position: typeof style.position === "string" ? style.position : "static",
+      position: typeof style.position === "string" ? style.position.trim().toLowerCase() : "static",
       zIndex: typeof style.zIndex === "number" ? Math.trunc(style.zIndex) : null,
       gridTemplateColumnsCss: gridTemplateColumnsCss,
       gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),
@@ -482,8 +500,10 @@ export function snapshot(node, inherited = {}) {
       gridRowEnd: typeof style.gridRowEnd === "number" ? Math.trunc(style.gridRowEnd) : null,
       justifyItems: typeof style.justifyItems === "string" ? style.justifyItems : "stretch",
       justifySelf: typeof style.justifySelf === "string" ? style.justifySelf : "auto",
-      backgroundGradient: typeof style.backgroundGradient === "string" ? style.backgroundGradient : (typeof style.backgroundImage === "string" && style.backgroundImage.includes("-gradient(") ? style.backgroundImage : ""),
-      opacity: typeof style.opacity === "number" ? style.opacity : 1.0,
+      backgroundGradient: typeof style.backgroundGradient === "string" ? style.backgroundGradient : (typeof style.backgroundImage === "string" && /-gradient\(/i.test(style.backgroundImage) ? style.backgroundImage : ""),
+      opacity: opacity.number,
+      opacityCss: opacity.css,
+      isolation,
       transform: typeof style.transform === "string" ? style.transform : "",
       transformOrigin: typeof style.transformOrigin === "string" ? style.transformOrigin : "50% 50%",
       transition: typeof style.transition === "string" ? style.transition : "",

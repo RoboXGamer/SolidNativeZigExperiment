@@ -898,4 +898,253 @@ test "text_edit: grapheme clusters and pointer caret positioning (INPUT-01)" {
     try std.testing.expectEqual(str.len, posEnd);
 }
 
+// -----------------------------------------------------------------------------
+// Phase E: Broaden CSS Coverage Test Fixtures
+// -----------------------------------------------------------------------------
+
+test "position: relative offsets without affecting normal flow of siblings (POS-01)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"position":"relative","left":20,"top":10,"width":50,"height":50}},{"id":3,"type":"column","style":{"width":50,"height":50}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+
+    const b2 = scene.find(2).?.bounds;
+    const b3 = scene.find(3).?.bounds;
+
+    // Relative item 2 is offset by left=20, top=10
+    try std.testing.expectApproxEqAbs(@as(f32, 20), b2.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), b2.y, 0.01);
+
+    // Normal flow sibling item 3 is placed immediately after item 2's un-offset position (at x=50, y=0)
+    try std.testing.expectApproxEqAbs(@as(f32, 50), b3.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b3.y, 0.01);
+}
+
+test "position: absolute takes out of flow and uses positioned ancestor padding box (POS-02)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":300,"height":300},"children":[{"id":2,"type":"column","style":{"position":"relative","boxSizing":"border-box","width":100,"height":100,"borderTopWidth":5,"borderRightWidth":5,"borderBottomWidth":5,"borderLeftWidth":5,"paddingTop":10,"paddingRight":10,"paddingBottom":10,"paddingLeft":10},"children":[{"id":3,"type":"column","style":{"width":40,"height":40}},{"id":4,"type":"column","style":{"position":"absolute","right":0,"bottom":0,"width":30,"height":30}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 300);
+    defer scene.deinit();
+
+    const b2 = scene.find(2).?.bounds;
+    const b3 = scene.find(3).?.bounds;
+    const b4 = scene.find(4).?.bounds;
+
+    // In-flow child 3 starts at content box of item 2: x = 0 + 5 (border) + 10 (padding) = 15
+    try std.testing.expectApproxEqAbs(@as(f32, 15), b3.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 15), b3.y, 0.01);
+
+    // Absolute child 4's containing block is padding box of item 2:
+    // Item 2 padding box: left = 5, top = 5, right = 5 + (100 - 10) = 95, bottom = 95.
+    // With right=0, bottom=0 and width=30, height=30:
+    // x = 95 - 30 = 65, y = 95 - 30 = 65.
+    try std.testing.expectApproxEqAbs(@as(f32, 65), b4.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 65), b4.y, 0.01);
+    _ = b2;
+}
+
+test "position: fixed uses viewport containing block and ignores scroll offsets (POS-03)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"width":100,"height":300}},{"id":3,"type":"column","style":{"position":"fixed","top":10,"left":15,"width":40,"height":40}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+
+    const b3Before = scene.find(3).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 15), b3Before.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), b3Before.y, 0.01);
+
+    // Apply scroll offset of 50px
+    var offsets = std.AutoHashMap(u32, root.ScrollOffset).init(std.testing.allocator);
+    defer offsets.deinit();
+    try offsets.put(1, .{ .x = 0, .y = 50 });
+    scene.applyScrollOffsets(&offsets);
+
+    // Fixed child 3 must NOT be shifted by scroll offset!
+    const b3After = scene.find(3).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 15), b3After.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), b3After.y, 0.01);
+}
+
+test "position: sticky sticks within scroll container and clamps to parent (POS-04)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"block","height":200},"children":[{"id":3,"type":"column","style":{"position":"sticky","top":10,"width":80,"height":30}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+
+    // Before scroll: child 3 is at top 0
+    try std.testing.expectApproxEqAbs(@as(f32, 0), scene.find(3).?.bounds.y, 0.01);
+
+    // Scrolled by y = 25: sticky element should clamp to viewport.y + top = 10
+    var offsets = std.AutoHashMap(u32, root.ScrollOffset).init(std.testing.allocator);
+    defer offsets.deinit();
+    try offsets.put(1, .{ .x = 0, .y = 25 });
+    scene.applyScrollOffsets(&offsets);
+
+    const b3Sticky = scene.find(3).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 10), b3Sticky.y, 0.01);
+}
+
+test "stacking context and z-index hit testing order (STACK-01)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":100,"height":100},"children":[{"id":2,"type":"button","clickable":true,"style":{"position":"absolute","left":0,"top":0,"width":50,"height":50,"zIndex":1}},{"id":3,"type":"button","clickable":true,"style":{"position":"absolute","left":0,"top":0,"width":50,"height":50,"zIndex":5}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+
+    // Hit test over overlapping buttons (25, 25): should hit item 3 because zIndex 5 > 1
+    const hit = scene.hitTest(25, 25);
+    try std.testing.expectEqual(@as(?u32, 3), hit);
+
+    // Verify paint order: index of item 2 must precede index of item 3
+    const order = try scene.getPaintOrder(std.testing.allocator);
+    defer std.testing.allocator.free(order);
+    var idx2: usize = 0;
+    var idx3: usize = 0;
+    for (order, 0..) |item_idx, pos| {
+        if (scene.items.items[item_idx].node.id == 2) idx2 = pos;
+        if (scene.items.items[item_idx].node.id == 3) idx3 = pos;
+    }
+    try std.testing.expect(idx2 < idx3);
+}
+
+test "CSS grid track parsing, repeat, and minmax (GRID-01)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"repeat(3, 1fr)","width":300,"height":100,"gap":0},"children":[{"id":2,"type":"column"},{"id":3,"type":"column"},{"id":4,"type":"column"}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 100);
+    defer scene.deinit();
+
+    const b2 = scene.find(2).?.bounds;
+    const b3 = scene.find(3).?.bounds;
+    const b4 = scene.find(4).?.bounds;
+
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b2.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b3.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b4.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b2.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b3.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 200), b4.x, 0.01);
+}
+
+test "CSS grid named areas layout (GRID-02)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"100px 100px","gridTemplateRowsCss":"40px 60px","gridTemplateAreas":"\"header header\" \"sidebar main\"","width":200,"height":100,"gap":0},"children":[{"id":2,"type":"column","style":{"gridArea":"header"}},{"id":3,"type":"column","style":{"gridArea":"sidebar"}},{"id":4,"type":"column","style":{"gridArea":"main"}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+
+    const header = scene.find(2).?.bounds;
+    const sidebar = scene.find(3).?.bounds;
+    const main = scene.find(4).?.bounds;
+
+    // header spans both columns (0..2) in row 0
+    try std.testing.expectApproxEqAbs(@as(f32, 0), header.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), header.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 200), header.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), header.height, 0.01);
+
+    // sidebar at col 0, row 1
+    try std.testing.expectApproxEqAbs(@as(f32, 0), sidebar.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), sidebar.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), sidebar.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), sidebar.height, 0.01);
+
+    // main at col 1, row 1
+    try std.testing.expectApproxEqAbs(@as(f32, 100), main.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), main.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), main.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), main.height, 0.01);
+}
+
+test "CSS box alignment safe vs unsafe in flex layout (ALIGN-01)" {
+    // Normal center centers even if overflowing (unsafe)
+    const jsonUnsafe =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"center","width":50},"children":[{"id":2,"type":"column","style":{"width":100,"height":30,"flexShrink":0}}]}
+    ;
+    var sceneUnsafe = try Scene.init(std.testing.allocator, jsonUnsafe, 50, 50);
+    defer sceneUnsafe.deinit();
+    // 50 - 100 = -50 / 2 = -25
+    try std.testing.expectApproxEqAbs(@as(f32, -25), sceneUnsafe.find(2).?.bounds.x, 0.01);
+
+    // safe center clamps to 0 when overflowing!
+    const jsonSafe =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"safe center","width":50},"children":[{"id":2,"type":"column","style":{"width":100,"height":30,"flexShrink":0}}]}
+    ;
+    var sceneSafe = try Scene.init(std.testing.allocator, jsonSafe, 50, 50);
+    defer sceneSafe.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 0), sceneSafe.find(2).?.bounds.x, 0.01);
+}
+
+test "CSS gradients evaluation for linear, radial, and conic (GRAD-01)" {
+    const grad = root.gradient;
+    // Linear gradient
+    const lg_opt = try grad.parseGradient(std.testing.allocator, "linear-gradient(90deg, #ff0000 0%, #0000ff 100%)");
+    try std.testing.expect(lg_opt != null);
+    const lg = lg_opt.?;
+    defer std.testing.allocator.free(lg.stops);
+    try std.testing.expectEqual(grad.GradientKind.linear, lg.kind);
+    try std.testing.expectEqual(@as(usize, 2), lg.stops.len);
+    const startColor = lg.evaluate(0.0);
+    try std.testing.expect(startColor[0] > 200);
+    const endColor = lg.evaluate(1.0);
+    try std.testing.expect(endColor[2] > 200);
+
+    // Radial gradient
+    const rg_opt = try grad.parseGradient(std.testing.allocator, "radial-gradient(circle at center, #ffffff, #000000)");
+    try std.testing.expect(rg_opt != null);
+    const rg = rg_opt.?;
+    defer std.testing.allocator.free(rg.stops);
+    try std.testing.expectEqual(grad.GradientKind.radial, rg.kind);
+    try std.testing.expectEqual(@as(usize, 2), rg.stops.len);
+
+    // Conic gradient
+    const cg_opt = try grad.parseGradient(std.testing.allocator, "conic-gradient(from 0deg, #ff0000, #00ff00, #0000ff)");
+    try std.testing.expect(cg_opt != null);
+    const cg = cg_opt.?;
+    defer std.testing.allocator.free(cg.stops);
+    try std.testing.expectEqual(grad.GradientKind.conic, cg.kind);
+    try std.testing.expectEqual(@as(usize, 3), cg.stops.len);
+}
+
+test "CSS 2D transforms and transformed hit testing (TRANS-01)" {
+    const trans = root.transform;
+    const mat = try trans.parseTransform("translate(20px, 30px) scale(2, 2)");
+    try std.testing.expectApproxEqAbs(@as(f32, 20), mat.tx, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), mat.ty, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 2), mat.a, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 2), mat.d, 0.01);
+
+    // Hit testing with 2D translate
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":200,"height":200},"children":[{"id":2,"type":"button","clickable":true,"style":{"width":50,"height":50,"transform":"translate(50px, 50px)"}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 200);
+    defer scene.deinit();
+
+    // Visual bounds shifted from (0, 0, 50, 50) to (50, 50, 50, 50).
+    // Hit testing at (75, 75) should hit button 2!
+    try std.testing.expectEqual(@as(?u32, 2), scene.hitTest(75, 75));
+    // Hit testing at original (10, 10) should miss!
+    try std.testing.expectEqual(@as(?u32, null), scene.hitTest(10, 10));
+}
+
+test "CSS transitions and cubic-bezier interpolation (ANIM-01)" {
+    const anim = root.animation;
+    const curve = anim.CubicBezier.ease;
+    try std.testing.expectApproxEqAbs(@as(f32, 0), curve.solve(0), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 1), curve.solve(1), 0.001);
+
+    // Interpolate numbers
+    try std.testing.expectApproxEqAbs(@as(f32, 50), anim.interpolateNumber(0, 100, 0.5), 0.001);
+
+    // Interpolate colors: halfway between red (255, 0, 0, 255) and blue (0, 0, 255, 255)
+    const mid = anim.interpolateColor([4]u8{ 255, 0, 0, 255 }, [4]u8{ 0, 0, 255, 255 }, 0.5);
+    try std.testing.expectEqual(@as(u8, 127), mid[0]);
+    try std.testing.expectEqual(@as(u8, 127), mid[2]);
+}
+
 

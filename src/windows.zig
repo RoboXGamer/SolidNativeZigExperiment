@@ -15,9 +15,44 @@ const window_height = 720;
 const background_color = rl.Color.init(51, 51, 51, 255);
 
 fn color(value: []const u8, fallback: rl.Color) rl.Color {
-    if (value.len != 7 or value[0] != '#') return fallback;
-    const rgb = std.fmt.parseInt(u32, value[1..], 16) catch return fallback;
-    return rl.Color.init(@intCast((rgb >> 16) & 255), @intCast((rgb >> 8) & 255), @intCast(rgb & 255), 255);
+    return colorWithOpacity(value, fallback, 1.0);
+}
+
+fn colorWithOpacity(value: []const u8, fallback: rl.Color, opacity: f32) rl.Color {
+    var c = fallback;
+    const trimmed = std.mem.trim(u8, value, " \t\r\n");
+    if (trimmed.len == 7 and trimmed[0] == '#') {
+        if (std.fmt.parseInt(u32, trimmed[1..], 16)) |rgb| {
+            c = rl.Color.init(@intCast((rgb >> 16) & 255), @intCast((rgb >> 8) & 255), @intCast(rgb & 255), 255);
+        } else |_| {}
+    } else if (trimmed.len == 9 and trimmed[0] == '#') {
+        if (std.fmt.parseInt(u32, trimmed[1..], 16)) |rgba| {
+            c = rl.Color.init(@intCast((rgba >> 24) & 255), @intCast((rgba >> 16) & 255), @intCast((rgba >> 8) & 255), @intCast(rgba & 255));
+        } else |_| {}
+    } else if (std.mem.startsWith(u8, trimmed, "rgb(") or std.mem.startsWith(u8, trimmed, "rgba(")) {
+        const start = std.mem.indexOfScalar(u8, trimmed, '(') orelse 0;
+        const end = std.mem.lastIndexOfScalar(u8, trimmed, ')') orelse trimmed.len;
+        var it = std.mem.tokenizeAny(u8, trimmed[start + 1 .. end], ",/ \t");
+        const r_str = it.next();
+        const g_str = it.next();
+        const b_str = it.next();
+        const a_str = it.next();
+        if (r_str != null and g_str != null and b_str != null) {
+            const r = std.fmt.parseInt(u8, std.mem.trim(u8, r_str.?, " "), 10) catch 0;
+            const g = std.fmt.parseInt(u8, std.mem.trim(u8, g_str.?, " "), 10) catch 0;
+            const b = std.fmt.parseInt(u8, std.mem.trim(u8, b_str.?, " "), 10) catch 0;
+            var a: u8 = 255;
+            if (a_str) |as| {
+                const a_flt = std.fmt.parseFloat(f32, std.mem.trim(u8, as, " ")) catch 1.0;
+                a = @intFromFloat(std.math.clamp(a_flt * 255.0, 0, 255));
+            }
+            c = rl.Color.init(r, g, b, a);
+        }
+    }
+    const op = std.math.clamp(opacity, 0.0, 1.0);
+    const alpha_f = @as(f32, @floatFromInt(c.a)) * op;
+    c.a = @intFromFloat(std.math.clamp(alpha_f, 0, 255));
+    return c;
 }
 
 fn roundness(rect: rl.Rectangle, radius: f32) f32 {
@@ -53,16 +88,25 @@ fn measureRaylib(_: ?*anyopaque, content: []const u8, font_size: f32) ui.Metrics
 }
 
 fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_offsets: *std.AutoHashMap(u32, ui.ScrollOffset), allocator: std.mem.Allocator) !void {
-    for (scene.items.items) |item| {
+    const paint_order = try scene.getPaintOrder(allocator);
+    defer allocator.free(paint_order);
+    for (paint_order) |item_idx| {
+        const item = scene.items.items[item_idx];
         const n = item.node;
         if (std.mem.eql(u8, n.type, "__layout_root")) continue;
         const b = item.bounds;
-        const rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
+        var rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
+        if (n.style.transform.len > 0) {
+            const mat = ui.transform.parseTransform(n.style.transform) catch ui.transform.Matrix2D.identity;
+            rect.x += mat.tx;
+            rect.y += mat.ty;
+        }
         const is_button = std.mem.eql(u8, n.type, "button");
         const is_input = std.mem.eql(u8, n.type, "input");
         const is_select = std.mem.eql(u8, n.type, "select");
         const is_option = std.mem.eql(u8, n.type, "option");
         const radius = if (n.style.borderTopLeftRadius > 0) n.style.borderTopLeftRadius else n.style.borderRadius;
+        const op = std.math.clamp(n.style.opacity, 0.0, 1.0);
 
         var clip = scene.clipFor(item);
         if (is_input) clip = clip.intersect(b);
@@ -73,40 +117,65 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_off
         const clip_h: i32 = @intFromFloat(@ceil(clip.height));
         rl.beginScissorMode(clip_x, clip_y, clip_w, clip_h);
         defer rl.endScissorMode();
-        // box shadow (parsed: "ox oy blur spread color")
+
+        // multi-layer box shadow (supports comma-separated shadows)
         if (n.style.boxShadow.len > 0) {
-            var it = std.mem.tokenizeAny(u8, n.style.boxShadow, " ");
-            const ox = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const oy = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const blur = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const spread = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
-            const cstr = it.next() orelse "#000000";
-            const shad = rl.Rectangle{ .x = rect.x + ox - spread, .y = rect.y + oy - spread, .width = rect.width + 2 * spread, .height = rect.height + 2 * spread };
-            rl.drawRectangleRounded(shad, roundness(shad, radius), 8, color(cstr, rl.Color.init(0, 0, 0, 128)));
-            _ = blur;
-        }
-        if (n.style.backgroundColor.len > 0 or is_button or is_input or is_select or is_option) {
-            const fallback: rl.Color = if (is_button or is_select) .dark_gray else if (is_input) .dark_gray else if (is_option) rl.Color.init(40, 40, 40, 255) else .blank;
-            if (radius > 0) {
-                rl.drawRectangleRounded(rect, roundness(rect, radius), 8, color(n.style.backgroundColor, fallback));
-            } else {
-                rl.drawRectangleRec(rect, color(n.style.backgroundColor, fallback));
+            var layers = std.mem.tokenizeAny(u8, n.style.boxShadow, ",");
+            while (layers.next()) |layer| {
+                var it = std.mem.tokenizeAny(u8, std.mem.trim(u8, layer, " \t"), " ");
+                const ox = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
+                const oy = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
+                const blur = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
+                const spread = std.fmt.parseFloat(f32, it.next() orelse "0") catch 0;
+                const cstr = it.next() orelse "#000000";
+                const shad = rl.Rectangle{ .x = rect.x + ox - spread, .y = rect.y + oy - spread, .width = rect.width + 2 * spread, .height = rect.height + 2 * spread };
+                rl.drawRectangleRounded(shad, roundness(shad, radius + blur), 8, colorWithOpacity(cstr, rl.Color.init(0, 0, 0, 128), op));
             }
         }
+
+        // background (gradient or solid)
+        if (n.style.backgroundGradient.len > 0) {
+            const grad_opt = ui.gradient.parseGradient(allocator, n.style.backgroundGradient) catch null;
+            if (grad_opt) |g| {
+                defer allocator.free(g.stops);
+                if (g.stops.len >= 2) {
+                    const c1 = rl.Color.init(g.stops[0].color[0], g.stops[0].color[1], g.stops[0].color[2], @intFromFloat(@as(f32, @floatFromInt(g.stops[0].color[3])) * op));
+                    const c2 = rl.Color.init(g.stops[g.stops.len - 1].color[0], g.stops[g.stops.len - 1].color[1], g.stops[g.stops.len - 1].color[2], @intFromFloat(@as(f32, @floatFromInt(g.stops[g.stops.len - 1].color[3])) * op));
+                    const is_horiz = (@abs(std.math.sin(g.angle_deg * (std.math.pi / 180.0))) > 0.707);
+                    if (is_horiz) {
+                        rl.drawRectangleGradientH(@intFromFloat(rect.x), @intFromFloat(rect.y), @intFromFloat(rect.width), @intFromFloat(rect.height), c1, c2);
+                    } else {
+                        rl.drawRectangleGradientV(@intFromFloat(rect.x), @intFromFloat(rect.y), @intFromFloat(rect.width), @intFromFloat(rect.height), c1, c2);
+                    }
+                } else {
+                    rl.drawRectangleRec(rect, colorWithOpacity(n.style.backgroundColor, .dark_gray, op));
+                }
+            } else {
+                rl.drawRectangleRec(rect, colorWithOpacity(n.style.backgroundColor, .dark_gray, op));
+            }
+        } else if (n.style.backgroundColor.len > 0 or is_button or is_input or is_select or is_option) {
+            const fallback: rl.Color = if (is_button or is_select) .dark_gray else if (is_input) .dark_gray else if (is_option) rl.Color.init(40, 40, 40, 255) else .blank;
+            if (radius > 0) {
+                rl.drawRectangleRounded(rect, roundness(rect, radius), 8, colorWithOpacity(n.style.backgroundColor, fallback, op));
+            } else {
+                rl.drawRectangleRec(rect, colorWithOpacity(n.style.backgroundColor, fallback, op));
+            }
+        }
+
         // per-side borders
         const bw = n.border();
         const uniform = (bw.top == bw.right and bw.right == bw.bottom and bw.bottom == bw.left);
         if (radius > 0 and uniform and bw.top > 0) {
-            rl.drawRectangleRoundedLinesEx(rect, roundness(rect, radius), 8, bw.top, color(n.style.borderColor, .white));
+            rl.drawRectangleRoundedLinesEx(rect, roundness(rect, radius), 8, bw.top, colorWithOpacity(n.style.borderColor, .white, op));
         } else {
-            if (bw.top > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y }, bw.top, color(if (n.style.borderTopColor.len > 0) n.style.borderTopColor else n.style.borderColor, .white));
-            if (bw.right > 0) rl.drawLineEx(.{ .x = rect.x + rect.width, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.right, color(if (n.style.borderRightColor.len > 0) n.style.borderRightColor else n.style.borderColor, .white));
-            if (bw.bottom > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y + rect.height }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.bottom, color(if (n.style.borderBottomColor.len > 0) n.style.borderBottomColor else n.style.borderColor, .white));
-            if (bw.left > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x, .y = rect.y + rect.height }, bw.left, color(if (n.style.borderLeftColor.len > 0) n.style.borderLeftColor else n.style.borderColor, .white));
+            if (bw.top > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y }, bw.top, colorWithOpacity(if (n.style.borderTopColor.len > 0) n.style.borderTopColor else n.style.borderColor, .white, op));
+            if (bw.right > 0) rl.drawLineEx(.{ .x = rect.x + rect.width, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.right, colorWithOpacity(if (n.style.borderRightColor.len > 0) n.style.borderRightColor else n.style.borderColor, .white, op));
+            if (bw.bottom > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y + rect.height }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.bottom, colorWithOpacity(if (n.style.borderBottomColor.len > 0) n.style.borderBottomColor else n.style.borderColor, .white, op));
+            if (bw.left > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x, .y = rect.y + rect.height }, bw.left, colorWithOpacity(if (n.style.borderLeftColor.len > 0) n.style.borderLeftColor else n.style.borderColor, .white, op));
         }
         if (n.style.outlineWidth > 0) {
             const orect = rl.Rectangle{ .x = rect.x - n.style.outlineWidth, .y = rect.y - n.style.outlineWidth, .width = rect.width + 2 * n.style.outlineWidth, .height = rect.height + 2 * n.style.outlineWidth };
-            rl.drawRectangleLinesEx(orect, n.style.outlineWidth, color(n.style.outlineColor, .white));
+            rl.drawRectangleLinesEx(orect, n.style.outlineWidth, colorWithOpacity(n.style.outlineColor, .white, op));
         }
         const font_size_int: i32 = @intFromFloat(@max(1.0, @round(n.fontSize())));
         if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
@@ -122,7 +191,7 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_off
                 }
                 const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
                 const c_text = try allocator.dupeSentinel(u8, sline.text, 0);
-                rl.drawText(c_text, @intFromFloat(@round(line_x)), @intFromFloat(@round(line_y)), font_size_int, color(n.style.color, .white));
+                rl.drawText(c_text, @intFromFloat(@round(line_x)), @intFromFloat(@round(line_y)), font_size_int, colorWithOpacity(n.style.color, .white, op));
             }
         }
         if (std.mem.eql(u8, n.type, "select")) {
@@ -130,11 +199,11 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_off
             const content = n.contentBox(b);
             if (display_text.len > 0) {
                 const text = try allocator.dupeSentinel(u8, display_text, 0);
-                rl.drawText(text, @intFromFloat(content.x), @intFromFloat(content.y), font_size_int, color(n.style.color, .white));
+                rl.drawText(text, @intFromFloat(content.x), @intFromFloat(content.y), font_size_int, colorWithOpacity(n.style.color, .white, op));
             }
             const arrow_x = b.x + b.width - 20;
             if (arrow_x > content.x) {
-                rl.drawText("v", @intFromFloat(arrow_x), @intFromFloat(content.y), font_size_int, color(n.style.color, .light_gray));
+                rl.drawText("v", @intFromFloat(arrow_x), @intFromFloat(content.y), font_size_int, colorWithOpacity(n.style.color, .light_gray, op));
             }
         }
         if (std.mem.eql(u8, n.type, "input")) {
@@ -155,7 +224,7 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_off
                     rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
                 }
             }
-            rl.drawText(value, @intFromFloat(text_x), @intFromFloat(text_y), font_size_int, color(n.style.color, .white));
+            rl.drawText(value, @intFromFloat(text_x), @intFromFloat(text_y), font_size_int, colorWithOpacity(n.style.color, .white, op));
         }
         // Scrollbar rendering
         if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {

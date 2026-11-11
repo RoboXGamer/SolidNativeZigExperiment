@@ -36,36 +36,12 @@ pub const Tree = struct {
             copy.type = try a.dupe(u8, n.type);
             copy.text = try a.dupe(u8, n.text);
             copy.value = try a.dupe(u8, n.value);
-            copy.style.direction = try a.dupe(u8, n.style.direction);
-            copy.style.writingMode = try a.dupe(u8, n.style.writingMode);
-            copy.style.display = try a.dupe(u8, n.style.display);
-            copy.style.flexDirection = try a.dupe(u8, n.style.flexDirection);
-            copy.style.flexWrap = try a.dupe(u8, n.style.flexWrap);
-            copy.style.justifyContent = try a.dupe(u8, n.style.justifyContent);
-            copy.style.alignItems = try a.dupe(u8, n.style.alignItems);
-            copy.style.alignContent = try a.dupe(u8, n.style.alignContent);
-            copy.style.alignSelf = try a.dupe(u8, n.style.alignSelf);
             copy.style.columns = try a.dupe(f32, n.style.columns);
-            copy.style.color = try a.dupe(u8, n.style.color);
-            copy.style.backgroundColor = try a.dupe(u8, n.style.backgroundColor);
-            copy.style.borderColor = try a.dupe(u8, n.style.borderColor);
-            copy.style.borderTopColor = try a.dupe(u8, n.style.borderTopColor);
-            copy.style.borderRightColor = try a.dupe(u8, n.style.borderRightColor);
-            copy.style.borderBottomColor = try a.dupe(u8, n.style.borderBottomColor);
-            copy.style.borderLeftColor = try a.dupe(u8, n.style.borderLeftColor);
-            copy.style.boxSizing = try a.dupe(u8, n.style.boxSizing);
-            copy.style.overflow = try a.dupe(u8, n.style.overflow);
-            copy.style.overflowX = try a.dupe(u8, n.style.overflowX);
-            copy.style.overflowY = try a.dupe(u8, n.style.overflowY);
-            copy.style.scrollbarGutter = try a.dupe(u8, n.style.scrollbarGutter);
-            copy.style.scrollbarWidth = try a.dupe(u8, n.style.scrollbarWidth);
-            copy.style.whiteSpace = try a.dupe(u8, n.style.whiteSpace);
-            copy.style.textAlign = try a.dupe(u8, n.style.textAlign);
-            copy.style.outlineColor = try a.dupe(u8, n.style.outlineColor);
-            copy.style.boxShadow = try a.dupe(u8, n.style.boxShadow);
             const s_info = @typeInfo(core.Style).@"struct";
             inline for (s_info.field_names, s_info.field_types) |fname, ftype| {
-                if (ftype == ?[]const u8) {
+                if (ftype == []const u8) {
+                    @field(copy.style, fname) = try a.dupe(u8, @field(n.style, fname));
+                } else if (ftype == ?[]const u8) {
                     if (@field(n.style, fname)) |value| @field(copy.style, fname) = try a.dupe(u8, value);
                 }
             }

@@ -5,6 +5,7 @@ pub const Tree = @import("tree.zig").Tree;
 const style_mod = @import("style.zig");
 const sizing = @import("sizing.zig");
 pub const Style = style_mod.Style;
+const transform_mod = @import("transform.zig");
 
 pub const geometry = @import("geometry.zig");
 pub const Rect = geometry.Rect;
@@ -58,6 +59,14 @@ pub const Node = struct {
     pub fn clipsY(self: *const Node) bool {
         const oy = self.effectiveOverflowY();
         return std.mem.eql(u8, oy, "hidden") or std.mem.eql(u8, oy, "clip") or std.mem.eql(u8, oy, "scroll") or std.mem.eql(u8, oy, "auto");
+    }
+
+    pub fn isPositioned(self: *const Node) bool {
+        return !std.mem.eql(u8, self.style.position, "static");
+    }
+
+    pub fn isOutOfFlow(self: *const Node) bool {
+        return std.mem.eql(u8, self.style.position, "absolute") or std.mem.eql(u8, self.style.position, "fixed");
     }
 
     pub fn isFocusable(self: *const Node) bool {
@@ -235,14 +244,17 @@ pub const Scene = struct {
         const is_flex = std.mem.eql(u8, n.style.display, "flex") or std.mem.eql(u8, n.style.display, "inline-flex");
         const row = is_flex and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         var width: f32 = 0;
-        for (n.children, 0..) |*child, i| {
+        var in_flow_seen: usize = 0;
+        for (n.children) |*child| {
+            if (child.isOutOfFlow()) continue;
             const child_frame = child.padding().horizontal() + child.border().horizontal();
             const contribution = if (child.style.width) |v| child.constrain(child.borderSize(v, child_frame), true) else child.constrain(self.intrinsicWidth(child, minimum), true);
             const child_width = contribution + child.margin().horizontal();
             if (row) {
-                if (i > 0) width += n.style.gap;
+                if (in_flow_seen > 0) width += n.style.gap;
                 width += child_width;
             } else width = @max(width, child_width);
+            in_flow_seen += 1;
         }
         return width + frame;
     }
@@ -275,34 +287,39 @@ pub const Scene = struct {
         const is_flex = std.mem.eql(u8, n.style.display, "flex") or std.mem.eql(u8, n.style.display, "inline-flex");
         const row = is_flex and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         var height: f32 = 0;
-        for (n.children, 0..) |*child, i| {
+        var in_flow_seen: usize = 0;
+        for (n.children) |*child| {
+            if (child.isOutOfFlow()) continue;
             const child_frame = child.padding().vertical() + child.border().vertical();
             const contribution = if (child.style.height) |v| child.constrain(child.borderSize(v, child_frame), false) else child.constrain(self.intrinsicHeight(child), false);
             const child_height = contribution + child.margin().vertical();
             if (row) height = @max(height, child_height) else {
-                if (i > 0 and is_flex) height += n.style.gap;
+                if (in_flow_seen > 0 and is_flex) height += n.style.gap;
                 height += child_height;
             }
+            in_flow_seen += 1;
         }
         return height + frame;
     }
 
     fn resolveStyle(self: *const Scene, n: *Node, context: sizing.Context, containing_width: ?f32, containing_height: ?f32, inline_size: ?f32) !void {
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
-        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight" }) |name| {
+        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left" }) |name| {
+            const is_inset = std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "right") or std.mem.eql(u8, name, "bottom") or std.mem.eql(u8, name, "left");
+            const allow_negative = std.mem.startsWith(u8, name, "margin") or is_inset;
             if (@field(n.style, name)) |number| {
-                if (!std.math.isFinite(number) or (number < 0 and !std.mem.startsWith(u8, name, "margin"))) return error.InvalidLength;
+                if (!std.math.isFinite(number) or (number < 0 and !allow_negative)) return error.InvalidLength;
             }
             if (@field(n.style, name ++ "Css")) |css| {
                 if (std.mem.startsWith(u8, name, "border") and std.mem.indexOfScalar(u8, css, '%') != null) return error.InvalidLength;
                 var ctx = context;
                 ctx.font_size = n.fontSize();
-                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap")) containing_width else inline_size;
+                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap") or std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "bottom")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap") or std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right")) containing_width else inline_size;
                 const is_fit_function = std.mem.startsWith(u8, css, "fit-content(") and std.mem.endsWith(u8, css, ")");
                 const value: sizing.Resolution = if (is_fit_function) .{ .keyword = .fit_content } else try sizing.resolve(css, ctx);
                 switch (value) {
                     .length => |number| {
-                        if (number < 0 and !std.mem.startsWith(u8, name, "margin")) return error.NegativeSize;
+                        if (number < 0 and !allow_negative) return error.NegativeSize;
                         @field(n.style, name) = number;
                     },
                     .keyword => |keyword| {
@@ -509,7 +526,9 @@ pub const Scene = struct {
             const block_output = @import("layout_block.zig").computeBlockLayout(self, n, inner_width, null);
             total = block_output.consumed_height;
         } else {
+            var in_flow_seen: usize = 0;
             for (n.children, 0..) |*child, i| {
+                if (child.isOutOfFlow()) continue;
                 const margins = child.margin();
                 const child_frame = child.padding().horizontal() + child.border().horizontal();
                 const track = if (grid and n.style.columns.len > 0) n.style.columns[i % count] else @as(f32, -1);
@@ -524,17 +543,18 @@ pub const Scene = struct {
                 const height = self.naturalHeightForWidth(child, child_width);
                 if (grid) {
                     row_height = @max(row_height, height + margins.vertical());
-                    if ((i + 1) % count == 0 or i + 1 == n.children.len) {
+                    if ((in_flow_seen + 1) % count == 0 or in_flow_seen + 1 == n.children.len) {
                         total += row_height;
-                        if (i + 1 < n.children.len) total += n.style.gap;
+                        if (in_flow_seen + 1 < n.children.len) total += n.style.gap;
                         row_height = 0;
                     }
                 } else if (row) {
                     total = @max(total, height + margins.vertical());
                 } else {
-                    if (i > 0) total += n.style.gap;
+                    if (in_flow_seen > 0) total += n.style.gap;
                     total += height + margins.vertical();
                 }
+                in_flow_seen += 1;
             }
         }
         total += frame_y;
@@ -575,25 +595,37 @@ pub const Scene = struct {
         if (std.mem.eql(u8, n.style.display, "grid")) {
             const column_count = @max(n.style.columns.len, 1);
             var row_height: f32 = 0;
-            for (n.children, 0..) |*child, i| {
+            var in_flow_seen: usize = 0;
+            for (n.children) |*child| {
+                if (child.isOutOfFlow()) continue;
                 row_height = @max(row_height, self.outerHeight(child));
-                if ((i + 1) % column_count == 0 or i + 1 == n.children.len) {
-                    total += row_height + (if (i + 1 < n.children.len) n.style.gap else 0);
+                in_flow_seen += 1;
+                if (in_flow_seen % column_count == 0) {
+                    total += row_height + n.style.gap;
                     row_height = 0;
                 }
             }
+            if (row_height > 0) total += row_height;
             return n.constrain(total + frame, false);
         }
         const is_row = std.mem.eql(u8, n.style.display, "flex") and
             (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         if (is_row) {
-            for (n.children) |*child| total = @max(total, self.outerHeight(child));
+            for (n.children) |*child| {
+                if (child.isOutOfFlow()) continue;
+                total = @max(total, self.outerHeight(child));
+            }
         } else if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
             const block_output = @import("layout_block.zig").computeBlockLayout(self, n, 0, null);
             total = block_output.consumed_height;
         } else {
-            for (n.children) |*child| total += self.outerHeight(child);
-            if (n.children.len > 1) total += n.style.gap * @as(f32, @floatFromInt(n.children.len - 1));
+            var in_flow_seen: usize = 0;
+            for (n.children) |*child| {
+                if (child.isOutOfFlow()) continue;
+                total += self.outerHeight(child);
+                in_flow_seen += 1;
+            }
+            if (in_flow_seen > 1) total += n.style.gap * @as(f32, @floatFromInt(in_flow_seen - 1));
         }
         total += frame;
         if (std.mem.eql(u8, n.type, "button") or std.mem.eql(u8, n.type, "input")) total = @max(total, 44);
@@ -631,6 +663,12 @@ pub const Scene = struct {
                 b.height = n.constrain(n.borderSize(basis / ratio, frame_y), false);
             }
         };
+        if (std.mem.eql(u8, n.style.position, "relative")) {
+            const dx = if (n.style.left) |l| l else if (n.style.right) |r| -r else 0;
+            const dy = if (n.style.top) |t| t else if (n.style.bottom) |btm| -btm else 0;
+            b.x += dx;
+            b.y += dy;
+        }
         const bounds = b;
         const frame_w = n.padding().horizontal() + n.border().horizontal();
         const frame_h = n.padding().vertical() + n.border().vertical();
@@ -645,51 +683,79 @@ pub const Scene = struct {
         const inner_height = @max(0, bounds.height - (pad.vertical() + bd.vertical()));
 
         if (std.mem.eql(u8, n.style.display, "grid")) {
-            const column_count = @max(n.style.columns.len, 1);
-            var fixed: f32 = 0;
-            var fractions: f32 = 0;
-            for (n.style.columns) |track| {
-                if (track >= 0) fixed += track else fractions -= track;
-            }
-            const free = @max(0, inner_width - fixed - n.style.gap * @as(f32, @floatFromInt(column_count - 1)));
-            var x: f32 = 0;
-            var y: f32 = 0;
-            var row_height: f32 = 0;
-            for (n.children, 0..) |*child, i| {
-                const column = i % column_count;
-                const track = if (n.style.columns.len == 0) -1 else n.style.columns[column];
-                const track_width = if (n.style.columns.len == 0) inner_width else if (track >= 0) track else if (fractions > 0) free * -track / fractions else 0;
-                const margin = child.margin();
-                const frame = child.padding().horizontal() + child.border().horizontal();
-                const width = child.constrain(if (child.style.width) |value| child.borderSize(value, frame) else @max(0, track_width - margin.horizontal()), true);
-                const available_margin = @max(0, track_width - width - margin.horizontal());
-                const auto_count: u8 = @intFromBool(child.style.marginLeftAuto) + @as(u8, @intFromBool(child.style.marginRightAuto));
-                const auto_share = if (auto_count == 0) 0 else available_margin / @as(f32, @floatFromInt(auto_count));
-                var used_margin = margin;
-                if (child.style.marginLeftAuto) used_margin.left = auto_share;
-                if (child.style.marginRightAuto) used_margin.right = auto_share;
-                const height = self.naturalHeightForWidth(child, width);
-                try self.layout(child, .{ .x = bounds.x + pad.left + bd.left + x + used_margin.left, .y = bounds.y + pad.top + bd.top + y + margin.top, .width = width, .height = height }, n.id);
-                self.setUsedMargin(child.id, used_margin);
-                row_height = @max(row_height, self.find(child.id).?.bounds.height + margin.vertical());
-                x += track_width + n.style.gap;
-                if (column + 1 == column_count) {
-                    x = 0;
-                    y += row_height + n.style.gap;
-                    row_height = 0;
-                }
-            }
-            return;
-        }
-
-        // Block layout (CSS block formatting context)
-        if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
+            try @import("layout_grid.zig").layout(self, n, bounds, inner_width, inner_height);
+        } else if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
             try @import("layout_block.zig").layout(self, n, bounds, inner_width);
-            return;
+        } else {
+            // Flexbox layout
+            try @import("layout_flex.zig").layout(self, n, bounds, inner_width, inner_height);
         }
 
-        // Flexbox layout
-        try @import("layout_flex.zig").layout(self, n, bounds, inner_width, inner_height);
+        try self.layoutOutOfFlowChildren(n, bounds);
+    }
+
+    pub fn findContainingBlock(self: *const Scene, child: *const Node, parent_item: Item) Rect {
+        if (std.mem.eql(u8, child.style.position, "fixed")) {
+            return self.viewport;
+        }
+        var cur_item = parent_item;
+        while (true) {
+            if (cur_item.node.isPositioned() or cur_item.parent_id == null) {
+                return cur_item.node.paddingBox(cur_item.bounds);
+            }
+            if (cur_item.parent_id) |pid| {
+                cur_item = self.find(pid) orelse return self.viewport;
+            } else {
+                return cur_item.node.paddingBox(cur_item.bounds);
+            }
+        }
+    }
+
+    pub fn layoutOutOfFlowChildren(self: *Scene, n: *const Node, bounds: Rect) anyerror!void {
+        const parent_item = self.find(n.id) orelse Item{ .node = n, .bounds = bounds };
+        for (n.children) |*child| {
+            if (!child.isOutOfFlow()) continue;
+            const cb = self.findContainingBlock(child, parent_item);
+            const child_mg = child.margin();
+            const child_frame_x = child.padding().horizontal() + child.border().horizontal();
+            const child_frame_y = child.padding().vertical() + child.border().vertical();
+
+            // Sizing
+            var w: f32 = undefined;
+            if (child.style.width) |specified_w| {
+                w = child.constrain(child.borderSize(specified_w, child_frame_x), true);
+            } else if (child.style.left != null and child.style.right != null) {
+                w = child.constrain(@max(0, cb.width - child.style.left.? - child.style.right.? - child_mg.horizontal()), true);
+            } else {
+                w = child.constrain(self.intrinsicWidthFor(child, .max_content), true);
+            }
+
+            var h: f32 = undefined;
+            if (child.style.height) |specified_h| {
+                h = child.constrain(child.borderSize(specified_h, child_frame_y), false);
+            } else if (child.style.top != null and child.style.bottom != null) {
+                h = child.constrain(@max(0, cb.height - child.style.top.? - child.style.bottom.? - child_mg.vertical()), false);
+            } else {
+                h = child.constrain(self.naturalHeightForWidth(child, w), false);
+            }
+
+            // Placement
+            var x: f32 = cb.x + child_mg.left;
+            if (child.style.left) |left_val| {
+                x = cb.x + left_val + child_mg.left;
+            } else if (child.style.right) |right_val| {
+                x = cb.right() - right_val - w - child_mg.right;
+            }
+
+            var y: f32 = cb.y + child_mg.top;
+            if (child.style.top) |top_val| {
+                y = cb.y + top_val + child_mg.top;
+            } else if (child.style.bottom) |bottom_val| {
+                y = cb.bottom() - bottom_val - h - child_mg.bottom;
+            }
+
+            try self.layout(child, .{ .x = x, .y = y, .width = w, .height = h }, n.id);
+        }
     }
 
     pub fn find(self: *const Scene, id: u32) ?Item {
@@ -791,9 +857,27 @@ pub const Scene = struct {
             }
             const offset = entry.*;
             for (self.items.items[i + 1 ..]) |*child| {
+                if (std.mem.eql(u8, child.node.style.position, "fixed")) continue;
                 if (self.descendsFrom(child.*, viewport.node.id)) {
-                    child.bounds.x -= offset.x;
-                    child.bounds.y -= offset.y;
+                    if (std.mem.eql(u8, child.node.style.position, "sticky")) {
+                        const parent_item = if (child.parent_id) |pid| self.find(pid) else null;
+                        if (parent_item) |p| {
+                            const p_box = p.node.contentBox(p.bounds);
+                            if (child.node.style.top) |top_inset| {
+                                const target_y = viewport.bounds.y + top_inset;
+                                const max_sticky_y = p_box.bottom() - child.bounds.height;
+                                const scrolled_y = child.bounds.y - offset.y;
+                                child.bounds.y = std.math.clamp(target_y, scrolled_y, max_sticky_y);
+                            } else {
+                                child.bounds.y -= offset.y;
+                            }
+                        } else {
+                            child.bounds.y -= offset.y;
+                        }
+                    } else {
+                        child.bounds.x -= offset.x;
+                        child.bounds.y -= offset.y;
+                    }
                 }
             }
         }
@@ -808,7 +892,27 @@ pub const Scene = struct {
             entry.* = std.math.clamp(entry.*, 0, extent.max_scroll_y);
             const offset = entry.*;
             for (self.items.items[i + 1 ..]) |*child| {
-                if (self.descendsFrom(child.*, viewport.node.id)) child.bounds.y -= offset;
+                if (std.mem.eql(u8, child.node.style.position, "fixed")) continue;
+                if (self.descendsFrom(child.*, viewport.node.id)) {
+                    if (std.mem.eql(u8, child.node.style.position, "sticky")) {
+                        const parent_item = if (child.parent_id) |pid| self.find(pid) else null;
+                        if (parent_item) |p| {
+                            const p_box = p.node.contentBox(p.bounds);
+                            if (child.node.style.top) |top_inset| {
+                                const target_y = viewport.bounds.y + top_inset;
+                                const max_sticky_y = p_box.bottom() - child.bounds.height;
+                                const scrolled_y = child.bounds.y - offset;
+                                child.bounds.y = std.math.clamp(target_y, scrolled_y, max_sticky_y);
+                            } else {
+                                child.bounds.y -= offset;
+                            }
+                        } else {
+                            child.bounds.y -= offset;
+                        }
+                    } else {
+                        child.bounds.y -= offset;
+                    }
+                }
             }
         }
     }
@@ -892,12 +996,62 @@ pub const Scene = struct {
         return null;
     }
 
+    pub fn getPaintOrder(self: *const Scene, allocator: std.mem.Allocator) ![]usize {
+        const count = self.items.items.len;
+        const indices = try allocator.alloc(usize, count);
+        for (0..count) |i| indices[i] = i;
+
+        const Context = struct {
+            items: []const Item,
+            pub fn lessThan(ctx: @This(), a: usize, b: usize) bool {
+                const za = ctx.items[a].node.style.zIndex orelse 0;
+                const zb = ctx.items[b].node.style.zIndex orelse 0;
+                if (za != zb) return za < zb;
+                return a < b;
+            }
+        };
+
+        std.mem.sort(usize, indices, Context{ .items = self.items.items }, Context.lessThan);
+        return indices;
+    }
+
     pub fn hitTest(self: *const Scene, x: f32, y: f32) ?u32 {
-        var i = self.items.items.len;
+        var buf: [2048]u8 = undefined;
+        var fba = std.heap.FixedBufferAllocator.init(&buf);
+        var allocated_slice: ?[]usize = null;
+        defer if (allocated_slice) |s| std.heap.page_allocator.free(s);
+
+        const order: []const usize = self.getPaintOrder(fba.allocator()) catch blk: {
+            allocated_slice = self.getPaintOrder(std.heap.page_allocator) catch null;
+            if (allocated_slice) |s| break :blk s;
+            var i = self.items.items.len;
+            while (i > 0) {
+                i -= 1;
+                const item = self.items.items[i];
+                if ((item.node.clickable or item.node.isFocusable()) and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
+            }
+            return null;
+        };
+
+        var i = order.len;
         while (i > 0) {
             i -= 1;
-            const item = self.items.items[i];
-            if ((item.node.clickable or item.node.isFocusable()) and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
+            const idx = order[i];
+            const item = self.items.items[idx];
+            if (!item.node.clickable and !item.node.isFocusable()) continue;
+
+            if (item.node.style.transform.len > 0) {
+                const mat = transform_mod.parseTransform(item.node.style.transform) catch transform_mod.Matrix2D.identity;
+                const origin_pt = transform_mod.parseTransformOrigin(item.node.style.transformOrigin, item.bounds.width, item.bounds.height);
+                const abs_origin: transform_mod.Point = .{ .x = item.bounds.x + origin_pt.x, .y = item.bounds.y + origin_pt.y };
+                if (mat.inverseTransformPointWithOrigin(abs_origin, .{ .x = x, .y = y })) |local_p| {
+                    if (item.bounds.contains(local_p.x, local_p.y) and self.clipFor(item).contains(x, y)) {
+                        return item.node.id;
+                    }
+                }
+            } else {
+                if (item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
+            }
         }
         return null;
     }

@@ -59,6 +59,20 @@ function splitSpacing(value) {
   return parts;
 }
 
+function splitAlignment(str) {
+  const tokens = splitSpacing(str.trim());
+  const values = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if ((tokens[i] === "safe" || tokens[i] === "unsafe") && i + 1 < tokens.length) {
+      values.push(tokens[i] + " " + tokens[i + 1]);
+      i++;
+    } else {
+      values.push(tokens[i]);
+    }
+  }
+  return values;
+}
+
 function boxSides(value, options) {
   if (value == null) return null;
   const parts = (typeof value === "string" ? splitSpacing(value.trim()) : [value]).map(v => spacingValue(v, options));
@@ -175,6 +189,41 @@ export function physicalStyle(style, inherited = {}) {
         continue;
       }
     }
+    if (key === "placeContent" && typeof value === "string") {
+      const parts = splitAlignment(value);
+      result.alignContent = parts[0];
+      result.justifyContent = parts[1] ?? parts[0];
+      continue;
+    }
+    if (key === "placeItems" && typeof value === "string") {
+      const parts = splitAlignment(value);
+      result.alignItems = parts[0];
+      result.justifyItems = parts[1] ?? parts[0];
+      continue;
+    }
+    if (key === "placeSelf" && typeof value === "string") {
+      const parts = splitAlignment(value);
+      result.alignSelf = parts[0];
+      result.justifySelf = parts[1] ?? parts[0];
+      continue;
+    }
+    if (key === "inset") {
+      const sides = boxSides(value, { negative: true });
+      for (const [letter, side] of [["t", "top"], ["r", "right"], ["b", "bottom"], ["l", "left"]]) result[side] = sides[letter];
+      continue;
+    }
+    if (key === "insetInline") {
+      const parts = typeof value === "string" ? splitSpacing(value.trim()) : [value];
+      result[vertical ? (direction === "ltr" ? "top" : "bottom") : (direction === "ltr" ? "left" : "right")] = parts[0];
+      result[vertical ? (direction === "ltr" ? "bottom" : "top") : (direction === "ltr" ? "right" : "left")] = parts[1] ?? parts[0];
+      continue;
+    }
+    if (key === "insetBlock") {
+      const parts = typeof value === "string" ? splitSpacing(value.trim()) : [value];
+      result[vertical ? (mode === "vertical-rl" ? "right" : "left") : "top"] = parts[0];
+      result[vertical ? (mode === "vertical-rl" ? "left" : "right") : "bottom"] = parts[1] ?? parts[0];
+      continue;
+    }
     if (key === "margin" || key === "padding" || key === "borderWidth" || key === "border") {
       const options = key === "margin" ? { auto: true, negative: true } : {};
       const sides = boxSides(value, options);
@@ -220,6 +269,9 @@ export function snapshot(node, inherited = {}) {
     emitLength("margin" + key, margin[side] === "auto" ? null : margin[side]);
     emitLength("border" + key + "Width", border(style["border" + key + "Width"]));
   }
+  for (const side of ["top", "right", "bottom", "left"]) {
+    emitLength(side, style[side] == null ? null : spacingValue(style[side], { negative: true }));
+  }
   const flex = flexValues(style);
   const rawBasis = flex.basis;
   let basis = rawBasis;
@@ -260,13 +312,33 @@ export function snapshot(node, inherited = {}) {
     writingMode: style.writingMode,
     direction: style.direction,
   };
-  const columns = displayOf(node, style) !== "grid" || style.gridTemplateColumns == null ? [] :
-    (Array.isArray(style.gridTemplateColumns) ? style.gridTemplateColumns : String(style.gridTemplateColumns).trim().split(/\s+/)).map(track => {
-      if (typeof track === "number") return track;
-      if (/^\d+(?:\.\d+)?fr$/.test(track)) return -Number(track.slice(0, -2));
-      if (/^\d+(?:\.\d+)?px$/.test(track)) return Number(track.slice(0, -2));
-      throw Error(`Unsupported grid track: ${track}; use px or fr tracks`);
-    });
+  let columns = [];
+  let gridTemplateColumnsCss = null;
+  if (displayOf(node, style) === "grid" && style.gridTemplateColumns != null) {
+    if (typeof style.gridTemplateColumns === "string") {
+      gridTemplateColumnsCss = style.gridTemplateColumns.trim();
+      try {
+        const parts = gridTemplateColumnsCss.split(/\s+/);
+        const parsed = parts.map(track => {
+          if (/^\d+(?:\.\d+)?fr$/.test(track)) return -Number(track.slice(0, -2));
+          if (/^\d+(?:\.\d+)?px$/.test(track)) return Number(track.slice(0, -2));
+          const num = Number(track);
+          if (Number.isFinite(num)) return num;
+          throw Error("complex track");
+        });
+        columns = parsed;
+      } catch {
+        columns = [];
+      }
+    } else if (Array.isArray(style.gridTemplateColumns)) {
+      columns = style.gridTemplateColumns.map(track => {
+        if (typeof track === "number") return track;
+        if (/^\d+(?:\.\d+)?fr$/.test(track)) return -Number(track.slice(0, -2));
+        if (/^\d+(?:\.\d+)?px$/.test(track)) return Number(track.slice(0, -2));
+        return Number(track) || 0;
+      });
+    }
+  }
   const isButton = node.type === "button";
   const isInput = node.type === "input";
   const isSelect = node.type === "select";
@@ -391,6 +463,30 @@ export function snapshot(node, inherited = {}) {
       outlineWidth: typeof style.outlineWidth === "number" ? style.outlineWidth : 0,
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",
+      position: typeof style.position === "string" ? style.position : "static",
+      zIndex: typeof style.zIndex === "number" ? Math.trunc(style.zIndex) : null,
+      gridTemplateColumnsCss: gridTemplateColumnsCss,
+      gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),
+      gridAutoFlow: typeof style.gridAutoFlow === "string" ? style.gridAutoFlow : "row",
+      gridTemplateAreas: typeof style.gridTemplateAreas === "string" ? style.gridTemplateAreas : "",
+      gridColumn: typeof style.gridColumn === "string" ? style.gridColumn : "",
+      gridRow: typeof style.gridRow === "string" ? style.gridRow : "",
+      gridArea: typeof style.gridArea === "string" ? style.gridArea : "",
+      gridColumnStart: typeof style.gridColumnStart === "number" ? Math.trunc(style.gridColumnStart) : null,
+      gridColumnEnd: typeof style.gridColumnEnd === "number" ? Math.trunc(style.gridColumnEnd) : null,
+      gridRowStart: typeof style.gridRowStart === "number" ? Math.trunc(style.gridRowStart) : null,
+      gridRowEnd: typeof style.gridRowEnd === "number" ? Math.trunc(style.gridRowEnd) : null,
+      justifyItems: typeof style.justifyItems === "string" ? style.justifyItems : "stretch",
+      justifySelf: typeof style.justifySelf === "string" ? style.justifySelf : "auto",
+      backgroundGradient: typeof style.backgroundGradient === "string" ? style.backgroundGradient : (typeof style.backgroundImage === "string" && style.backgroundImage.includes("-gradient(") ? style.backgroundImage : ""),
+      opacity: typeof style.opacity === "number" ? style.opacity : 1.0,
+      transform: typeof style.transform === "string" ? style.transform : "",
+      transformOrigin: typeof style.transformOrigin === "string" ? style.transformOrigin : "50% 50%",
+      transition: typeof style.transition === "string" ? style.transition : "",
+      transitionProperty: typeof style.transitionProperty === "string" ? style.transitionProperty : "all",
+      transitionDuration: typeof style.transitionDuration === "number" ? style.transitionDuration : (typeof style.transitionDuration === "string" ? (parseFloat(style.transitionDuration) * (style.transitionDuration.endsWith("ms") ? 0.001 : 1.0) || 0) : 0),
+      transitionTimingFunction: typeof style.transitionTimingFunction === "string" ? style.transitionTimingFunction : "ease",
+      transitionDelay: typeof style.transitionDelay === "number" ? style.transitionDelay : (typeof style.transitionDelay === "string" ? (parseFloat(style.transitionDelay) * (style.transitionDelay.endsWith("ms") ? 0.001 : 1.0) || 0) : 0),
       ...textStyle,
       ...defaultSelectStyle,
       ...defaultOptionStyle,

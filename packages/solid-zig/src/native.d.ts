@@ -111,6 +111,38 @@ export interface NativeStyle {
   outlineWidth?: number;
   outlineColor?: string;
   boxShadow?: string;
+  position?: "static" | "relative" | "absolute" | "fixed" | "sticky";
+  top?: NativeLength;
+  right?: NativeLength;
+  bottom?: NativeLength;
+  left?: NativeLength;
+  inset?: NativeLength;
+  zIndex?: number;
+  gridTemplateRows?: string | Array<number | string>;
+  gridAutoFlow?: "row" | "column" | "row dense" | "column dense" | string;
+  gridTemplateAreas?: string;
+  gridColumn?: string;
+  gridRow?: string;
+  gridArea?: string;
+  gridColumnStart?: number;
+  gridColumnEnd?: number;
+  gridRowStart?: number;
+  gridRowEnd?: number;
+  placeContent?: string;
+  placeItems?: string;
+  placeSelf?: string;
+  justifyItems?: string;
+  justifySelf?: string;
+  backgroundGradient?: string;
+  backgroundImage?: string;
+  opacity?: number;
+  transform?: string;
+  transformOrigin?: string;
+  transition?: string;
+  transitionProperty?: string;
+  transitionDuration?: number | string;
+  transitionTimingFunction?: string;
+  transitionDelay?: number | string;
 }
 
 export interface NativeNode {

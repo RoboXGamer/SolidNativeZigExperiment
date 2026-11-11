@@ -94,6 +94,16 @@ pub const Node = struct {
         const value = self.style.aspectRatio orelse self.intrinsicAspectRatio orelse return null;
         return if (std.math.isFinite(value) and value > 0) value else null;
     }
+
+    pub fn mainGap(self: *const Node, is_row: bool) f32 {
+        const gap_val = if (is_row) self.style.columnGap else self.style.rowGap;
+        return gap_val orelse self.style.gap;
+    }
+
+    pub fn crossGap(self: *const Node, is_row: bool) f32 {
+        const gap_val = if (is_row) self.style.rowGap else self.style.columnGap;
+        return gap_val orelse self.style.gap;
+    }
 };
 
 pub const Item = struct {
@@ -196,7 +206,7 @@ pub const Scene = struct {
 
     fn resolveStyle(self: *const Scene, n: *Node, context: sizing.Context, containing_width: ?f32, containing_height: ?f32, inline_size: ?f32) !void {
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
-        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight" }) |name| {
+        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap" }) |name| {
             if (@field(n.style, name)) |number| {
                 if (!std.math.isFinite(number) or (number < 0 and !std.mem.startsWith(u8, name, "margin"))) return error.InvalidLength;
             }
@@ -204,7 +214,7 @@ pub const Scene = struct {
                 if (std.mem.startsWith(u8, name, "border") and std.mem.indexOfScalar(u8, css, '%') != null) return error.InvalidLength;
                 var ctx = context;
                 ctx.font_size = n.fontSize();
-                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth")) containing_width else inline_size;
+                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap")) containing_width else inline_size;
                 const is_fit_function = std.mem.startsWith(u8, css, "fit-content(") and std.mem.endsWith(u8, css, ")");
                 const value: sizing.Resolution = if (is_fit_function) .{ .keyword = .fit_content } else try sizing.resolve(css, ctx);
                 switch (value) {
@@ -271,25 +281,41 @@ pub const Scene = struct {
             const inline_size: ?f32 = if (vertical) height else width;
             try self.resolveStyle(child, self.length_context, width, height, inline_size);
             if (child.style.flexBasisCss) |css| {
-                var context = self.length_context;
-                context.font_size = child.fontSize();
-                const row = std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse");
-                context.percentage = if (row) width else height;
-                switch (try sizing.resolve(css, context)) {
-                    .length => |value| {
-                        if (value < 0) return error.NegativeSize;
-                        child.style.flexBasis = value;
-                    },
-                    .unresolved => {
-                        if (context.percentage != null or std.mem.indexOfScalar(u8, css, '%') == null) return error.UnresolvedLengthContext;
-                        context.percentage = 0;
-                        switch (try sizing.resolve(css, context)) {
-                            .length => {},
-                            else => return error.UnresolvedLengthContext,
-                        }
-                        child.style.flexBasis = null;
-                    },
-                    else => return error.UnsupportedSizingKeyword,
+                const trimmed = std.mem.trim(u8, css, " \t\r\n");
+                if (std.mem.eql(u8, trimmed, "content")) {
+                    child.style.flexBasisContent = true;
+                    child.style.flexBasis = null;
+                } else if (std.mem.eql(u8, trimmed, "auto")) {
+                    child.style.flexBasis = null;
+                } else if (std.mem.eql(u8, trimmed, "max-content") or std.mem.eql(u8, trimmed, "min-content") or std.mem.eql(u8, trimmed, "fit-content")) {
+                    child.style.flexBasis = null;
+                } else {
+                    var context = self.length_context;
+                    context.font_size = child.fontSize();
+                    const row = std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse");
+                    context.percentage = if (row) width else height;
+                    switch (try sizing.resolve(css, context)) {
+                        .length => |value| {
+                            if (value < 0) return error.NegativeSize;
+                            child.style.flexBasis = value;
+                        },
+                        .keyword => |kw| {
+                            switch (kw) {
+                                .auto => child.style.flexBasis = null,
+                                .min_content, .max_content, .fit_content => child.style.flexBasis = null,
+                                else => return error.UnsupportedSizingKeyword,
+                            }
+                        },
+                        .unresolved => {
+                            if (context.percentage != null or std.mem.indexOfScalar(u8, css, '%') == null) return error.UnresolvedLengthContext;
+                            context.percentage = 0;
+                            switch (try sizing.resolve(css, context)) {
+                                .length => {},
+                                else => return error.UnresolvedLengthContext,
+                            }
+                            child.style.flexBasis = null;
+                        },
+                    }
                 }
             }
             const frame_w = child.padding().horizontal() + child.border().horizontal();
@@ -380,7 +406,6 @@ pub const Scene = struct {
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         const block = std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root");
         var total: f32 = 0;
-        var previous: f32 = 0;
         var row_height: f32 = 0;
         const count = @max(1, n.style.columns.len);
         var fixed: f32 = 0;
@@ -389,39 +414,38 @@ pub const Scene = struct {
             if (track >= 0) fixed += track else fractions -= track;
         };
         const free = @max(0, inner_width - fixed - n.style.gap * @as(f32, @floatFromInt(count - 1)));
-        for (n.children, 0..) |*child, i| {
-            const margins = child.margin();
-            const child_frame = child.padding().horizontal() + child.border().horizontal();
-            const track = if (grid and n.style.columns.len > 0) n.style.columns[i % count] else @as(f32, -1);
-            const available = if (!grid or n.style.columns.len == 0) inner_width else if (track >= 0) track else if (fractions > 0) free * -track / fractions else 0;
-            var child_width = child.constrain(if (child.style.width) |value| child.borderSize(value, child_frame) else @max(0, available - margins.horizontal()), true);
-            if (child.style.width == null) if (child.style.height) |preferred_height| if (child.aspectRatio()) |ratio| {
-                const child_frame_y = child.padding().vertical() + child.border().vertical();
-                const child_height = child.constrain(child.borderSize(preferred_height, child_frame_y), false);
-                const basis = if (std.mem.eql(u8, child.style.boxSizing, "content-box")) @max(0, child_height - child_frame_y) else child_height;
-                child_width = child.constrain(child.borderSize(basis * ratio, child_frame), true);
-            };
-            const height = self.naturalHeightForWidth(child, child_width);
-            if (grid) {
-                row_height = @max(row_height, height + margins.vertical());
-                if ((i + 1) % count == 0 or i + 1 == n.children.len) {
-                    total += row_height;
-                    if (i + 1 < n.children.len) total += n.style.gap;
-                    row_height = 0;
+        if (block) {
+            const block_output = @import("layout_block.zig").computeBlockLayout(self, n, inner_width, null);
+            total = block_output.consumed_height;
+        } else {
+            for (n.children, 0..) |*child, i| {
+                const margins = child.margin();
+                const child_frame = child.padding().horizontal() + child.border().horizontal();
+                const track = if (grid and n.style.columns.len > 0) n.style.columns[i % count] else @as(f32, -1);
+                const available = if (!grid or n.style.columns.len == 0) inner_width else if (track >= 0) track else if (fractions > 0) free * -track / fractions else 0;
+                var child_width = child.constrain(if (child.style.width) |value| child.borderSize(value, child_frame) else @max(0, available - margins.horizontal()), true);
+                if (child.style.width == null) if (child.style.height) |preferred_height| if (child.aspectRatio()) |ratio| {
+                    const child_frame_y = child.padding().vertical() + child.border().vertical();
+                    const child_height = child.constrain(child.borderSize(preferred_height, child_frame_y), false);
+                    const basis = if (std.mem.eql(u8, child.style.boxSizing, "content-box")) @max(0, child_height - child_frame_y) else child_height;
+                    child_width = child.constrain(child.borderSize(basis * ratio, child_frame), true);
+                };
+                const height = self.naturalHeightForWidth(child, child_width);
+                if (grid) {
+                    row_height = @max(row_height, height + margins.vertical());
+                    if ((i + 1) % count == 0 or i + 1 == n.children.len) {
+                        total += row_height;
+                        if (i + 1 < n.children.len) total += n.style.gap;
+                        row_height = 0;
+                    }
+                } else if (row) {
+                    total = @max(total, height + margins.vertical());
+                } else {
+                    if (i > 0) total += n.style.gap;
+                    total += height + margins.vertical();
                 }
-            } else if (row) {
-                total = @max(total, height + margins.vertical());
-            } else if (block) {
-                const collapse_top = n.padding().top == 0 and n.border().top == 0 and std.mem.eql(u8, n.style.overflow, "visible") and !std.mem.eql(u8, n.style.display, "flow-root");
-                total += if (i == 0) (if (collapse_top) 0 else margins.top) else @import("layout_block.zig").collapsePair(previous, margins.top);
-                total += height;
-                previous = margins.bottom;
-            } else {
-                if (i > 0) total += n.style.gap;
-                total += height + margins.vertical();
             }
         }
-        if (block and n.children.len > 0) total += previous;
         total += frame_y;
         if (std.mem.eql(u8, n.type, "button") or std.mem.eql(u8, n.type, "input")) total = @max(total, 44);
         return n.constrain(total, false);
@@ -464,16 +488,8 @@ pub const Scene = struct {
         if (is_row) {
             for (n.children) |*child| total = @max(total, self.outerHeight(child));
         } else if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
-            const block = @import("layout_block.zig");
-            const collapses_top = n.padding().top == 0 and n.border().top == 0 and std.mem.eql(u8, n.style.overflow, "visible") and !std.mem.eql(u8, n.style.display, "flow-root");
-            var previous: f32 = 0;
-            for (n.children, 0..) |*child, i| {
-                const margins = child.margin();
-                total += if (i == 0) (if (collapses_top) 0 else margins.top) else block.collapsePair(previous, margins.top);
-                total += self.naturalHeight(child);
-                previous = margins.bottom;
-            }
-            if (n.children.len > 0) total += previous;
+            const block_output = @import("layout_block.zig").computeBlockLayout(self, n, 0, null);
+            total = block_output.consumed_height;
         } else {
             for (n.children) |*child| total += self.outerHeight(child);
             if (n.children.len > 1) total += n.style.gap * @as(f32, @floatFromInt(n.children.len - 1));

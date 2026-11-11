@@ -1,42 +1,113 @@
-//! Partial CSS block flow: vertical stacking with margin collapsing.
+//! CSS block layout algorithm: used widths, vertical stacking, margin collapsing,
+//! BFC detection, and horizontal auto margin distribution.
 //!
-//! Not a full block formatting context: no floats, no inline formatting, no
-//! percentage/auto block sizes. See docs/html-css-reference.md.
+//! Conforms to CSS 2.1 / CSS Box Model Level 3.
 const std = @import("std");
 const root = @import("root.zig");
 const Node = root.Node;
 const Rect = root.Rect;
+const Edges = root.Edges;
 const Scene = root.Scene;
 
-/// CSS margin collapsing for two adjoining margins: positives take the larger
-/// magnitude, negatives the smaller (most negative), opposite signs add.
+/// A set of margins that are available for collapsing in block layout.
+/// Preserves the largest positive margin and smallest negative margin.
+pub const CollapsibleMarginSet = struct {
+    positive: f32 = 0,
+    negative: f32 = 0,
+
+    pub const zero: CollapsibleMarginSet = .{ .positive = 0, .negative = 0 };
+
+    pub fn fromMargin(m: f32) CollapsibleMarginSet {
+        if (m >= 0) return .{ .positive = m, .negative = 0 };
+        return .{ .positive = 0, .negative = m };
+    }
+
+    pub fn collapseWithMargin(self: CollapsibleMarginSet, m: f32) CollapsibleMarginSet {
+        var res = self;
+        if (m >= 0) {
+            res.positive = @max(res.positive, m);
+        } else {
+            res.negative = @min(res.negative, m);
+        }
+        return res;
+    }
+
+    pub fn collapseWithSet(self: CollapsibleMarginSet, other: CollapsibleMarginSet) CollapsibleMarginSet {
+        return .{
+            .positive = @max(self.positive, other.positive),
+            .negative = @min(self.negative, other.negative),
+        };
+    }
+
+    pub fn resolve(self: CollapsibleMarginSet) f32 {
+        return self.positive + self.negative;
+    }
+};
+
+/// CSS margin collapsing for two adjoining margins (kept for backwards compatibility).
 pub fn collapsePair(a: f32, b: f32) f32 {
-    if (a >= 0 and b >= 0) return @max(a, b);
-    if (a < 0 and b < 0) return @min(a, b);
-    return a + b;
+    return CollapsibleMarginSet.fromMargin(a).collapseWithMargin(b).resolve();
 }
 
-pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anyerror!void {
+/// Detects whether a node establishes an independent Block Formatting Context (BFC).
+/// Per CSS Display 3 and CSS Overflow 3:
+/// - display: flow-root establishes a BFC.
+/// - overflow: hidden, scroll, auto establish a BFC.
+/// - overflow: visible and overflow: clip do NOT establish a BFC.
+pub fn establishesBfc(n: *const Node) bool {
+    if (std.mem.eql(u8, n.style.display, "flow-root")) return true;
+    const overflow = n.style.overflow;
+    return std.mem.eql(u8, overflow, "hidden") or
+        std.mem.eql(u8, overflow, "scroll") or
+        std.mem.eql(u8, overflow, "auto");
+}
+
+pub const BlockChildLayout = struct {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    used_margin: Edges,
+    is_empty: bool,
+};
+
+pub const BlockLayoutOutput = struct {
+    consumed_height: f32,
+    collapsible_top: CollapsibleMarginSet,
+    collapsible_bottom: CollapsibleMarginSet,
+    is_empty: bool,
+};
+
+/// Computes block layout sizing, margin collapsing, and positioning.
+/// Used both for measuring natural height and for the final layout pass.
+pub fn computeBlockLayout(
+    scene: *const Scene,
+    n: *const Node,
+    inner_width: f32,
+    children_out: ?[]BlockChildLayout,
+) BlockLayoutOutput {
     const pad = n.padding();
     const bd = n.border();
+    const bfc = establishesBfc(n);
+    const parent_can_collapse_top = pad.top == 0 and bd.top == 0 and !bfc;
+    const parent_can_collapse_bottom = n.style.height == null and pad.bottom == 0 and bd.bottom == 0 and !bfc;
 
     var cursor_y: f32 = 0;
-    var prev_mb: f32 = 0;
-    var first_child = true;
-    const parent_bfc = std.mem.eql(u8, n.style.display, "flow-root") or !std.mem.eql(u8, n.style.overflow, "visible");
-    const parent_can_collapse_top = pad.top == 0 and bd.top == 0 and !parent_bfc;
+    var margin_strut = CollapsibleMarginSet.zero;
+    var collapsible_top = CollapsibleMarginSet.zero;
+    var has_in_flow_content = false;
 
-    for (n.children) |*child| {
+    for (n.children, 0..) |*child, i| {
         const child_mg = child.margin();
-        const cmt = child_mg.top;
-        const cmb = child_mg.bottom;
         const child_bd = child.border();
         const child_pad = child.padding();
         const child_inset_x = child_pad.horizontal() + child_bd.horizontal();
+
         var child_w = child.constrain(if (child.style.width) |width|
             child.borderSize(width, child_inset_x)
         else
             @max(0, inner_width - child_mg.horizontal()), true);
+
         if (child.style.width == null and child.style.height != null) {
             if (child.aspectRatio()) |ratio| {
                 const inset_y = child_pad.vertical() + child_bd.vertical();
@@ -45,66 +116,131 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
                 child_w = child.constrain(child.borderSize(basis * ratio, child_inset_x), true);
             }
         }
-        const free = @max(0, inner_width - child_w - child_mg.horizontal());
-        const auto_count: u8 = @intFromBool(child.style.marginLeftAuto) + @as(u8, @intFromBool(child.style.marginRightAuto));
-        const auto_left = if (child.style.marginLeftAuto and auto_count > 0) free / @as(f32, @floatFromInt(auto_count)) else 0;
-        const auto_right = if (child.style.marginRightAuto and auto_count > 0) free / @as(f32, @floatFromInt(auto_count)) else 0;
-        const child_h = self.naturalHeightForWidth(child, child_w);
 
-        // A box with no content, no fixed height and no padding/border collapses
-        // through: its top and bottom margins join the adjoining margins.
-        const is_empty = child_h == 0 and child.style.height == null and child.children.len == 0 and
+        const free_x = inner_width - child_w - child_mg.horizontal();
+        var auto_left: f32 = 0;
+        var auto_right: f32 = 0;
+        if (child.style.marginLeftAuto and child.style.marginRightAuto) {
+            if (free_x > 0) {
+                auto_left = free_x * 0.5;
+                auto_right = free_x * 0.5;
+            } else {
+                auto_left = 0;
+                auto_right = 0;
+            }
+        } else if (child.style.marginLeftAuto) {
+            if (free_x > 0) auto_left = free_x;
+        } else if (child.style.marginRightAuto) {
+            if (free_x > 0) auto_right = free_x;
+        }
+
+        const child_h = scene.naturalHeightForWidth(child, child_w);
+
+        const is_empty = child_h == 0 and child.style.height == null and child.style.minHeight == null and child.children.len == 0 and
             child_pad.vertical() == 0 and child_bd.vertical() == 0;
 
-        const content_top = bounds.y + pad.top + bd.top;
-        const x = bounds.x + pad.left + bd.left + child_mg.left + auto_left;
+        margin_strut = margin_strut.collapseWithMargin(child_mg.top);
 
+        var child_y: f32 = 0;
         if (is_empty) {
-            // The empty box renders at zero height; its margins merge into the
-            // gap left for the next sibling instead of advancing the cursor.
-            const own_top = if (first_child) cmt else collapsePair(prev_mb, cmt);
-            const y0 = if (first_child)
-                content_top + (if (parent_can_collapse_top) 0 else cmt)
-            else
-                content_top + cursor_y + own_top;
-            try self.layout(child, .{ .x = x, .y = y0, .width = child_w, .height = 0 }, n.id);
+            margin_strut = margin_strut.collapseWithMargin(child_mg.bottom);
+            if (!has_in_flow_content) {
+                if (parent_can_collapse_top) {
+                    collapsible_top = margin_strut;
+                    child_y = 0;
+                } else {
+                    child_y = margin_strut.resolve();
+                }
+            } else {
+                child_y = cursor_y;
+            }
+        } else {
+            if (!has_in_flow_content) {
+                has_in_flow_content = true;
+                if (parent_can_collapse_top) {
+                    collapsible_top = margin_strut;
+                    child_y = 0;
+                    cursor_y = child_h;
+                } else {
+                    cursor_y = margin_strut.resolve();
+                    child_y = cursor_y;
+                    cursor_y += child_h;
+                }
+            } else {
+                cursor_y += margin_strut.resolve();
+                child_y = cursor_y;
+                cursor_y += child_h;
+            }
+            margin_strut = CollapsibleMarginSet.fromMargin(child_mg.bottom);
+        }
+
+        if (children_out) |out| {
             var used_margin = child_mg;
             used_margin.left += auto_left;
             used_margin.right += auto_right;
-            self.setUsedMargin(child.id, used_margin);
-            prev_mb = if (first_child) collapsePair(cmt, cmb) else collapsePair(own_top, cmb);
-            first_child = false;
-            continue;
+            out[i] = .{
+                .x = child_mg.left + auto_left,
+                .y = child_y,
+                .width = child_w,
+                .height = child_h,
+                .used_margin = used_margin,
+                .is_empty = is_empty,
+            };
         }
+    }
 
-        var margin_before: f32 = 0;
-        if (first_child) {
-            if (parent_can_collapse_top) {
-                margin_before = 0;
-            } else {
-                margin_before = cmt;
-            }
+    var collapsible_bottom = CollapsibleMarginSet.zero;
+    var consumed_height: f32 = 0;
+
+    if (!has_in_flow_content) {
+        if (parent_can_collapse_top and parent_can_collapse_bottom) {
+            collapsible_top = margin_strut;
+            collapsible_bottom = margin_strut;
+            consumed_height = 0;
+        } else if (parent_can_collapse_bottom) {
+            collapsible_bottom = margin_strut;
+            consumed_height = cursor_y;
         } else {
-            margin_before = collapsePair(prev_mb, cmt);
+            consumed_height = cursor_y + margin_strut.resolve();
         }
-
-        const y = if (first_child)
-            content_top + (if (parent_can_collapse_top) 0 else cmt)
-        else
-            content_top + cursor_y + margin_before;
-        try self.layout(child, .{ .x = x, .y = y, .width = child_w, .height = child_h }, n.id);
-        var used_margin = child_mg;
-        used_margin.left += auto_left;
-        used_margin.right += auto_right;
-        self.setUsedMargin(child.id, used_margin);
-        const used_height = self.find(child.id).?.bounds.height;
-
-        if (first_child) {
-            cursor_y = (if (parent_can_collapse_top) 0 else cmt) + used_height;
+    } else {
+        if (parent_can_collapse_bottom) {
+            collapsible_bottom = margin_strut;
+            consumed_height = cursor_y;
         } else {
-            cursor_y = cursor_y + margin_before + used_height;
+            consumed_height = cursor_y + margin_strut.resolve();
         }
-        prev_mb = cmb;
-        first_child = false;
+    }
+
+    return .{
+        .consumed_height = consumed_height,
+        .collapsible_top = collapsible_top,
+        .collapsible_bottom = collapsible_bottom,
+        .is_empty = !has_in_flow_content and n.children.len > 0,
+    };
+}
+
+pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anyerror!void {
+    const pad = n.padding();
+    const bd = n.border();
+    const content_top = bounds.y + pad.top + bd.top;
+    const content_left = bounds.x + pad.left + bd.left;
+
+    const count = n.children.len;
+    if (count == 0) return;
+
+    const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
+    _ = computeBlockLayout(self, n, inner_width, child_layouts);
+
+    for (n.children, 0..) |*child, i| {
+        const cl = child_layouts[i];
+        const child_rect = Rect{
+            .x = content_left + cl.x,
+            .y = content_top + cl.y,
+            .width = cl.width,
+            .height = cl.height,
+        };
+        try self.layout(child, child_rect, n.id);
+        self.setUsedMargin(child.id, cl.used_margin);
     }
 }

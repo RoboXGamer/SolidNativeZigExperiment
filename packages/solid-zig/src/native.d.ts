@@ -20,6 +20,7 @@ export interface NativeStyle {
   direction?: "ltr" | "rtl";
   flexDirection?: "row" | "column" | "row-reverse" | "column-reverse";
   flexWrap?: "nowrap" | "wrap" | "wrap-reverse";
+  flexFlow?: string;
   flex?: number | string;
   flexGrow?: number;
   flexShrink?: number;
@@ -42,7 +43,9 @@ export interface NativeStyle {
   maxBlockSize?: NativeLength;
   aspectRatio?: number;
   order?: number;
-  gap?: number;
+  gap?: NativeLength;
+  rowGap?: NativeLength;
+  columnGap?: NativeLength;
   gridTemplateColumns?: string | Array<number | string>;
   padding?: number | string;
   paddingTop?: NativeLength;

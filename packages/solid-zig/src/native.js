@@ -309,6 +309,9 @@ export function snapshot(node, inherited = {}) {
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
+    whiteSpace: style.whiteSpace ?? inherited.whiteSpace ?? "normal",
+    textAlign: style.textAlign ?? inherited.textAlign ?? "left",
+    lineHeight: style.lineHeight ?? inherited.lineHeight,
     writingMode: style.writingMode,
     direction: style.direction,
   };
@@ -366,14 +369,15 @@ export function snapshot(node, inherited = {}) {
 
   let lineHeight = null;
   let lineHeightCss = null;
-  if (typeof style.lineHeight === "number") {
-    lineHeight = style.lineHeight;
-  } else if (typeof style.lineHeight === "string") {
-    const trimmed = style.lineHeight.trim();
+  const lineHeightValue = style.lineHeight ?? inherited.lineHeight;
+  if (typeof lineHeightValue === "number") {
+    lineHeight = lineHeightValue;
+  } else if (typeof lineHeightValue === "string") {
+    const trimmed = lineHeightValue.trim();
     const num = Number(trimmed);
     if (Number.isFinite(num) && num > 0 && !/[a-z%]/i.test(trimmed)) {
-      lineHeight = num;
-    } else if (trimmed) {
+      lineHeight = num * (textStyle.fontSize || 20);
+    } else if (trimmed && trimmed !== "normal") {
       lineHeightCss = trimmed;
     }
   }
@@ -419,7 +423,7 @@ export function snapshot(node, inherited = {}) {
       display: displayOf(node, style),
       flexDirection: flexDirectionOf(node, style),
       flexWrap: typeof style.flexWrap === "string" ? style.flexWrap : "nowrap",
-      justifyContent: typeof style.justifyContent === "string" ? style.justifyContent : "flex-start",
+      justifyContent: typeof style.justifyContent === "string" ? style.justifyContent : "normal",
       alignItems: typeof style.alignItems === "string" ? style.alignItems : "stretch",
       alignContent: typeof style.alignContent === "string" ? style.alignContent : "stretch",
       alignSelf: typeof style.alignSelf === "string" ? style.alignSelf : "auto",
@@ -456,8 +460,8 @@ export function snapshot(node, inherited = {}) {
       overflowY,
       scrollbarGutter: typeof style.scrollbarGutter === "string" ? style.scrollbarGutter : "",
       scrollbarWidth: typeof style.scrollbarWidth === "string" ? style.scrollbarWidth : "",
-      whiteSpace: typeof style.whiteSpace === "string" ? style.whiteSpace : "normal",
-      textAlign: typeof style.textAlign === "string" ? style.textAlign : "left",
+      whiteSpace: typeof style.whiteSpace === "string" ? style.whiteSpace : (inherited.whiteSpace || "normal"),
+      textAlign: typeof style.textAlign === "string" ? style.textAlign : (inherited.textAlign || "left"),
       lineHeight,
       lineHeightCss: lineHeightCss ?? "",
       outlineWidth: typeof style.outlineWidth === "number" ? style.outlineWidth : 0,
@@ -469,8 +473,8 @@ export function snapshot(node, inherited = {}) {
       gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),
       gridAutoFlow: typeof style.gridAutoFlow === "string" ? style.gridAutoFlow : "row",
       gridTemplateAreas: typeof style.gridTemplateAreas === "string" ? style.gridTemplateAreas : "",
-      gridColumn: typeof style.gridColumn === "string" ? style.gridColumn : "",
-      gridRow: typeof style.gridRow === "string" ? style.gridRow : "",
+      gridColumn: style.gridColumn != null ? String(style.gridColumn) : (style.gridColumnStart != null || style.gridColumnEnd != null ? `${style.gridColumnStart ?? "auto"} / ${style.gridColumnEnd ?? "auto"}` : ""),
+      gridRow: style.gridRow != null ? String(style.gridRow) : (style.gridRowStart != null || style.gridRowEnd != null ? `${style.gridRowStart ?? "auto"} / ${style.gridRowEnd ?? "auto"}` : ""),
       gridArea: typeof style.gridArea === "string" ? style.gridArea : "",
       gridColumnStart: typeof style.gridColumnStart === "number" ? Math.trunc(style.gridColumnStart) : null,
       gridColumnEnd: typeof style.gridColumnEnd === "number" ? Math.trunc(style.gridColumnEnd) : null,
@@ -488,6 +492,8 @@ export function snapshot(node, inherited = {}) {
       transitionTimingFunction: typeof style.transitionTimingFunction === "string" ? style.transitionTimingFunction : "ease",
       transitionDelay: typeof style.transitionDelay === "number" ? style.transitionDelay : (typeof style.transitionDelay === "string" ? (parseFloat(style.transitionDelay) * (style.transitionDelay.endsWith("ms") ? 0.001 : 1.0) || 0) : 0),
       ...textStyle,
+      lineHeight,
+      lineHeightCss,
       ...defaultSelectStyle,
       ...defaultOptionStyle,
     },

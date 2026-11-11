@@ -19,7 +19,42 @@ pub const Gradient = struct {
     center_x: f32 = 0.5, // 0.0 to 1.0
     center_y: f32 = 0.5,
     stops: []const ColorStop,
+    circle: bool = false,
+    closest_side: bool = false,
 
+    /// Map a paint-space pixel to the CSS gradient parameter.
+    pub fn sample(self: Gradient, x: f32, y: f32, width: f32, height: f32) [4]u8 {
+        const dx = x - self.center_x * width;
+        const dy = y - self.center_y * height;
+        const radians = self.angle_deg * std.math.pi / 180;
+        const t: f32 = switch (self.kind) {
+            .linear => blk: {
+                const sx = @sin(radians);
+                const sy = -@cos(radians);
+                const len = @abs(sx) * width + @abs(sy) * height;
+                break :blk if (len > 0) 0.5 + ((x - width / 2) * sx + (y - height / 2) * sy) / len else 0;
+            },
+            .conic => blk: {
+                var angle = std.math.atan2(dx, -dy) - radians;
+                angle = @mod(angle, 2 * std.math.pi);
+                break :blk angle / (2 * std.math.pi);
+            },
+            .radial => blk: {
+                var rx = if (self.closest_side) @min(self.center_x, 1 - self.center_x) * width else @max(self.center_x, 1 - self.center_x) * width;
+                var ry = if (self.closest_side) @min(self.center_y, 1 - self.center_y) * height else @max(self.center_y, 1 - self.center_y) * height;
+                if (self.circle) {
+                    const r = if (self.closest_side) @min(rx, ry) else @sqrt(rx * rx + ry * ry);
+                    rx = r;
+                    ry = r;
+                } else if (!self.closest_side) {
+                    rx *= @sqrt(@as(f32, 2));
+                    ry *= @sqrt(@as(f32, 2));
+                }
+                break :blk @sqrt((dx / @max(0.0001, rx)) * (dx / @max(0.0001, rx)) + (dy / @max(0.0001, ry)) * (dy / @max(0.0001, ry)));
+            },
+        };
+        return self.evaluate(t);
+    }
     /// Evaluates the gradient color at parameter t (0.0 to 1.0).
     pub fn evaluate(self: Gradient, t_in: f32) [4]u8 {
         if (self.stops.len == 0) return .{ 0, 0, 0, 255 };
@@ -315,6 +350,11 @@ pub fn parseGradient(allocator: std.mem.Allocator, css_in: []const u8) !?Gradien
         start_i = end_i;
     }
 
+    var previous: f32 = -std.math.inf(f32);
+    for (raw_stops.items) |*stop| {
+        stop.position = @max(previous, stop.position orelse 0);
+        previous = stop.position.?;
+    }
     const stops_slice = try allocator.dupe(ColorStop, raw_stops.items);
     return .{
         .kind = kind,
@@ -322,5 +362,7 @@ pub fn parseGradient(allocator: std.mem.Allocator, css_in: []const u8) !?Gradien
         .center_x = center_x,
         .center_y = center_y,
         .stops = stops_slice,
+        .circle = std.mem.indexOf(u8, first, "circle") != null,
+        .closest_side = std.mem.indexOf(u8, first, "closest-side") != null,
     };
 }

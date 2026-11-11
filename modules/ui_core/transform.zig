@@ -145,6 +145,10 @@ fn parseLength(str: []const u8) !f32 {
 
 /// Parses a 2D CSS transform string into a cumulative Matrix2D.
 pub fn parseTransform(css: []const u8) !Matrix2D {
+    return parseTransformSized(css, 0, 0);
+}
+
+pub fn parseTransformSized(css: []const u8, width: f32, height: f32) !Matrix2D {
     var res = Matrix2D.identity;
     var i: usize = 0;
     const len = css.len;
@@ -175,9 +179,9 @@ pub fn parseTransform(css: []const u8) !Matrix2D {
 
         if (std.mem.eql(u8, fn_name, "translate")) {
             const tx_str = args_it.next() orelse return error.InvalidTransformArgs;
-            const tx = try parseLength(tx_str);
+            const tx = try sizedLength(tx_str, width);
             const ty_str = args_it.next();
-            const ty = if (ty_str) |s| try parseLength(s) else 0;
+            const ty = if (ty_str) |s| try sizedLength(s, height) else 0;
             res = res.multiply(Matrix2D.makeTranslate(tx, ty));
         } else if (std.mem.eql(u8, fn_name, "translateX")) {
             const tx_str = args_it.next() orelse return error.InvalidTransformArgs;
@@ -185,7 +189,7 @@ pub fn parseTransform(css: []const u8) !Matrix2D {
             res = res.multiply(Matrix2D.makeTranslate(tx, 0));
         } else if (std.mem.eql(u8, fn_name, "translateY")) {
             const ty_str = args_it.next() orelse return error.InvalidTransformArgs;
-            const ty = try parseLength(ty_str);
+            const ty = try sizedLength(ty_str, height);
             res = res.multiply(Matrix2D.makeTranslate(0, ty));
         } else if (std.mem.eql(u8, fn_name, "scale")) {
             const sx_str = args_it.next() orelse return error.InvalidTransformArgs;
@@ -239,7 +243,13 @@ pub fn parseTransformOrigin(css: []const u8, width: f32, height: f32) Point {
     if (css.len == 0) return .{ .x = width * 0.5, .y = height * 0.5 };
     var it = std.mem.tokenizeAny(u8, css, " \t,");
     const part1 = it.next() orelse return .{ .x = width * 0.5, .y = height * 0.5 };
-    const part2 = it.next() orelse part1;
+    var part2 = it.next() orelse "center";
+    var first = part1;
+    if (std.mem.eql(u8, first, "top") or std.mem.eql(u8, first, "bottom")) {
+        const save = first;
+        first = part2;
+        part2 = save;
+    }
 
     const parseSide = struct {
         fn get(str: []const u8, size: f32) f32 {
@@ -259,7 +269,12 @@ pub fn parseTransformOrigin(css: []const u8, width: f32, height: f32) Point {
     }.get;
 
     return .{
-        .x = parseSide(part1, width),
+        .x = parseSide(first, width),
         .y = parseSide(part2, height),
     };
+}
+
+fn sizedLength(str: []const u8, size: f32) !f32 {
+    if (std.mem.endsWith(u8, str, "%")) return (try std.fmt.parseFloat(f32, str[0 .. str.len - 1])) * size / 100;
+    return parseLength(str);
 }

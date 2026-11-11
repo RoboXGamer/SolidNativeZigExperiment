@@ -1,5 +1,5 @@
-//! Complete CSS Grid Layout implementation.
-//! Conforms to CSS Grid Layout Module Level 1 and Level 2.
+//! CSS Grid track sizing and placement.
+//! Public scope and regression coverage are recorded in the phase handoff.
 //! Supports:
 //! - Full explicit and implicit tracks with fr, minmax(), repeat(), auto-fill/auto-fit
 //! - Named grid lines and grid areas (grid-template-areas, grid-area)
@@ -30,7 +30,9 @@ pub const TrackValue = struct {
 pub const TrackDef = struct {
     min: TrackValue = .{ .unit = .auto },
     max: TrackValue = .{ .unit = .auto },
-    line_name: []const u8 = "",
+    before: []const u8 = "",
+    after: []const u8 = "",
+    auto_fit: bool = false,
 };
 
 pub const GridArea = struct {
@@ -98,99 +100,62 @@ fn parseTrackDef(str_in: []const u8) TrackDef {
 }
 
 /// Parses track list string, expanding repeat() and handling minmax() and line names.
-pub fn parseTrackList(
-    allocator: std.mem.Allocator,
-    css_in: []const u8,
-    available_size: f32,
-    gap: f32,
-) ![]TrackDef {
-    const css = std.mem.trim(u8, css_in, " \t\r\n");
-    if (css.len == 0) return &.{};
-
+pub fn parseTrackList(a: std.mem.Allocator, css: []const u8, available: f32, gap: f32) anyerror![]TrackDef {
     var list: std.ArrayList(TrackDef) = .empty;
-    defer list.deinit(allocator);
-
-    var i: usize = 0;
-    const len = css.len;
-
-    while (i < len) {
-        while (i < len and (css[i] == ' ' or css[i] == '\t' or css[i] == '\r' or css[i] == '\n')) : (i += 1) {}
-        if (i >= len) break;
-
-        // Check for line name [name]
-        if (css[i] == '[') {
-            const start = i + 1;
-            while (i < len and css[i] != ']') : (i += 1) {}
-            const name = std.mem.trim(u8, css[start..i], " \t");
-            if (i < len) i += 1; // skip ']'
-            if (list.items.len > 0) {
-                list.items[list.items.len - 1].line_name = name;
-            }
+    defer list.deinit(a);
+    var tokens = @import("css_syntax.zig").Tokens{ .input = css, .separators = " \t\r\n" };
+    var pending: []const u8 = "";
+    while (tokens.next()) |tok| {
+        if (std.mem.eql(u8, tok, "none")) continue;
+        if (tok[0] == '[' and tok[tok.len - 1] == ']') {
+            pending = try std.fmt.allocPrint(a, "{s} {s}", .{ pending, tok[1 .. tok.len - 1] });
+            if (list.items.len > 0) list.items[list.items.len - 1].after = pending;
             continue;
         }
-
-        // Check for repeat(...)
-        if (std.mem.startsWith(u8, css[i..], "repeat(")) {
-            i += 7; // skip "repeat("
-            var depth: usize = 1;
-            const start_args = i;
-            while (i < len and depth > 0) : (i += 1) {
-                if (css[i] == '(') depth += 1;
-                if (css[i] == ')') depth -= 1;
-            }
-            const args = css[start_args .. i - 1];
-            const comma_idx = std.mem.indexOfScalar(u8, args, ',') orelse continue;
-            const count_str = std.mem.trim(u8, args[0..comma_idx], " \t");
-            const pattern_str = std.mem.trim(u8, args[comma_idx + 1 ..], " \t");
-
+        if (std.mem.startsWith(u8, tok, "repeat(") and tok[tok.len - 1] == ')') {
+            var args = @import("css_syntax.zig").Tokens{ .input = tok[7 .. tok.len - 1], .separators = "," };
+            const count = args.next() orelse return error.InvalidGridRepeat;
+            const pattern = args.next() orelse return error.InvalidGridRepeat;
+            const defs = try parseTrackList(a, pattern, available, gap);
+            defer a.free(defs);
+            if (defs.len == 0) return error.InvalidGridRepeat;
+            const automatic = std.mem.eql(u8, count, "auto-fill") or std.mem.eql(u8, count, "auto-fit");
             var reps: usize = 1;
-            if (std.mem.eql(u8, count_str, "auto-fill") or std.mem.eql(u8, count_str, "auto-fit")) {
-                const sub_def = parseTrackDef(pattern_str);
-                var min_px: f32 = 100;
-                if (sub_def.min.unit == .px and sub_def.min.val > 0) {
-                    min_px = sub_def.min.val;
-                }
-                if (available_size > 0) {
-                    const count_f = @floor((available_size + gap) / (min_px + gap));
-                    reps = @max(1, @as(usize, @intFromFloat(count_f)));
-                } else {
-                    reps = 1;
-                }
-            } else {
-                reps = std.fmt.parseInt(usize, count_str, 10) catch 1;
-            }
-
-            for (0..reps) |_| {
-                var it = std.mem.tokenizeAny(u8, pattern_str, " \t");
-                while (it.next()) |tok| {
-                    try list.append(allocator, parseTrackDef(tok));
-                }
-            }
-            continue;
+            if (automatic) {
+                var period: f32 = 0;
+                for (defs) |d| period += if (d.max.unit == .px) @max(d.min.val, d.max.val) else if (d.min.unit == .px) @max(1, d.min.val) else if (d.max.unit == .percent) @max(1, available * d.max.val / 100) else @as(f32, 1);
+                period += gap * @as(f32, @floatFromInt(defs.len));
+                reps = @intFromFloat(@max(1, @floor((available + gap) / @max(1, period))));
+            } else reps = std.fmt.parseInt(usize, count, 10) catch return error.InvalidGridRepeat;
+            if (reps == 0 or reps > 10000 or defs.len > 10000 / reps) return error.GridTrackLimit;
+            for (0..reps) |_| for (defs) |def| {
+                var d = def;
+                d.auto_fit = automatic and std.mem.eql(u8, count, "auto-fit");
+                if (list.items.len == 0 or pending.len > 0) d.before = try std.fmt.allocPrint(a, "{s} {s}", .{ pending, d.before });
+                try list.append(a, d);
+                pending = "";
+            };
+        } else {
+            var d = parseTrackDef(tok);
+            d.before = pending;
+            pending = "";
+            try list.append(a, d);
         }
-
-        // Single track or minmax(...)
-        if (std.mem.startsWith(u8, css[i..], "minmax(")) {
-            i += 7;
-            var depth: usize = 1;
-            const start_args = i - 7;
-            while (i < len and depth > 0) : (i += 1) {
-                if (css[i] == '(') depth += 1;
-                if (css[i] == ')') depth -= 1;
-            }
-            const minmax_str = css[start_args..i];
-            try list.append(allocator, parseTrackDef(minmax_str));
-            continue;
-        }
-
-        // Regular track word
-        const word_start = i;
-        while (i < len and css[i] != ' ' and css[i] != '\t' and css[i] != '[' and css[i] != '\r' and css[i] != '\n') : (i += 1) {}
-        const word = css[word_start..i];
-        try list.append(allocator, parseTrackDef(word));
     }
+    if (pending.len > 0 and list.items.len > 0) list.items[list.items.len - 1].after = pending;
+    return list.toOwnedSlice(a);
+}
 
-    return try allocator.dupe(TrackDef, list.items);
+fn namedLine(name: []const u8, tracks: []const TrackDef) ?usize {
+    for (tracks, 0..) |t, i| {
+        var words = std.mem.tokenizeAny(u8, t.before, " \t");
+        while (words.next()) |w| if (std.mem.eql(u8, w, name)) return i;
+    }
+    if (tracks.len > 0) {
+        var words = std.mem.tokenizeAny(u8, tracks[tracks.len - 1].after, " \t");
+        while (words.next()) |w| if (std.mem.eql(u8, w, name)) return tracks.len;
+    }
+    return null;
 }
 
 /// Parses grid-template-areas into named areas with row and column bounding rectangles.
@@ -247,18 +212,21 @@ pub fn parseGridTemplateAreas(allocator: std.mem.Allocator, css_in: []const u8) 
     return try allocator.dupe(GridArea, result.items);
 }
 
-fn parseLineOrSpan(str_in: []const u8, total_explicit: usize) ?struct { line: ?usize, span: usize } {
+fn parseLineOrSpan(str_in: []const u8, tracks: []const TrackDef) ?struct { line: ?usize, span: usize } {
     const str = std.mem.trim(u8, str_in, " \t\r\n");
     if (str.len == 0 or std.mem.eql(u8, str, "auto")) return null;
     if (std.mem.startsWith(u8, str, "span ")) {
         const span_cnt = std.fmt.parseInt(usize, std.mem.trim(u8, str[5..], " "), 10) catch 1;
         return .{ .line = null, .span = @max(1, span_cnt) };
     }
-    const val = std.fmt.parseInt(i32, str, 10) catch return null;
+    const val = std.fmt.parseInt(i32, str, 10) catch {
+        if (namedLine(str, tracks)) |line| return .{ .line = line, .span = 1 };
+        return null;
+    };
     if (val > 0) {
         return .{ .line = @intCast(val - 1), .span = 1 };
     } else if (val < 0) {
-        const total: i32 = @intCast(total_explicit + 1);
+        const total: i32 = @intCast(tracks.len + 1);
         const resolved = total + val;
         return .{ .line = if (resolved >= 0) @intCast(resolved) else 0, .span = 1 };
     }
@@ -271,13 +239,14 @@ pub const GridChildPlacement = struct {
 };
 
 /// Resolves auto-placement, track sizing, and item positioning for display: grid.
-pub fn layout(
+fn compute(
     scene: *Scene,
     n: *const Node,
     bounds: Rect,
     inner_width: f32,
     inner_height: f32,
-) anyerror!void {
+    measure_only: bool,
+) anyerror!f32 {
     const allocator = scene.arena.allocator();
     const col_gap = n.mainGap(true);
     const row_gap = n.mainGap(false);
@@ -319,7 +288,7 @@ pub fn layout(
         }
     }
 
-    if (in_flow_children.items.len == 0 and out_of_flow_children.items.len == 0) return;
+    if (in_flow_children.items.len == 0 and out_of_flow_children.items.len == 0) return 0;
 
     // 3. Resolve item spans & area placements
     var item_spans: std.ArrayList(GridItemSpan) = .empty;
@@ -351,7 +320,8 @@ pub fn layout(
             } else if (child.style.gridColumn.len > 0) {
                 var it = std.mem.tokenizeAny(u8, child.style.gridColumn, "/");
                 if (it.next()) |s_tok| {
-                    if (parseLineOrSpan(s_tok, col_tracks.len)) |p| {
+                    if (parseLineOrSpan(s_tok, col_tracks)) |p| {
+                        if (p.line == null) span.col_end = p.span;
                         if (p.line) |l| {
                             span.col_start = l;
                             span.col_end = l + p.span;
@@ -360,7 +330,7 @@ pub fn layout(
                     }
                 }
                 if (it.next()) |e_tok| {
-                    if (parseLineOrSpan(e_tok, col_tracks.len)) |p| {
+                    if (parseLineOrSpan(e_tok, col_tracks)) |p| {
                         if (p.line) |l| {
                             span.col_end = @max(span.col_start + 1, l);
                         } else {
@@ -380,7 +350,8 @@ pub fn layout(
             } else if (child.style.gridRow.len > 0) {
                 var it = std.mem.tokenizeAny(u8, child.style.gridRow, "/");
                 if (it.next()) |s_tok| {
-                    if (parseLineOrSpan(s_tok, row_tracks.len)) |p| {
+                    if (parseLineOrSpan(s_tok, row_tracks)) |p| {
+                        if (p.line == null) span.row_end = p.span;
                         if (p.line) |l| {
                             span.row_start = l;
                             span.row_end = l + p.span;
@@ -389,7 +360,7 @@ pub fn layout(
                     }
                 }
                 if (it.next()) |e_tok| {
-                    if (parseLineOrSpan(e_tok, row_tracks.len)) |p| {
+                    if (parseLineOrSpan(e_tok, row_tracks)) |p| {
                         if (p.line) |l| {
                             span.row_end = @max(span.row_start + 1, l);
                         } else {
@@ -415,6 +386,7 @@ pub fn layout(
     for (item_spans.items) |s| {
         if (s.has_definite_col) num_cols = @max(num_cols, s.col_end);
     }
+    for (item_spans.items) |s| num_cols = @max(num_cols, s.col_end - s.col_start);
     num_cols = @max(1, num_cols);
 
     // Track occupied cells in a dynamic 2D grid
@@ -484,9 +456,14 @@ pub fn layout(
             var c: usize = if (is_dense) 0 else cursor_c;
 
             if (is_col_flow) {
+                const limit = @max(1, row_tracks.len);
+                if (r + row_span > limit) {
+                    r = 0;
+                    c += 1;
+                }
                 while (!fits(&occupied, r, r + row_span, c, c + col_span)) {
                     r += 1;
-                    if (row_tracks.len > 0 and r >= row_tracks.len) {
+                    if (r + row_span > @max(1, row_tracks.len)) {
                         r = 0;
                         c += 1;
                     }
@@ -526,23 +503,49 @@ pub fn layout(
     for (item_spans.items) |s| num_rows = @max(num_rows, s.row_end);
     num_rows = @max(1, num_rows);
 
+    const auto_cols = try parseTrackList(allocator, n.style.gridAutoColumnsCss orelse "auto", inner_width, col_gap);
+    const auto_rows = try parseTrackList(allocator, n.style.gridAutoRowsCss orelse "auto", inner_height, row_gap);
+    const all_cols = try allocator.alloc(TrackDef, num_cols);
+    for (all_cols, 0..) |*d, c| d.* = if (c < col_tracks.len) col_tracks[c] else if (auto_cols.len > 0) auto_cols[(c - col_tracks.len) % auto_cols.len] else .{};
+    const all_rows = try allocator.alloc(TrackDef, num_rows);
+    for (all_rows, 0..) |*d, r| d.* = if (r < row_tracks.len) row_tracks[r] else if (auto_rows.len > 0) auto_rows[(r - row_tracks.len) % auto_rows.len] else .{};
+
+    // Collapse auto-fit tracks before resolving the fraction and gutter space.
+    for (all_cols, 0..) |*d, c| if (d.auto_fit) {
+        var used = false;
+        for (item_spans.items) |sp| if (sp.col_start <= c and c < sp.col_end) {
+            used = true;
+        };
+        if (!used) {
+            d.min = .{ .unit = .px, .val = 0 };
+            d.max = .{ .unit = .px, .val = 0 };
+        }
+    };
+    for (all_rows, 0..) |*d, r| if (d.auto_fit) {
+        var used = false;
+        for (item_spans.items) |sp| if (sp.row_start <= r and r < sp.row_end) {
+            used = true;
+        };
+        if (!used) {
+            d.min = .{ .unit = .px, .val = 0 };
+            d.max = .{ .unit = .px, .val = 0 };
+        }
+    };
     // 5. Track Sizing Algorithm
     // Sizing columns
     const col_widths = try allocator.alloc(f32, num_cols);
     var col_fixed: f32 = 0;
-    var col_fractions: f32 = 0;
 
     for (0..num_cols) |c| {
-        const tdef = if (c < col_tracks.len) col_tracks[c] else TrackDef{};
+        const tdef = all_cols[c];
         if (tdef.max.unit == .px) {
-            col_widths[c] = tdef.max.val;
-            col_fixed += tdef.max.val;
+            col_widths[c] = @max(tdef.max.val, if (tdef.min.unit == .px) tdef.min.val else 0);
+            col_fixed += col_widths[c];
         } else if (tdef.max.unit == .percent) {
             const w = inner_width * (tdef.max.val / 100.0);
             col_widths[c] = w;
             col_fixed += w;
         } else if (tdef.max.unit == .fr) {
-            col_fractions += tdef.max.val;
             col_widths[c] = 0;
         } else {
             // auto / min-content / max-content: estimate from children in this column
@@ -550,7 +553,7 @@ pub fn layout(
             for (item_spans.items) |s| {
                 if (s.col_start == c and s.col_end == c + 1) {
                     const child_frame = s.child.padding().horizontal() + s.child.border().horizontal();
-                    const w = if (s.child.style.width) |cw| s.child.borderSize(cw, child_frame) else scene.intrinsicWidthFor(s.child, .max_content);
+                    const w = if (s.child.style.width) |cw| s.child.borderSize(cw, child_frame) else scene.intrinsicWidthFor(s.child, if (tdef.max.unit == .min_content) .min_content else .max_content);
                     max_w = @max(max_w, w + s.child.margin().horizontal());
                 }
             }
@@ -560,36 +563,47 @@ pub fn layout(
         }
     }
 
-    const total_col_gaps = if (num_cols > 1) col_gap * @as(f32, @floatFromInt(num_cols - 1)) else 0;
+    var active_cols: usize = 0;
+    for (all_cols) |d| {
+        if (!(d.auto_fit and d.max.unit == .px and d.max.val == 0)) active_cols += 1;
+    }
+    const total_col_gaps = col_gap * @as(f32, @floatFromInt(active_cols -| 1));
     const remaining_col_space = @max(0, inner_width - col_fixed - total_col_gaps);
 
-    if (col_fractions > 0 and remaining_col_space > 0) {
-        for (0..num_cols) |c| {
-            const tdef = if (c < col_tracks.len) col_tracks[c] else TrackDef{};
-            if (tdef.max.unit == .fr) {
-                var w = remaining_col_space * (tdef.max.val / col_fractions);
-                if (tdef.min.unit == .px and w < tdef.min.val) w = tdef.min.val;
-                col_widths[c] = w;
-            }
+    _ = remaining_col_space;
+
+    for (all_cols, 0..) |d, c| if (d.max.unit == .fr) {
+        col_widths[c] = if (d.min.unit == .px) d.min.val else 0;
+    };
+    for (item_spans.items) |sp| {
+        var required = scene.intrinsicWidthFor(sp.child, .min_content) + sp.child.margin().horizontal();
+        if (sp.child.style.minWidth) |minimum| required = sp.child.borderSize(minimum, sp.child.padding().horizontal() + sp.child.border().horizontal()) + sp.child.margin().horizontal();
+        var current: f32 = col_gap * @as(f32, @floatFromInt(sp.col_end - sp.col_start - 1));
+        var growable: usize = 0;
+        for (sp.col_start..sp.col_end) |c| {
+            current += col_widths[c];
+            if (all_cols[c].min.unit == .auto or all_cols[c].min.unit == .min_content or all_cols[c].min.unit == .max_content) growable += 1;
         }
+        if (required > current and growable > 0) for (sp.col_start..sp.col_end) |c| {
+            if (all_cols[c].min.unit == .auto or all_cols[c].min.unit == .min_content or all_cols[c].min.unit == .max_content) col_widths[c] += (required - current) / @as(f32, @floatFromInt(growable));
+        };
     }
+    distributeFractions(all_cols, col_widths, @max(0, inner_width - total_col_gaps));
 
     // Sizing rows
     const row_heights = try allocator.alloc(f32, num_rows);
     var row_fixed: f32 = 0;
-    var row_fractions: f32 = 0;
 
     for (0..num_rows) |r| {
-        const tdef = if (r < row_tracks.len) row_tracks[r] else TrackDef{};
+        const tdef = all_rows[r];
         if (tdef.max.unit == .px) {
-            row_heights[r] = tdef.max.val;
-            row_fixed += tdef.max.val;
+            row_heights[r] = @max(tdef.max.val, if (tdef.min.unit == .px) tdef.min.val else 0);
+            row_fixed += row_heights[r];
         } else if (tdef.max.unit == .percent and inner_height > 0) {
             const h = inner_height * (tdef.max.val / 100.0);
             row_heights[r] = h;
             row_fixed += h;
         } else if (tdef.max.unit == .fr) {
-            row_fractions += tdef.max.val;
             row_heights[r] = 0;
         } else {
             // auto row height: max natural height of children in this row
@@ -611,18 +625,62 @@ pub fn layout(
         }
     }
 
-    const total_row_gaps = if (num_rows > 1) row_gap * @as(f32, @floatFromInt(num_rows - 1)) else 0;
-    const remaining_row_space = @max(0, inner_height - row_fixed - total_row_gaps);
-    if (row_fractions > 0 and remaining_row_space > 0) {
-        for (0..num_rows) |r| {
-            const tdef = if (r < row_tracks.len) row_tracks[r] else TrackDef{};
-            if (tdef.max.unit == .fr) {
-                var h = remaining_row_space * (tdef.max.val / row_fractions);
-                if (tdef.min.unit == .px and h < tdef.min.val) h = tdef.min.val;
-                row_heights[r] = h;
-            }
-        }
+    var active_rows: usize = 0;
+    for (all_rows) |d| {
+        if (!(d.auto_fit and d.max.unit == .px and d.max.val == 0)) active_rows += 1;
     }
+    for (item_spans.items) |sp| {
+        var width: f32 = col_gap * @as(f32, @floatFromInt(sp.col_end - sp.col_start - 1));
+        for (sp.col_start..sp.col_end) |c| width += col_widths[c];
+        const required = scene.naturalHeightForWidth(sp.child, @max(0, width - sp.child.margin().horizontal())) + sp.child.margin().vertical();
+        var current: f32 = row_gap * @as(f32, @floatFromInt(sp.row_end - sp.row_start - 1));
+        var growable: usize = 0;
+        for (sp.row_start..sp.row_end) |r| {
+            current += row_heights[r];
+            if (all_rows[r].max.unit == .auto or all_rows[r].max.unit == .min_content or all_rows[r].max.unit == .max_content or all_rows[r].max.unit == .fr) growable += 1;
+        }
+        if (required > current and growable > 0) for (sp.row_start..sp.row_end) |r| {
+            if (all_rows[r].max.unit == .auto or all_rows[r].max.unit == .min_content or all_rows[r].max.unit == .max_content or all_rows[r].max.unit == .fr) row_heights[r] += (required - current) / @as(f32, @floatFromInt(growable));
+        };
+    }
+    const total_row_gaps = row_gap * @as(f32, @floatFromInt(active_rows -| 1));
+    const remaining_row_space = @max(0, inner_height - row_fixed - total_row_gaps);
+    _ = remaining_row_space;
+
+    for (all_rows, 0..) |d, r| if (d.max.unit == .fr) {
+        row_heights[r] = @max(row_heights[r], if (d.min.unit == .px) d.min.val else 0);
+    };
+    if (inner_height > 0) distributeFractions(all_rows, row_heights, @max(0, inner_height - total_row_gaps)) else {
+        var fraction: f32 = 0;
+        for (all_rows, 0..) |d, r| if (d.max.unit == .fr and d.max.val > 0) {
+            fraction = @max(fraction, row_heights[r] / @max(1, d.max.val));
+        };
+        for (all_rows, 0..) |d, r| if (d.max.unit == .fr) {
+            row_heights[r] = @max(row_heights[r], fraction * d.max.val);
+        };
+    }
+    // Auto-fit collapses empty repeated tracks and their adjacent gutters.
+    for (all_cols, 0..) |d, c| if (d.auto_fit) {
+        var used = false;
+        for (item_spans.items) |sp| if (sp.col_start <= c and c < sp.col_end) {
+            used = true;
+        };
+        if (!used) col_widths[c] = 0;
+    };
+    for (all_rows, 0..) |d, r| if (d.auto_fit) {
+        var used = false;
+        for (item_spans.items) |sp| if (sp.row_start <= r and r < sp.row_end) {
+            used = true;
+        };
+        if (!used) row_heights[r] = 0;
+    };
+    if (measure_only) {
+        var height: f32 = total_row_gaps;
+        for (row_heights) |h| height += h;
+        return height;
+    }
+    const x_pack = pack(n.style.justifyContent, col_widths, inner_width, col_gap, all_cols);
+    const y_pack = pack(n.style.alignContent, row_heights, inner_height, row_gap, all_rows);
 
     // 6. Placement & Alignment of in-flow items
     const pad = n.padding();
@@ -631,17 +689,17 @@ pub fn layout(
     const origin_y = bounds.y + pad.top + bd.top;
 
     const col_offsets = try allocator.alloc(f32, num_cols);
-    var cur_x: f32 = 0;
+    var cur_x: f32 = x_pack.lead;
     for (0..num_cols) |c| {
         col_offsets[c] = cur_x;
-        cur_x += col_widths[c] + col_gap;
+        cur_x += col_widths[c] + (if (all_cols[c].auto_fit and col_widths[c] == 0) @as(f32, 0) else x_pack.gap);
     }
 
     const row_offsets = try allocator.alloc(f32, num_rows);
-    var cur_y: f32 = 0;
+    var cur_y: f32 = y_pack.lead;
     for (0..num_rows) |r| {
         row_offsets[r] = cur_y;
-        cur_y += row_heights[r] + row_gap;
+        cur_y += row_heights[r] + (if (all_rows[r].auto_fit and row_heights[r] == 0) @as(f32, 0) else y_pack.gap);
     }
 
     for (item_spans.items) |s| {
@@ -702,8 +760,11 @@ pub fn layout(
         }
 
         // X placement
-        var item_x = origin_x + col_offsets[s.col_start] + margin.left;
+        var item_x = origin_x + (if (std.mem.eql(u8, n.style.direction, "rtl")) inner_width - col_offsets[s.col_start] - cell_w else col_offsets[s.col_start]) + margin.left;
         const free_w = avail_w - w;
+        if (std.mem.eql(u8, n.style.direction, "rtl")) {
+            if (std.mem.eql(u8, justify, "start") or std.mem.eql(u8, justify, "flex-start")) justify = "right" else if (std.mem.eql(u8, justify, "end") or std.mem.eql(u8, justify, "flex-end")) justify = "left";
+        }
         if (is_safe_justify and free_w < 0) {
             // Safe alignment: fall back to start
         } else if (std.mem.eql(u8, justify, "center")) {
@@ -725,4 +786,77 @@ pub fn layout(
 
         try scene.layout(child, .{ .x = item_x, .y = item_y, .width = w, .height = h }, n.id);
     }
+    return cur_y - row_gap;
+}
+
+fn distributeFractions(defs: []const TrackDef, sizes: []f32, available: f32) void {
+    var remaining = available;
+    var factors: f32 = 0;
+    for (defs, 0..) |d, i| if (d.max.unit != .fr) {
+        remaining -= sizes[i];
+    } else {
+        factors += @max(0, d.max.val);
+    };
+    // A frozen minimum is detectable by a factor whose share is below its base.
+    var fraction: f32 = if (factors > 0) @max(0, remaining) / @max(1, factors) else 0;
+    for (0..defs.len + 1) |_| {
+        remaining = available;
+        factors = 0;
+        for (defs, 0..) |d, i| {
+            if (d.max.unit != .fr or sizes[i] > fraction * @max(0, d.max.val) + 0.001) remaining -= sizes[i] else factors += @max(0, d.max.val);
+        }
+        const next = if (factors > 0) @max(0, remaining) / @max(1, factors) else 0;
+        if (@abs(next - fraction) < 0.001) break;
+        fraction = next;
+    }
+    for (defs, 0..) |d, i| if (d.max.unit == .fr) {
+        sizes[i] = @max(sizes[i], fraction * @max(0, d.max.val));
+    };
+}
+const Packing = struct { lead: f32 = 0, gap: f32 };
+fn pack(value_in: []const u8, sizes: []f32, available: f32, gap: f32, defs: []const TrackDef) Packing {
+    var value = value_in;
+    const safe = std.mem.startsWith(u8, value, "safe ");
+    if (safe) value = value[5..] else if (std.mem.startsWith(u8, value, "unsafe ")) value = value[7..];
+    var used: f32 = 0;
+    var count: usize = 0;
+    var autos: usize = 0;
+    for (sizes, 0..) |sz, i| {
+        if (defs[i].auto_fit and sz == 0) continue;
+        count += 1;
+        used += sz;
+        if (defs[i].max.unit == .auto) autos += 1;
+    }
+    if (count > 1) used += gap * @as(f32, @floatFromInt(count - 1));
+    const free = available - used;
+    var p: Packing = .{ .gap = gap };
+    if (safe and free < 0) return p;
+    if (std.mem.eql(u8, value, "center")) p.lead = free / 2 else if (std.mem.eql(u8, value, "end") or std.mem.eql(u8, value, "right") or std.mem.eql(u8, value, "flex-end")) p.lead = free else if (free > 0) {
+        if ((std.mem.eql(u8, value, "stretch") or std.mem.eql(u8, value, "normal")) and autos > 0) {
+            for (sizes, 0..) |*sz, i| if (defs[i].max.unit == .auto) {
+                sz.* += free / @as(f32, @floatFromInt(autos));
+            };
+        } else if (std.mem.eql(u8, value, "space-between") and count > 1) p.gap += free / @as(f32, @floatFromInt(count - 1)) else if (std.mem.eql(u8, value, "space-around") and count > 0) {
+            p.gap += free / @as(f32, @floatFromInt(count));
+            p.lead = (p.gap - gap) / 2;
+        } else if (std.mem.eql(u8, value, "space-evenly")) {
+            p.lead = free / @as(f32, @floatFromInt(count + 1));
+            p.gap += p.lead;
+        }
+    }
+    return p;
+}
+
+pub fn layout(scene: *Scene, n: *const Node, bounds: Rect, width: f32, height: f32) anyerror!void {
+    _ = try compute(scene, n, bounds, width, height, false);
+}
+pub fn measureHeight(scene: *const Scene, n: *const Node, width: f32) !f32 {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var scratch = Scene{ .arena = arena, .root = @constCast(n), .text = scene.text, .length_context = scene.length_context, .viewport = scene.viewport };
+    // The scratch scene owns every temporary track and occupancy allocation.
+    defer {
+        arena = scratch.arena;
+    }
+    return compute(&scratch, n, .{ .width = width }, width, 0, true);
 }

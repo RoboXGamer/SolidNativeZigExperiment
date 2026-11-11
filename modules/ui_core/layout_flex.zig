@@ -433,8 +433,10 @@ fn resolveFlexibleLengths(infos: []ItemInfo, start: usize, end: usize, main_avai
 
 pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inner_height: f32) anyerror!void {
     const is_row = isRowFlex(n);
-    const reverse = std.mem.eql(u8, n.style.flexDirection, "row-reverse") or std.mem.eql(u8, n.style.flexDirection, "column-reverse");
-    const wrap_reverse = std.mem.eql(u8, n.style.flexWrap, "wrap-reverse");
+    const rtl = std.mem.eql(u8, n.style.direction, "rtl");
+    const reversed = std.mem.eql(u8, n.style.flexDirection, "row-reverse") or std.mem.eql(u8, n.style.flexDirection, "column-reverse");
+    const reverse = reversed != (is_row and rtl);
+    const wrap_reverse = std.mem.eql(u8, n.style.flexWrap, "wrap-reverse") != (!is_row and rtl);
     const main_avail = if (is_row) inner_width else inner_height;
     const cross_avail = if (is_row) inner_height else inner_width;
     const wrap = (std.mem.eql(u8, n.style.flexWrap, "wrap") or wrap_reverse) and main_avail > 0;
@@ -613,7 +615,9 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         const free_cross = cross_avail - total;
         var actual_cross_gap = cross_gap;
         var cursor: f32 = 0;
-        const ac = n.style.alignContent;
+        var ac = n.style.alignContent;
+        const safe_ac = std.mem.startsWith(u8, ac, "safe ");
+        if (safe_ac) ac = ac[5..] else if (std.mem.startsWith(u8, ac, "unsafe ")) ac = ac[7..];
         if (std.mem.eql(u8, ac, "center")) {
             cursor = free_cross * 0.5;
         } else if (std.mem.eql(u8, ac, "flex-end") or std.mem.eql(u8, ac, "end")) {
@@ -627,7 +631,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
             cursor = free_cross / @as(f32, @floatFromInt(line_count + 1));
             actual_cross_gap = cross_gap + free_cross / @as(f32, @floatFromInt(line_count + 1));
         }
-        if (cursor < 0) cursor = 0;
+        if (safe_ac and cursor < 0) cursor = 0;
         for (0..line_count) |li| {
             cross_pos[li] = if (wrap_reverse) cross_avail - cursor - line_cross[li] else cursor;
             cursor += line_cross[li] + actual_cross_gap;
@@ -677,6 +681,9 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
                 jc = jc[5..];
             } else if (std.mem.startsWith(u8, jc, "unsafe ")) {
                 jc = jc[7..];
+            }
+            if (is_row) {
+                if (std.mem.eql(u8, jc, "right")) jc = if (reverse) "flex-start" else "flex-end" else if (std.mem.eql(u8, jc, "left")) jc = if (reverse) "flex-end" else "flex-start" else if (std.mem.eql(u8, jc, "start")) jc = if (reverse == rtl) "flex-start" else "flex-end" else if (std.mem.eql(u8, jc, "end")) jc = if (reverse == rtl) "flex-end" else "flex-start";
             }
             if (is_safe and free < 0) {
                 lead = 0;
@@ -760,11 +767,11 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
                 if (is_safe and remaining < 0) {
                     offset = 0;
                 } else if (std.mem.eql(u8, al, "center")) {
-                    if (remaining > 0) offset = remaining * 0.5;
+                    offset = remaining * 0.5;
                 } else if (std.mem.eql(u8, al, "flex-end") or std.mem.eql(u8, al, "end")) {
-                    if (remaining > 0) offset = if (wrap_reverse) 0 else remaining;
+                    offset = if (wrap_reverse) 0 else remaining;
                 } else if (std.mem.eql(u8, al, "flex-start") or std.mem.eql(u8, al, "start")) {
-                    if (remaining > 0) offset = if (wrap_reverse) remaining else 0;
+                    offset = if (wrap_reverse) remaining else 0;
                 } else if ((std.mem.eql(u8, al, "baseline") or std.mem.eql(u8, al, "first-baseline")) and is_row) {
                     const b = baselineOf(self, child);
                     if (b < max_baseline) offset = max_baseline - b;

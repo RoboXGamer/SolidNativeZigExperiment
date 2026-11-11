@@ -193,6 +193,7 @@ fn appendGenerated(a: std.mem.Allocator, out: *std.ArrayList(Node), source: Node
     var children: std.ArrayList(Node) = .empty;
     for (source.children) |child| try appendGenerated(a, &children, child);
     var copy = source;
+    if (std.mem.eql(u8, copy.type, "text") and (std.mem.eql(u8, copy.style.whiteSpace, "normal") or std.mem.eql(u8, copy.style.whiteSpace, "nowrap"))) copy.text = try text_mod.collapseWhitespace(a, copy.text);
     copy.children = try children.toOwnedSlice(a);
     try out.append(a, copy);
 }
@@ -310,11 +311,15 @@ pub const Scene = struct {
             if (@field(n.style, name)) |number| {
                 if (!std.math.isFinite(number) or (number < 0 and !allow_negative)) return error.InvalidLength;
             }
-            if (@field(n.style, name ++ "Css")) |css| {
+            if (if (@field(n.style, name ++ "Css")) |value| value.len > 0 else false) {
+                const css = @field(n.style, name ++ "Css").?;
+                // Older bridge snapshots encoded an absent optional CSS value as "".
+
                 if (std.mem.startsWith(u8, name, "border") and std.mem.indexOfScalar(u8, css, '%') != null) return error.InvalidLength;
                 var ctx = context;
                 ctx.font_size = n.fontSize();
                 ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap") or std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "bottom")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap") or std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right")) containing_width else inline_size;
+                if (std.mem.eql(u8, name, "lineHeight")) ctx.percentage = n.fontSize();
                 const is_fit_function = std.mem.startsWith(u8, css, "fit-content(") and std.mem.endsWith(u8, css, ")");
                 const value: sizing.Resolution = if (is_fit_function) .{ .keyword = .fit_content } else try sizing.resolve(css, ctx);
                 switch (value) {
@@ -377,6 +382,7 @@ pub const Scene = struct {
     fn prepareChildren(self: *Scene, n: *Node, width: f32, height: ?f32) anyerror!void {
         n.children = try self.arena.allocator().dupe(Node, n.children);
         for (n.children) |*child| {
+            if (child.isOutOfFlow()) continue;
             const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
             const inline_size: ?f32 = if (vertical) height else width;
             try self.resolveStyle(child, self.length_context, width, height, inline_size);
@@ -511,6 +517,7 @@ pub const Scene = struct {
         }
         const inner_width = @max(0, border_width - frame_x);
         const grid = std.mem.eql(u8, n.style.display, "grid");
+        if (grid) return n.constrain(frame_y + (@import("layout_grid.zig").measureHeight(self, n, inner_width) catch 0), false);
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         const block = std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root");
         var total: f32 = 0;
@@ -695,27 +702,29 @@ pub const Scene = struct {
     }
 
     pub fn findContainingBlock(self: *const Scene, child: *const Node, parent_item: Item) Rect {
-        if (std.mem.eql(u8, child.style.position, "fixed")) {
-            return self.viewport;
-        }
+        const fixed = std.mem.eql(u8, child.style.position, "fixed");
         var cur_item = parent_item;
         while (true) {
-            if (cur_item.node.isPositioned() or cur_item.parent_id == null) {
+            const transformed = cur_item.node.style.transform.len > 0 and !std.mem.eql(u8, cur_item.node.style.transform, "none");
+            if (transformed or (!fixed and cur_item.node.isPositioned())) {
                 return cur_item.node.paddingBox(cur_item.bounds);
             }
             if (cur_item.parent_id) |pid| {
                 cur_item = self.find(pid) orelse return self.viewport;
             } else {
-                return cur_item.node.paddingBox(cur_item.bounds);
+                return self.viewport;
             }
         }
     }
 
     pub fn layoutOutOfFlowChildren(self: *Scene, n: *const Node, bounds: Rect) anyerror!void {
         const parent_item = self.find(n.id) orelse Item{ .node = n, .bounds = bounds };
-        for (n.children) |*child| {
-            if (!child.isOutOfFlow()) continue;
-            const cb = self.findContainingBlock(child, parent_item);
+        for (n.children) |*source_child| {
+            if (!source_child.isOutOfFlow()) continue;
+            const cb = self.findContainingBlock(source_child, parent_item);
+            const child = try self.arena.allocator().create(Node);
+            child.* = source_child.*;
+            try self.resolveStyle(child, self.length_context, cb.width, cb.height, cb.width);
             const child_mg = child.margin();
             const child_frame_x = child.padding().horizontal() + child.border().horizontal();
             const child_frame_y = child.padding().vertical() + child.border().vertical();
@@ -727,9 +736,10 @@ pub const Scene = struct {
             } else if (child.style.left != null and child.style.right != null) {
                 w = child.constrain(@max(0, cb.width - child.style.left.? - child.style.right.? - child_mg.horizontal()), true);
             } else {
-                w = child.constrain(self.intrinsicWidthFor(child, .max_content), true);
+                w = child.constrain(self.intrinsicWidthFor(child, .{ .definite = @max(0, cb.width - child_mg.horizontal()) }), true);
             }
 
+            try self.prepareChildren(child, @max(0, w - child_frame_x), if (child.style.height) |v| @max(0, child.borderSize(v, child_frame_y) - child_frame_y) else null);
             var h: f32 = undefined;
             if (child.style.height) |specified_h| {
                 h = child.constrain(child.borderSize(specified_h, child_frame_y), false);
@@ -754,6 +764,27 @@ pub const Scene = struct {
                 y = cb.bottom() - bottom_val - h - child_mg.bottom;
             }
 
+            // Auto margins and self alignment operate in the inset-modified containing block.
+            const left = child.style.left orelse 0;
+            const right = child.style.right orelse 0;
+            const top = child.style.top orelse 0;
+            const bottom = child.style.bottom orelse 0;
+            const free_x = cb.width - left - right - w - child_mg.horizontal();
+            const free_y = cb.height - top - bottom - h - child_mg.vertical();
+            if (child.style.left != null and child.style.right != null) {
+                if (child.style.marginLeftAuto and child.style.marginRightAuto and free_x > 0) x += free_x / 2 else if (child.style.marginLeftAuto and free_x > 0) x += free_x;
+            }
+            if (child.style.top != null and child.style.bottom != null) {
+                if (child.style.marginTopAuto and child.style.marginBottomAuto and free_y > 0) y += free_y / 2 else if (child.style.marginTopAuto and free_y > 0) y += free_y;
+            }
+            const justify = child.style.justifySelf;
+            const align_self = child.style.alignSelf;
+            if (!child.style.marginLeftAuto and !child.style.marginRightAuto) {
+                if (std.mem.eql(u8, justify, "center")) x = cb.x + left + free_x / 2 + child_mg.left else if (std.mem.eql(u8, justify, "end") or std.mem.eql(u8, justify, "right")) x = cb.x + left + free_x + child_mg.left;
+            }
+            if (!child.style.marginTopAuto and !child.style.marginBottomAuto) {
+                if (std.mem.eql(u8, align_self, "center")) y = cb.y + top + free_y / 2 + child_mg.top else if (std.mem.eql(u8, align_self, "end") or std.mem.eql(u8, align_self, "flex-end")) y = cb.y + top + free_y + child_mg.top;
+            }
             try self.layout(child, .{ .x = x, .y = y, .width = w, .height = h }, n.id);
         }
     }
@@ -840,81 +871,80 @@ pub const Scene = struct {
     }
 
     pub fn applyScrollOffsets(self: *Scene, offsets: *std.AutoHashMap(u32, ScrollOffset)) void {
-        for (0..self.items.items.len) |i| {
-            const viewport = self.items.items[i];
-            if (!viewport.node.isScrollContainer()) continue;
-            const extent = self.scrollExtent(viewport.node.id);
-            const entry = offsets.getPtr(viewport.node.id) orelse continue;
-            if (viewport.node.isScrollContainerX()) {
-                entry.x = std.math.clamp(entry.x, 0, extent.max_scroll_x);
-            } else {
-                entry.x = 0;
-            }
-            if (viewport.node.isScrollContainerY()) {
-                entry.y = std.math.clamp(entry.y, 0, extent.max_scroll_y);
-            } else {
-                entry.y = 0;
-            }
-            const offset = entry.*;
-            for (self.items.items[i + 1 ..]) |*child| {
-                if (std.mem.eql(u8, child.node.style.position, "fixed")) continue;
-                if (self.descendsFrom(child.*, viewport.node.id)) {
-                    if (std.mem.eql(u8, child.node.style.position, "sticky")) {
-                        const parent_item = if (child.parent_id) |pid| self.find(pid) else null;
-                        if (parent_item) |p| {
-                            const p_box = p.node.contentBox(p.bounds);
-                            if (child.node.style.top) |top_inset| {
-                                const target_y = viewport.bounds.y + top_inset;
-                                const max_sticky_y = p_box.bottom() - child.bounds.height;
-                                const scrolled_y = child.bounds.y - offset.y;
-                                child.bounds.y = std.math.clamp(target_y, scrolled_y, max_sticky_y);
-                            } else {
-                                child.bounds.y -= offset.y;
-                            }
-                        } else {
-                            child.bounds.y -= offset.y;
-                        }
-                    } else {
-                        child.bounds.x -= offset.x;
-                        child.bounds.y -= offset.y;
-                    }
+        const a = self.arena.allocator();
+        const original = a.alloc(Rect, self.items.items.len) catch return;
+        for (self.items.items, 0..) |item, i| original[i] = item.bounds;
+        // Clamp while all geometry is still in the unscrolled coordinate space.
+        for (self.items.items) |item| if (offsets.getPtr(item.node.id)) |off| {
+            const extent = self.scrollExtent(item.node.id);
+            off.x = if (item.node.isScrollContainerX()) std.math.clamp(off.x, 0, extent.max_scroll_x) else 0;
+            off.y = if (item.node.isScrollContainerY()) std.math.clamp(off.y, 0, extent.max_scroll_y) else 0;
+        };
+        for (self.items.items, 0..) |*item, i| {
+            var dx: f32 = 0;
+            var dy: f32 = 0;
+            var parent = item.parent_id;
+            var fixed = std.mem.eql(u8, item.node.style.position, "fixed");
+            while (parent) |pid| {
+                const index = self.index.get(pid) orelse break;
+                const p = self.items.items[index];
+                if (fixed) {
+                    if (p.node.style.transform.len > 0 and !std.mem.eql(u8, p.node.style.transform, "none")) fixed = false;
+                } else if (offsets.get(pid)) |off| {
+                    dx -= off.x;
+                    dy -= off.y;
                 }
+                // A fixed subtree must stay together; ancestors outside it cannot scroll its descendants.
+                if (std.mem.eql(u8, p.node.style.position, "fixed")) fixed = true;
+                parent = p.parent_id;
             }
+            item.bounds.x = original[i].x + dx;
+            item.bounds.y = original[i].y + dy;
+        }
+        // Sticky translations propagate to all descendants exactly once.
+        for (0..self.items.items.len) |i| {
+            const item = self.items.items[i];
+            if (!std.mem.eql(u8, item.node.style.position, "sticky")) continue;
+            var port = self.viewport;
+            var parent = item.parent_id;
+            while (parent) |pid| {
+                const p = self.find(pid) orelse break;
+                if (p.node.isScrollContainer() or std.mem.eql(u8, p.node.effectiveOverflowX(), "hidden") or std.mem.eql(u8, p.node.effectiveOverflowY(), "hidden")) {
+                    port = p.node.paddingBox(p.bounds);
+                    break;
+                }
+                parent = p.parent_id;
+            }
+            var target = item.bounds;
+            if (item.node.style.top) |v| target.y = @max(target.y, port.y + v);
+            if (item.node.style.bottom) |v| target.y = @min(target.y, port.bottom() - v - target.height);
+            if (item.node.style.left) |v| target.x = @max(target.x, port.x + v);
+            if (item.node.style.right) |v| target.x = @min(target.x, port.right() - v - target.width);
+            if (item.parent_id) |pid| if (self.find(pid)) |p| {
+                const box = p.node.contentBox(p.bounds);
+                target.x = @max(item.bounds.x, @min(target.x, box.right() - target.width));
+                target.y = @max(item.bounds.y, @min(target.y, box.bottom() - target.height));
+            };
+            const dx = target.x - item.bounds.x;
+            const dy = target.y - item.bounds.y;
+            self.items.items[i].bounds = target;
+            for (self.items.items[i + 1 ..]) |*child| if (self.descendsFrom(child.*, item.node.id)) {
+                child.bounds.x += dx;
+                child.bounds.y += dy;
+            };
         }
     }
 
     pub fn applyScroll(self: *Scene, offsets: *std.AutoHashMap(u32, f32)) void {
-        for (0..self.items.items.len) |i| {
-            const viewport = self.items.items[i];
-            if (!viewport.node.isScrollContainer()) continue;
-            const extent = self.scrollExtent(viewport.node.id);
-            const entry = offsets.getPtr(viewport.node.id) orelse continue;
-            entry.* = std.math.clamp(entry.*, 0, extent.max_scroll_y);
-            const offset = entry.*;
-            for (self.items.items[i + 1 ..]) |*child| {
-                if (std.mem.eql(u8, child.node.style.position, "fixed")) continue;
-                if (self.descendsFrom(child.*, viewport.node.id)) {
-                    if (std.mem.eql(u8, child.node.style.position, "sticky")) {
-                        const parent_item = if (child.parent_id) |pid| self.find(pid) else null;
-                        if (parent_item) |p| {
-                            const p_box = p.node.contentBox(p.bounds);
-                            if (child.node.style.top) |top_inset| {
-                                const target_y = viewport.bounds.y + top_inset;
-                                const max_sticky_y = p_box.bottom() - child.bounds.height;
-                                const scrolled_y = child.bounds.y - offset;
-                                child.bounds.y = std.math.clamp(target_y, scrolled_y, max_sticky_y);
-                            } else {
-                                child.bounds.y -= offset;
-                            }
-                        } else {
-                            child.bounds.y -= offset;
-                        }
-                    } else {
-                        child.bounds.y -= offset;
-                    }
-                }
-            }
-        }
+        var converted = std.AutoHashMap(u32, ScrollOffset).init(self.arena.allocator());
+        defer converted.deinit();
+        var it = offsets.iterator();
+        while (it.next()) |e| converted.put(e.key_ptr.*, .{ .y = e.value_ptr.* }) catch return;
+        self.applyScrollOffsets(&converted);
+        it = offsets.iterator();
+        while (it.next()) |e| if (converted.get(e.key_ptr.*)) |off| {
+            e.value_ptr.* = off.y;
+        };
     }
 
     pub fn chainWheel(
@@ -929,13 +959,15 @@ pub const Scene = struct {
         var rem_y = delta_y;
         var consumed = false;
 
-        var i = self.items.items.len;
-        while (i > 0) {
-            i -= 1;
-            const item = self.items.items[i];
-            if (!item.node.isScrollContainer()) continue;
-            if (!item.bounds.contains(mouse_x, mouse_y) or !self.clipFor(item).contains(mouse_x, mouse_y)) continue;
-
+        var current = self.scrollTarget(mouse_x, mouse_y);
+        while (current) |id| {
+            const item = self.find(id) orelse break;
+            current = item.parent_id;
+            while (current) |pid| {
+                const parent = self.find(pid) orelse break;
+                if (parent.node.isScrollContainer()) break;
+                current = parent.parent_id;
+            }
             const extent = self.scrollExtent(item.node.id);
             const entry = offsets.getOrPut(item.node.id) catch continue;
             if (!entry.found_existing) entry.value_ptr.* = .{};
@@ -987,71 +1019,162 @@ pub const Scene = struct {
     }
 
     pub fn scrollTarget(self: *const Scene, x: f32, y: f32) ?u32 {
-        var i = self.items.items.len;
+        const order = self.getPaintOrder(std.heap.page_allocator) catch return null;
+        defer std.heap.page_allocator.free(order);
+        var i = order.len;
         while (i > 0) {
             i -= 1;
-            const item = self.items.items[i];
-            if (item.node.isScrollContainer() and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
+            var item = self.items.items[order[i]];
+            const point = self.localPoint(item, x, y) orelse continue;
+            if (!item.bounds.contains(point.x, point.y) or !self.pointVisible(item, x, y)) continue;
+            while (true) {
+                if (item.node.isScrollContainer()) return item.node.id;
+                if (item.parent_id) |pid| item = self.find(pid) orelse return null else return null;
+            }
         }
         return null;
     }
 
-    pub fn getPaintOrder(self: *const Scene, allocator: std.mem.Allocator) ![]usize {
-        const count = self.items.items.len;
-        const indices = try allocator.alloc(usize, count);
-        for (0..count) |i| indices[i] = i;
-
-        const Context = struct {
-            items: []const Item,
-            pub fn lessThan(ctx: @This(), a: usize, b: usize) bool {
-                const za = ctx.items[a].node.style.zIndex orelse 0;
-                const zb = ctx.items[b].node.style.zIndex orelse 0;
-                if (za != zb) return za < zb;
-                return a < b;
+    pub fn getFocusOrder(self: *const Scene, a: std.mem.Allocator) ![]u32 {
+        var ids: std.ArrayList(u32) = .empty;
+        errdefer ids.deinit(a);
+        try self.collectFocus(self.root, a, &ids);
+        const Ctx = struct {
+            scene: *const Scene,
+            fn less(c: @This(), x: u32, y: u32) bool {
+                const tx = c.scene.find(x).?.node.tabIndex orelse 0;
+                const ty = c.scene.find(y).?.node.tabIndex orelse 0;
+                if (tx > 0 and ty <= 0) return true;
+                if (tx <= 0 and ty > 0) return false;
+                return tx > 0 and ty > 0 and tx < ty;
             }
         };
+        std.mem.sort(u32, ids.items, Ctx{ .scene = self }, Ctx.less);
+        return ids.toOwnedSlice(a);
+    }
+    fn collectFocus(self: *const Scene, node: *const Node, a: std.mem.Allocator, ids: *std.ArrayList(u32)) anyerror!void {
+        if (self.find(node.id)) |item| if (item.node.isFocusableForTab()) try ids.append(a, node.id);
+        for (node.children) |*child| try self.collectFocus(child, a, ids);
+    }
+    pub fn clipApplies(self: *const Scene, item: Item, ancestor: Item) bool {
+        var current = item;
+        var fixed = false;
+        while (true) {
+            const transformed = current.node.style.transform.len > 0 and !std.mem.eql(u8, current.node.style.transform, "none");
+            if (current.node.id == ancestor.node.id) return !fixed or transformed;
+            if (std.mem.eql(u8, current.node.style.position, "fixed")) fixed = true;
+            if (fixed and transformed) fixed = false;
+            current = self.find(current.parent_id orelse return true) orelse return true;
+        }
+    }
 
-        std.mem.sort(usize, indices, Context{ .items = self.items.items }, Context.lessThan);
-        return indices;
+    pub fn establishesContext(self: *const Scene, item: Item) bool {
+        const st = item.node.style;
+        if (item.parent_id == null or st.opacity < 1 or (st.transform.len > 0 and !std.mem.eql(u8, st.transform, "none"))) return true;
+        if (std.mem.eql(u8, st.position, "fixed") or std.mem.eql(u8, st.position, "sticky")) return true;
+        if (st.zIndex != null) {
+            if (item.node.isPositioned()) return true;
+            if (item.parent_id) |pid| if (self.find(pid)) |parent| {
+                const display = parent.node.style.display;
+                return std.mem.eql(u8, display, "flex") or std.mem.eql(u8, display, "inline-flex") or std.mem.eql(u8, display, "grid");
+            };
+        }
+        return false;
+    }
+
+    pub fn contextOwner(self: *const Scene, item: Item) ?u32 {
+        var parent = item.parent_id;
+        while (parent) |pid| {
+            const p = self.find(pid) orelse return null;
+            if (self.establishesContext(p)) return pid;
+            parent = p.parent_id;
+        }
+        return null;
+    }
+
+    fn appendContext(self: *const Scene, a: std.mem.Allocator, out: *std.ArrayList(usize), root_index: usize) anyerror!void {
+        try out.append(a, root_index);
+        const context_id = self.items.items[root_index].node.id;
+        var participants: std.ArrayList(usize) = .empty;
+        defer participants.deinit(a);
+        for (self.items.items, 0..) |item, i| if (self.contextOwner(item) == context_id) try participants.append(a, i);
+        const Ctx = struct {
+            scene: *const Scene,
+            fn key(c: @This(), i: usize) i64 {
+                const item = c.scene.items.items[i];
+                if (c.scene.establishesContext(item)) return item.node.style.zIndex orelse 0;
+                return 0;
+            }
+            fn less(c: @This(), i: usize, j: usize) bool {
+                const zi = c.key(i);
+                const zj = c.key(j);
+                if (zi != zj) return zi < zj;
+                return i < j;
+            }
+        };
+        std.mem.sort(usize, participants.items, Ctx{ .scene = self }, Ctx.less);
+        for (participants.items) |i| {
+            if (self.establishesContext(self.items.items[i])) try self.appendContext(a, out, i) else try out.append(a, i);
+        }
+    }
+
+    pub fn getPaintOrder(self: *const Scene, a: std.mem.Allocator) ![]usize {
+        var out: std.ArrayList(usize) = .empty;
+        errdefer out.deinit(a);
+        for (self.items.items, 0..) |item, i| if (item.parent_id == null) try self.appendContext(a, &out, i);
+        return out.toOwnedSlice(a);
+    }
+
+    pub fn localTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
+        _ = self;
+        const mat = transform_mod.parseTransformSized(item.node.style.transform, item.bounds.width, item.bounds.height) catch transform_mod.Matrix2D.identity;
+        const o = transform_mod.parseTransformOrigin(item.node.style.transformOrigin, item.bounds.width, item.bounds.height);
+        const x = item.bounds.x + o.x;
+        const y = item.bounds.y + o.y;
+        return transform_mod.Matrix2D.makeTranslate(x, y).multiply(mat).multiply(transform_mod.Matrix2D.makeTranslate(-x, -y));
+    }
+
+    pub fn worldTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
+        const own = self.localTransform(item);
+        if (item.parent_id) |pid| if (self.find(pid)) |p| return self.worldTransform(p).multiply(own);
+        return own;
+    }
+
+    pub fn localPoint(self: *const Scene, item: Item, x: f32, y: f32) ?transform_mod.Point {
+        const inv = self.worldTransform(item).inverse() orelse return null;
+        return inv.transformPoint(.{ .x = x, .y = y });
+    }
+
+    pub fn pointVisible(self: *const Scene, item: Item, x: f32, y: f32) bool {
+        if (!self.viewport.contains(x, y)) return false;
+        var parent_id = item.parent_id;
+        while (parent_id) |pid| {
+            const p = self.find(pid) orelse return false;
+            if (!self.clipApplies(item, p)) {
+                parent_id = p.parent_id;
+                continue;
+            }
+            const point = self.localPoint(p, x, y) orelse return false;
+            const box = p.node.paddingBox(p.bounds);
+            if (p.node.clipsX() and (point.x < box.x or point.x >= box.right())) return false;
+            if (p.node.clipsY() and (point.y < box.y or point.y >= box.bottom())) return false;
+            if (p.node.clipsX() and p.node.clipsY() and !@import("paint.zig").roundedContains(box, @import("paint.zig").radii(p.node), point.x, point.y)) return false;
+            parent_id = p.parent_id;
+        }
+        return true;
     }
 
     pub fn hitTest(self: *const Scene, x: f32, y: f32) ?u32 {
-        var buf: [2048]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var allocated_slice: ?[]usize = null;
-        defer if (allocated_slice) |s| std.heap.page_allocator.free(s);
-
-        const order: []const usize = self.getPaintOrder(fba.allocator()) catch blk: {
-            allocated_slice = self.getPaintOrder(std.heap.page_allocator) catch null;
-            if (allocated_slice) |s| break :blk s;
-            var i = self.items.items.len;
-            while (i > 0) {
-                i -= 1;
-                const item = self.items.items[i];
-                if ((item.node.clickable or item.node.isFocusable()) and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
-            }
-            return null;
-        };
-
+        const a = std.heap.page_allocator;
+        const order = self.getPaintOrder(a) catch return null;
+        defer a.free(order);
         var i = order.len;
         while (i > 0) {
             i -= 1;
-            const idx = order[i];
-            const item = self.items.items[idx];
+            const item = self.items.items[order[i]];
             if (!item.node.clickable and !item.node.isFocusable()) continue;
-
-            if (item.node.style.transform.len > 0) {
-                const mat = transform_mod.parseTransform(item.node.style.transform) catch transform_mod.Matrix2D.identity;
-                const origin_pt = transform_mod.parseTransformOrigin(item.node.style.transformOrigin, item.bounds.width, item.bounds.height);
-                const abs_origin: transform_mod.Point = .{ .x = item.bounds.x + origin_pt.x, .y = item.bounds.y + origin_pt.y };
-                if (mat.inverseTransformPointWithOrigin(abs_origin, .{ .x = x, .y = y })) |local_p| {
-                    if (item.bounds.contains(local_p.x, local_p.y) and self.clipFor(item).contains(x, y)) {
-                        return item.node.id;
-                    }
-                }
-            } else {
-                if (item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
-            }
+            const p = self.localPoint(item, x, y) orelse continue;
+            if (item.bounds.contains(p.x, p.y) and self.pointVisible(item, x, y)) return item.node.id;
         }
         return null;
     }

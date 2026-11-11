@@ -505,3 +505,190 @@ test "flex shrink stops at min-content width" {
     // Longest word "hello" / "world" -> 5 * 20 * 0.5 = 50px minimum.
     try std.testing.expect(b.width >= 49);
 }
+
+test "C-PARTIAL-GROW: partial flex factors sum < 1 (FLEX-01)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":100},"children":[{"id":2,"type":"column","style":{"flexGrow":0.25,"flexBasis":0,"minWidth":0}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 50);
+    defer scene.deinit();
+    const b = scene.find(2).?.bounds;
+    // 100px row, basis 0, grow 0.25 -> 25px
+    try std.testing.expectApproxEqAbs(@as(f32, 25), b.width, 0.01);
+}
+
+test "partial flex shrink factor sum < 1 (FLEX-01)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":100},"children":[{"id":2,"type":"column","style":{"flexBasis":140,"flexShrink":0.5}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 50);
+    defer scene.deinit();
+    const b = scene.find(2).?.bounds;
+    // 100px container, 140px item, free space -40. shrink factor 0.5 consumes -20 -> 120px
+    try std.testing.expectApproxEqAbs(@as(f32, 120), b.width, 0.01);
+}
+
+test "C-BASIS-MIN: raw flex bases separate from hypothetical sizes (FLEX-02)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":80}},{"id":3,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":0}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 50);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    const b3 = scene.find(3).?.bounds;
+    // 200px row, two grow-1 basis-0 items. Free space = 200. Each gets 100.
+    // Minima: item 2 has 80 (100 >= 80, no violation). item 3 has 0.
+    // Result: 100 / 100, NOT 140 / 60 from pre-clamping!
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b2.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b3.width, 0.01);
+}
+
+test "flex iterative loop freezing violating items (FLEX-02)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":130}},{"id":3,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":0}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 50);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    const b3 = scene.find(3).?.bounds;
+    // Iteration 1: each gets 100. Item 2 has min 130 -> violation +30.
+    // Item 2 freezes at 130.
+    // Iteration 2: remaining free space = 200 - 130 = 70. Item 3 gets 70.
+    try std.testing.expectApproxEqAbs(@as(f32, 130), b2.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 70), b3.width, 0.01);
+}
+
+test "C-NOWRAP-CROSS: single-line definite cross size fills line (FLEX-04)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"nowrap","alignContent":"flex-start","alignItems":"stretch","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"width":50}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    // Single line with definite 100px cross size fills the line cross size
+    // independently of alignContent (alignContent flex-start does not prevent stretch).
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b2.height, 0.01);
+}
+
+test "wrap-reverse single line reverses cross position (FLEX-04)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"wrap-reverse","alignItems":"flex-start","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"width":50,"height":30}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    // Line cross size is 30. In wrap-reverse with 100px cross height:
+    // line is placed at 100 - 30 = 70.
+    try std.testing.expectApproxEqAbs(@as(f32, 70), b2.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), b2.height, 0.01);
+}
+
+test "cross size remeasurement after main flexing (FLEX-05)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexGrow":1,"flexBasis":50,"aspectRatio":2}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 200);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    // Item flexes from basis 50 to final width 200.
+    // Cross height is remeasured using the flexed main size 200 / 2 = 100!
+    try std.testing.expectApproxEqAbs(@as(f32, 200), b2.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b2.height, 0.01);
+}
+
+test "visual order preserves document focus sequence (FLEX-06)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"button","clickable":true,"style":{"order":2,"width":50,"height":20,"boxSizing":"border-box"}},{"id":3,"type":"button","clickable":true,"style":{"order":1,"width":50,"height":20,"boxSizing":"border-box"}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 50);
+    defer scene.deinit();
+    // Visual order: item 3 has order 1 -> placed at x = 0.
+    // Item 2 has order 2 -> placed at x = 50.
+    try std.testing.expectApproxEqAbs(@as(f32, 50), scene.find(2).?.bounds.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), scene.find(3).?.bounds.x, 0.01);
+    // Document order in scene.items: item 2 MUST appear before item 3!
+    try std.testing.expectEqual(@as(u32, 2), scene.items.items[1].node.id);
+    try std.testing.expectEqual(@as(u32, 3), scene.items.items[2].node.id);
+}
+
+test "typed flex-basis keywords and percentages (FLEX-07)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexBasisCss":"50%"}},{"id":3,"type":"text","text":"hi","style":{"flexBasisCss":"max-content"}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 50);
+    defer scene.deinit();
+    // 50% of 200px = 100px
+    try std.testing.expectApproxEqAbs(@as(f32, 100), scene.find(2).?.bounds.width, 0.01);
+    // max-content for text "hi": 2 * 20 * 0.5 = 20px
+    try std.testing.expectApproxEqAbs(@as(f32, 20), scene.find(3).?.bounds.width, 1);
+}
+
+test "flex rowGap and columnGap support (FLEX-07)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"wrap","alignContent":"flex-start","width":100,"rowGap":15,"columnGap":10},"children":[{"id":2,"type":"column","style":{"width":50,"height":20}},{"id":3,"type":"column","style":{"width":40,"height":20}},{"id":4,"type":"column","style":{"width":50,"height":20}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    const b3 = scene.find(3).?.bounds;
+    const b4 = scene.find(4).?.bounds;
+    // Row 1: item 2 at x=0, columnGap 10, item 3 at x=60. (50 + 10 + 40 = 100 fits)
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b2.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), b3.x, 0.01);
+    // Row 2: item 4 wraps. rowGap 15 -> y = 20 + 15 = 35.
+    try std.testing.expectApproxEqAbs(@as(f32, 35), b4.y, 0.01);
+}
+
+test "C-COLLAPSE-SET: multi-margin strut preserves positive and negative extrema (BLOCK-04)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flow-root","width":200},"children":[{"id":2,"type":"column","style":{"height":10,"marginBottom":20}},{"id":3,"type":"column","style":{"marginTop":-10,"marginBottom":15}},{"id":4,"type":"column","style":{"height":10,"marginTop":0}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    const b2 = scene.find(2).?.bounds;
+    const b4 = scene.find(4).?.bounds;
+    // b2 bottom is at 10. Gap between b2 and b4 is 10. b4 starts at 20!
+    try std.testing.expectApproxEqAbs(@as(f32, 0), b2.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), b4.y, 0.01);
+}
+
+test "C-CLIP-BFC: overflow:clip does not establish BFC while hidden does (BLOCK-06)" {
+    const jsonClip =
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"clip","width":200},"children":[{"id":2,"type":"column","style":{"height":20,"marginTop":15}}]}
+    ;
+    var sceneClip = try Scene.init(std.testing.allocator, jsonClip, 200, 100);
+    defer sceneClip.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 0), sceneClip.find(2).?.bounds.y, 0.01);
+
+    const jsonHidden =
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"hidden","width":200},"children":[{"id":2,"type":"column","style":{"height":20,"marginTop":15}}]}
+    ;
+    var sceneHidden = try Scene.init(std.testing.allocator, jsonHidden, 200, 100);
+    defer sceneHidden.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 15), sceneHidden.find(2).?.bounds.y, 0.01);
+}
+
+test "parent and child top and bottom margin collapsing (BLOCK-05)" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block"},"children":[{"id":3,"type":"column","style":{"height":30,"marginTop":10,"marginBottom":25}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    const parent = scene.find(2).?.bounds;
+    const child = scene.find(3).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 0), child.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), parent.height, 0.01);
+}
+
+test "baseline alignment with nested text child" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","alignItems":"baseline","width":200,"height":60},"children":[{"id":2,"type":"button","style":{"paddingTop":10,"height":40},"children":[{"id":3,"type":"text","text":"A"}]},{"id":4,"type":"text","text":"B"}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 60);
+    defer scene.deinit();
+    const btn = scene.find(2).?.bounds;
+    const t = scene.find(4).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 10), t.y, 1);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), btn.y, 0.01);
+}
+

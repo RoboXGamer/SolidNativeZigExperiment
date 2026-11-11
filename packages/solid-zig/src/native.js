@@ -65,22 +65,62 @@ function boxSides(value, options) {
   return { t: parts[0], r: parts[1], b: parts[2], l: parts[3] };
 }
 
+function isLengthOrKeyword(val) {
+  if (typeof val !== "string") return false;
+  const s = val.trim();
+  if (s === "auto" || s === "content" || s === "min-content" || s === "max-content" || s === "fit-content") return true;
+  if (/px|%|em|rem|vw|vh|vmin|vmax|calc\(|min\(|max\(|clamp\(/i.test(s)) return true;
+  return isNaN(Number(s));
+}
+
 function flexValues(style) {
   let grow = 0, shrink = 1, basis = "auto";
-  if (typeof style.flex === "number") { grow = style.flex; basis = 0; }
-  else if (style.flex === "none") shrink = 0;
-  else if (style.flex === "auto") grow = 1;
-  else if (typeof style.flex === "string") {
+  if (typeof style.flex === "number") {
+    grow = style.flex;
+    basis = 0;
+  } else if (style.flex === "none") {
+    grow = 0;
+    shrink = 0;
+    basis = "auto";
+  } else if (style.flex === "auto") {
+    grow = 1;
+    shrink = 1;
+    basis = "auto";
+  } else if (style.flex === "initial") {
+    grow = 0;
+    shrink = 1;
+    basis = "auto";
+  } else if (typeof style.flex === "string") {
     const parts = splitSpacing(style.flex.trim());
     if (parts.length < 1 || parts.length > 3) throw Error(`Invalid flex: ${style.flex}`);
-    if (parts.length === 1 && (parts[0] === "auto" || parts[0] === "content" || /[a-z%(]/i.test(parts[0]))) {
-      grow = 1;
-      basis = parts[0];
+    if (parts.length === 1) {
+      if (isLengthOrKeyword(parts[0])) {
+        grow = 1;
+        shrink = 1;
+        basis = parts[0];
+      } else {
+        grow = Number(parts[0]);
+        shrink = 1;
+        basis = 0;
+      }
+    } else if (parts.length === 2) {
+      if (isLengthOrKeyword(parts[0])) {
+        basis = parts[0];
+        grow = Number(parts[1]);
+        shrink = 1;
+      } else if (isLengthOrKeyword(parts[1])) {
+        grow = Number(parts[0]);
+        shrink = 1;
+        basis = parts[1];
+      } else {
+        grow = Number(parts[0]);
+        shrink = Number(parts[1]);
+        basis = 0;
+      }
     } else {
       grow = Number(parts[0]);
-      shrink = parts.length > 1 ? Number(parts[1]) : 1;
-      const part = parts[2] ?? "0";
-      basis = part;
+      shrink = Number(parts[1]);
+      basis = parts[2];
     }
   }
   if (style.flexGrow != null) grow = style.flexGrow;
@@ -112,6 +152,25 @@ export function physicalStyle(style, inherited = {}) {
   const result = { writingMode: mode, direction };
   for (const [key, value] of Object.entries(style)) {
     if (value == null) continue;
+    if (key === "flexFlow" && typeof value === "string") {
+      const parts = splitSpacing(value.trim());
+      for (const part of parts) {
+        if (["row", "column", "row-reverse", "column-reverse"].includes(part)) {
+          result.flexDirection = part;
+        } else if (["nowrap", "wrap", "wrap-reverse"].includes(part)) {
+          result.flexWrap = part;
+        }
+      }
+      continue;
+    }
+    if (key === "gap" && typeof value === "string") {
+      const parts = splitSpacing(value.trim());
+      if (parts.length === 2) {
+        result.rowGap = parts[0];
+        result.columnGap = parts[1];
+        continue;
+      }
+    }
     if (key === "margin" || key === "padding" || key === "borderWidth" || key === "border") {
       const options = key === "margin" ? { auto: true, negative: true } : {};
       const sides = boxSides(value, options);
@@ -158,7 +217,37 @@ export function snapshot(node, inherited = {}) {
     emitLength("border" + key + "Width", border(style["border" + key + "Width"]));
   }
   const flex = flexValues(style);
-  const basis = flex.basis === "auto" || flex.basis === "content" ? flex.basis : spacingValue(flex.basis);
+  const rawBasis = flex.basis;
+  let basis = rawBasis;
+  if (typeof rawBasis === "number") {
+    if (!Number.isFinite(rawBasis) || rawBasis < 0) throw Error(`Invalid flex basis: ${rawBasis}`);
+  } else if (typeof rawBasis === "string") {
+    const trimmed = rawBasis.trim();
+    if (trimmed === "auto" || trimmed === "content" || trimmed === "min-content" || trimmed === "max-content" || trimmed === "fit-content") {
+      basis = trimmed;
+    } else {
+      basis = spacingValue(trimmed);
+    }
+  }
+
+  const parseGap = v => {
+    if (v == null) return null;
+    if (typeof v === "number") {
+      if (!Number.isFinite(v) || v < 0) throw Error(`Invalid gap: ${v}`);
+      return { num: v, css: null };
+    }
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      const num = Number(trimmed);
+      if (Number.isFinite(num) && num >= 0) return { num, css: null };
+      return { num: null, css: trimmed };
+    }
+    throw Error(`Invalid gap: ${v}`);
+  };
+
+  const gapParsed = parseGap(style.gap);
+  const rowGapParsed = parseGap(style.rowGap);
+  const colGapParsed = parseGap(style.columnGap);
   if (style.aspectRatio != null && (typeof style.aspectRatio !== "number" || !Number.isFinite(style.aspectRatio) || style.aspectRatio <= 0)) throw Error(`Invalid aspect ratio: ${style.aspectRatio}`);
   if (style.fontSize != null && (typeof style.fontSize !== "number" || !Number.isFinite(style.fontSize) || style.fontSize <= 0)) throw Error(`Invalid font size: ${style.fontSize}`);
   const textStyle = {
@@ -200,7 +289,11 @@ export function snapshot(node, inherited = {}) {
       aspectRatio: style.aspectRatio ?? null,
       marginTopAuto: margin.t === "auto", marginRightAuto: margin.r === "auto",
       marginBottomAuto: margin.b === "auto", marginLeftAuto: margin.l === "auto",
-      gap: typeof style.gap === "number" ? style.gap : 0,
+      gap: gapParsed?.num ?? 0,
+      rowGap: rowGapParsed?.num ?? null,
+      columnGap: colGapParsed?.num ?? null,
+      rowGapCss: rowGapParsed?.css ?? null,
+      columnGapCss: colGapParsed?.css ?? null,
       columns,
       backgroundColor: typeof style.backgroundColor === "string" ? style.backgroundColor : "",
       borderColor: typeof style.borderColor === "string" ? style.borderColor : "",

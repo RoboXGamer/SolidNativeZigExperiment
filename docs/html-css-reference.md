@@ -1,6 +1,6 @@
 # HTML + CSS Feature Reference (Chrome-level, comprehensive)
 
-Goal: exhaustive checklist of what a browser (Chrome) supports, to compare against the custom layout engine. Bulleted, grouped.
+Goal: broad historical checklist of browser capabilities, grouped for comparison with the custom layout engine. The status lists below predate the detailed audit and contain overclaims and contradictions; they are not a conformance report. Use the [2026-11-11 compatibility audit](C:/Users/A5IN/Coding/learning/zig/draft1/docs/compatibility-audit-2026-11-11.md) and its pinned feature inventory for current findings, named gaps and the defined Baseline 2024 target.
 
 ## HTML Elements (all)
 

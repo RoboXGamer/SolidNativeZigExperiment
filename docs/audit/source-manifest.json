@@ -1,0 +1,286 @@
+{
+  "commit": "8873c31",
+  "scope": "Tracked first-party files at the audit base, excluding unrelated .agents deletion and generated dependency lockfile. No dependency/vendor/generated bundle content claimed as exhaustively reviewed.",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "13277c68778913efd43b8fb9a7546af246887fa03e4c387499f524e7d6922323",
+      "bytes": 106
+    },
+    {
+      "path": "README.md",
+      "sha256": "3cafd26a6d666e5e13e059a08b048abefa81d363e5d259ac2df8524c7cb081a6",
+      "bytes": 5272
+    },
+    {
+      "path": "build.zig",
+      "sha256": "4ec8ff380dddbc665a5235290486c4a51e7ebb22124d018618f0e8c0ba1df225",
+      "bytes": 2036
+    },
+    {
+      "path": "build.zig.zon",
+      "sha256": "0f1ae899b3ce187c5843ed7edcb3c0636381bd1ff29decd7a93633f0357c9ea4",
+      "bytes": 2529
+    },
+    {
+      "path": "dev-check.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "dev-check.out",
+      "sha256": "512cd032fa2595b79f27d8cdf63167c34b4661c86d43004f746b2f19c734f91b",
+      "bytes": 2254
+    },
+    {
+      "path": "docs/html-css-reference.md",
+      "sha256": "c5147f197e0c308e7c8e4d900a51ad4716e146cfe46584ef694d6af0dc823fd3",
+      "bytes": 9651
+    },
+    {
+      "path": "jsconfig.json",
+      "sha256": "5fed7b96f9cab2de02448e9d1ee1a6618b9343ba1ca36ab2ed42f6a624298101",
+      "bytes": 697
+    },
+    {
+      "path": "modules/solid_bridge/README.md",
+      "sha256": "67503dbff45939fb9abe9e70144dbb3d1930959c2d8f203e6fd2f8b260125a2c",
+      "bytes": 1605
+    },
+    {
+      "path": "modules/solid_bridge/build.zig",
+      "sha256": "79ee45f4692fcb89763e221dc69bc0dc0c7ed6135b3a1db1b07fa66179ce1604",
+      "bytes": 1528
+    },
+    {
+      "path": "modules/solid_bridge/quickjs_bridge.c",
+      "sha256": "aff446271b4d42b67c7f147f5e08e2a19c9aada71f368564150929715dd2e02f",
+      "bytes": 7663
+    },
+    {
+      "path": "modules/solid_bridge/root.zig",
+      "sha256": "f9ed2109567aa1001319a8be83c03fddf5cbdb375095b2d39d4ba7ab77612cff",
+      "bytes": 2222
+    },
+    {
+      "path": "modules/ui_core/README.md",
+      "sha256": "a107e9b6a6338c6f343bf4f01603c3f1b00a313963a39122d13264fc4cd98f43",
+      "bytes": 1275
+    },
+    {
+      "path": "modules/ui_core/build.zig",
+      "sha256": "2021878ca063815c508a4a457dc9605d680a951aa567d4d5b7ed16e3e4c658f7",
+      "bytes": 707
+    },
+    {
+      "path": "modules/ui_core/geometry.zig",
+      "sha256": "13c36d3326cfadfc8035ea41470bf79d9ec544fc73ce6833b525ab2b2409849a",
+      "bytes": 4882
+    },
+    {
+      "path": "modules/ui_core/layout_block.zig",
+      "sha256": "771aa85fe28f7bc8650fda1083082507c928a8f59914aed1fc5cac981a8d43a8",
+      "bytes": 4103
+    },
+    {
+      "path": "modules/ui_core/layout_flex.zig",
+      "sha256": "4baf064755e3b53ed3cf7e4f95f3d8f199b2028653ad524c982ce6d88cd9702f",
+      "bytes": 20989
+    },
+    {
+      "path": "modules/ui_core/root.zig",
+      "sha256": "e9b13c7be17b084d4158c13e525ef2b8e34fa15855ffbc1958b36f467b9030aa",
+      "bytes": 913
+    },
+    {
+      "path": "modules/ui_core/scene.zig",
+      "sha256": "8d86b57f842819c0fd7a9d2b2903d3b082a901fc2603e2431429000444e6a469",
+      "bytes": 13162
+    },
+    {
+      "path": "modules/ui_core/style.zig",
+      "sha256": "e78c3f62fe95851efdcf54562a9c2a19ed11fec322ec1f8d6e3ea305e704bbcc",
+      "bytes": 1811
+    },
+    {
+      "path": "modules/ui_core/tests.zig",
+      "sha256": "77416e162e690a6caf4e99df6cef5856ad6f2330043e5ba89e1addc6d1509760",
+      "bytes": 10092
+    },
+    {
+      "path": "modules/ui_core/text.zig",
+      "sha256": "a7b4c97ff7b292079a8aa27799487afee9880e1870b48f4e20ffc727779207c1",
+      "bytes": 6848
+    },
+    {
+      "path": "modules/ui_core/text_edit.zig",
+      "sha256": "3dbb404d3bee99e50bd2ab0a11c565fbd54b19d1e2a8e5d9f92fe11fa4080a29",
+      "bytes": 3025
+    },
+    {
+      "path": "modules/ui_core/tree.zig",
+      "sha256": "9e1dc7d874cd57598f1ebf41fe9e02c0f2f034b2ec04e6ba561d66ac7963df0e",
+      "bytes": 5587
+    },
+    {
+      "path": "package.json",
+      "sha256": "c825716632f64795324dc4165bcac3a8bc95bdf02046448c5a10eb61dbfc3292",
+      "bytes": 870
+    },
+    {
+      "path": "packages/solid-zig/README.md",
+      "sha256": "3ff84a7b17e5de0138acc88b4ef772645458731bdd9d2990355395d401607810",
+      "bytes": 1848
+    },
+    {
+      "path": "packages/solid-zig/package.json",
+      "sha256": "47c1e96d5f87e613c50c17f79a54b688c2c6df19a18bbf21bb6bb62f0fc459dd",
+      "bytes": 622
+    },
+    {
+      "path": "packages/solid-zig/src/jsx-runtime.d.ts",
+      "sha256": "7be39f1b9dc3a95bb45c729310e4d4f9610c9ef9d9020b1a1722fefeb5d3a9ec",
+      "bytes": 40
+    },
+    {
+      "path": "packages/solid-zig/src/jsx-runtime.js",
+      "sha256": "f18a86c27473b557e4ec0c628d074c64233410afdacfa97f9de88177aeeab728",
+      "bytes": 301
+    },
+    {
+      "path": "packages/solid-zig/src/module-runtime.js",
+      "sha256": "1ad68ac46364abfb152000b10403909e5c0a0c3029c62b7a2576a4d31e69f11f",
+      "bytes": 5360
+    },
+    {
+      "path": "packages/solid-zig/src/native.d.ts",
+      "sha256": "924795385c6a48284335f81a676f7fdcb9778e29ee551f2ac441542e0c609056",
+      "bytes": 2949
+    },
+    {
+      "path": "packages/solid-zig/src/native.js",
+      "sha256": "1d21641740a153addd760fa047aad6418c6cb461329a4d42edbb7d061a23b910",
+      "bytes": 11309
+    },
+    {
+      "path": "packages/solid-zig/src/renderer.js",
+      "sha256": "b8109546afe594659029e03d1c10c627607a47892502ed430cbe6a57b1f55101",
+      "bytes": 1406
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "sha256": "52f8fcdd1efb941ac7f6d313d53bb12d29fdbbff4c6a0b0a99eaba5ab77c53f4",
+      "bytes": 73
+    },
+    {
+      "path": "split.py",
+      "sha256": "61c446db00122ff69c3d50f150156e9cc23c64ffa3f40a1111a6c38319b5e02d",
+      "bytes": 814
+    },
+    {
+      "path": "src/event_wakeup.c",
+      "sha256": "20d93857c9557b2a62ffc2f540d769829a81bb62cf7f1c8a9c2acdc48c4370da",
+      "bytes": 1806
+    },
+    {
+      "path": "src/hmr_watcher.c",
+      "sha256": "a3327eeedaed2adefc9755cd8ded999a60460544d809ab2bc2171f5cccd29ab0",
+      "bytes": 3186
+    },
+    {
+      "path": "src/main.zig",
+      "sha256": "681856dadfc03d051b4d2cdc8c5fdfe086a3ced75ef519c3a8aa102126384ae4",
+      "bytes": 76
+    },
+    {
+      "path": "src/root.zig",
+      "sha256": "ae22c167edbfa8af7201afb6594ea7493fda2b40803d791bb0c678e65cc39137",
+      "bytes": 84
+    },
+    {
+      "path": "src/windows.zig",
+      "sha256": "1559b82e0703855b9a373870c3f3a568595b37d77f66783d080dec22b6b5573e",
+      "bytes": 15788
+    },
+    {
+      "path": "tests/bridge_probe.mjs",
+      "sha256": "48ab80d9bf8205dd22b17350daae5729187e326dea982a3f886542621b44cfed",
+      "bytes": 1991
+    },
+    {
+      "path": "tests/features.js",
+      "sha256": "00a4a071d84525db07c1b2bd73efa4067f66bb4fa495f34163279626fb8f5e72",
+      "bytes": 5347
+    },
+    {
+      "path": "tests/features_probe.mjs",
+      "sha256": "44e2dda9b7f1e5c3efb2b5d657ec9eee45340bad6d9d0f44539af8ec0e44af38",
+      "bytes": 691
+    },
+    {
+      "path": "tests/module_host.mjs",
+      "sha256": "ec932ce4642da6e24b72d164d4e37ac22af47cb907420e05958c231e5765d948",
+      "bytes": 996
+    },
+    {
+      "path": "tests/refresh_probe.mjs",
+      "sha256": "3a775fb1d20665f537b3ec0961e79eb58476bd5c998e7c00ef12b0650f3c66cf",
+      "bytes": 1731
+    },
+    {
+      "path": "tests/tree_probe.mjs",
+      "sha256": "19081d6edea7d35233549881dda392a8e2136bec6ec8c8a764e3f1ba551ffce1",
+      "bytes": 1288
+    },
+    {
+      "path": "tools/dev.mjs",
+      "sha256": "f600f33560484831990e027247515ed35a40b096950c2776467811f69a640a8a",
+      "bytes": 6239
+    },
+    {
+      "path": "tools/native-process.mjs",
+      "sha256": "8ed10765a4aaec96495844aeea803aa106caffe16c320c08766d37bbe4f3ac76",
+      "bytes": 815
+    },
+    {
+      "path": "tools/run.mjs",
+      "sha256": "2c8d13ebb4a013e82e1de4f52f43f41e95a3135908eccfe39428069253dfe1ea",
+      "bytes": 362
+    },
+    {
+      "path": "trim.py",
+      "sha256": "3cf167fe640eb4f27a3b04748fc58a209dcb1cf10e922097f84dbe02113210a9",
+      "bytes": 103
+    },
+    {
+      "path": "ui/app.js",
+      "sha256": "667b9c924f3a8259bfde3378d5f205ba980a0c48a3a0124a51ee29aa923ca694",
+      "bytes": 97
+    },
+    {
+      "path": "ui/module-runtime.js",
+      "sha256": "fe4b5d50a6a7c6e3c670a47cfebd269954161b21ccb613ea43efabbdcc52ac0b",
+      "bytes": 61
+    },
+    {
+      "path": "ui/native.js",
+      "sha256": "7dadf4f84ec74cced0cf57a05fe20bc141897baa7b555b215cbc4c85183249d8",
+      "bytes": 53
+    },
+    {
+      "path": "ui/renderer.js",
+      "sha256": "702356acf85cb9e791bc2914172be7a05e780fe9d6e6ddf6515c2ed6b4325368",
+      "bytes": 55
+    },
+    {
+      "path": "ui/states.jsx",
+      "sha256": "1c6035cb9de302f3044694685926636af70de8ddecd54ef4ff38e95073f398e2",
+      "bytes": 2938
+    },
+    {
+      "path": "vite.config.mjs",
+      "sha256": "00674f47cfd9799bb8e68c2c55b10c84566f30faf5924499d09b2e910da24481",
+      "bytes": 1025
+    }
+  ]
+}

@@ -1,0 +1,4340 @@
+{
+  "source": "https://unpkg.com/web-features@3.45.0/data.json",
+  "packageVersion": "3.45.0",
+  "retrieved": "2026-11-11",
+  "cutoff": "2024-12-31",
+  "sourceSha256": "bcda8f1fd702fd2c7cc71779d35430022cf57b56dcd9415f3bb8ee14486eb3b4",
+  "method": "WebDX kind=feature records with css.* compatibility keys; include each key whose own baseline_low_date is at most cutoff, falling back to group status only when no per-key status exists. Chrome supplement uses numeric support.chrome <=131 for remaining keys. Not a WPT pass rate or a complete Chrome BCD export.",
+  "features": [
+    {
+      "id": "absolute-positioning",
+      "name": "Absolute positioning",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "positioning"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-position-3/#abspos-insets"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.align-self.context_position_absolute",
+          "baselineDate": "2025-09-15",
+          "chrome": "122"
+        },
+        {
+          "key": "css.properties.justify-self.context_position_absolute",
+          "baselineDate": "2025-09-15",
+          "chrome": "122"
+        },
+        {
+          "key": "css.properties.place-self.context_position_absolute",
+          "baselineDate": "2025-09-15",
+          "chrome": "122"
+        }
+      ]
+    },
+    {
+      "id": "accent-color",
+      "name": "accent-color",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-ui-4/#widget-accent"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.accent-color",
+          "baselineDate": null,
+          "chrome": "93"
+        },
+        {
+          "key": "css.properties.accent-color.auto",
+          "baselineDate": null,
+          "chrome": "93"
+        },
+        {
+          "key": "css.properties.accent-color.currentColor",
+          "baselineDate": null,
+          "chrome": "93"
+        },
+        {
+          "key": "css.properties.accent-color.transparent",
+          "baselineDate": null,
+          "chrome": "93"
+        }
+      ]
+    },
+    {
+      "id": "active-view-transition",
+      "name": "Active view transition",
+      "featureBaselineDate": "2026-01-13",
+      "groups": [
+        "view-transitions",
+        "selectors"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-view-transitions-2/#the-active-view-transition-pseudo"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.active-view-transition",
+          "baselineDate": "2025-10-14",
+          "chrome": "125"
+        },
+        {
+          "key": "css.selectors.active-view-transition-type",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        }
+      ]
+    },
+    {
+      "id": "alignment-baseline",
+      "name": "alignment-baseline",
+      "featureBaselineDate": null,
+      "groups": [
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-inline-3/#alignment-baseline-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.alignment-baseline",
+          "baselineDate": "2026-03-24",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.alphabetic",
+          "baselineDate": "2026-07-21",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.baseline",
+          "baselineDate": "2026-03-24",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.central",
+          "baselineDate": "2026-07-21",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.ideographic",
+          "baselineDate": "2026-07-21",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.mathematical",
+          "baselineDate": "2026-07-21",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.middle",
+          "baselineDate": "2026-03-24",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.text-after-edge",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.alignment-baseline.text-before-edge",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "anchor-positioning",
+      "name": "Anchor positioning",
+      "featureBaselineDate": null,
+      "groups": [
+        "anchor-positioning"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-anchor-position-1/#anchoring"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.position-try",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.align-items.anchor-center",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.align-self.anchor-center",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.anchor-name",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.anchor-name.none",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.anchor-scope",
+          "baselineDate": "2026-01-13",
+          "chrome": "131"
+        },
+        {
+          "key": "css.properties.anchor-scope.all",
+          "baselineDate": "2026-01-13",
+          "chrome": "131"
+        },
+        {
+          "key": "css.properties.anchor-scope.none",
+          "baselineDate": "2026-01-13",
+          "chrome": "131"
+        },
+        {
+          "key": "css.properties.block-size.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.bottom.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.height.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inline-size.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inset-block-end.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inset-block-start.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inset-block.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inset-inline-end.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inset-inline-start.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inset-inline.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.inset.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.justify-items.anchor-center",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.justify-self.anchor-center",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.left.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.max-block-size.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.max-height.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.max-inline-size.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.max-width.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.min-block-size.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.min-height.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.min-inline-size.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.min-width.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.place-items.anchor-center",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.place-self.anchor-center",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-area",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.center",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.none",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-bottom",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-left",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-right",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-self-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-self-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-self-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-self-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-self-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-self-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-top",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-x-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-x-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-y-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.span-y-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-area.start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks",
+          "baselineDate": "2026-01-13",
+          "chrome": "128"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.bottom",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.center",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.flip-block",
+          "baselineDate": "2026-01-13",
+          "chrome": "128"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.flip-inline",
+          "baselineDate": "2026-01-13",
+          "chrome": "128"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.flip-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "128"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.left",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.none",
+          "baselineDate": "2026-01-13",
+          "chrome": "128"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.position-area",
+          "baselineDate": "2026-01-13",
+          "chrome": "128"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.right",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.self-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.self-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.self-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.self-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.self-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.self-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-all",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-bottom",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-left",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-right",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-self-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-self-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-self-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-self-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-self-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-self-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-top",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-x-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-x-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-y-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.span-y-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.top",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.x-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.x-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.y-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-fallbacks.y-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try-order",
+          "baselineDate": "2026-02-24",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try-order.most-block-size",
+          "baselineDate": "2026-02-24",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try-order.most-height",
+          "baselineDate": "2026-02-24",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try-order.most-inline-size",
+          "baselineDate": "2026-02-24",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try-order.most-width",
+          "baselineDate": "2026-02-24",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try-order.normal",
+          "baselineDate": "2026-02-24",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try.block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.bottom",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.center",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.flip-block",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try.flip-inline",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try.flip-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try.inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.left",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.none",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-try.right",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.self-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.self-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.self-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.self-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.self-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.self-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-all",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-bottom",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-left",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-right",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-self-block-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-self-block-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-self-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-self-inline-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-self-inline-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-self-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-top",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-x-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-x-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-y-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.span-y-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.top",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.x-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.x-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.y-end",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-try.y-start",
+          "baselineDate": "2026-01-13",
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.position-visibility",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-visibility.always",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.position-visibility.no-overflow",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.right.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.top.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.width.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.types.anchor",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        },
+        {
+          "key": "css.types.anchor-size",
+          "baselineDate": "2026-01-13",
+          "chrome": "125"
+        }
+      ]
+    },
+    {
+      "id": "anchor-positioning-animations",
+      "name": "Anchor positioning animations and transitions",
+      "featureBaselineDate": null,
+      "groups": [
+        "anchor-positioning"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-anchor-position-1/#resolvable-anchor-function"
+      ],
+      "keys": [
+        {
+          "key": "css.types.anchor-size.is_animatable",
+          "baselineDate": null,
+          "chrome": "125"
+        },
+        {
+          "key": "css.types.anchor.is_animatable",
+          "baselineDate": null,
+          "chrome": "125"
+        }
+      ]
+    },
+    {
+      "id": "anchor-positioning-position-visibility-plurals",
+      "name": "anchors-valid and anchors-visible",
+      "featureBaselineDate": null,
+      "groups": [],
+      "spec": [
+        "https://drafts.csswg.org/css-anchor-position-1/#position-visibility"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.position-visibility.anchors-visible",
+          "baselineDate": null,
+          "chrome": "125"
+        }
+      ]
+    },
+    {
+      "id": "animations-css",
+      "name": "Animations (CSS)",
+      "featureBaselineDate": "2015-09-30",
+      "groups": [
+        "animation",
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-animations-2/"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.keyframes.named_range_keyframes",
+          "baselineDate": null,
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-duration.auto",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        }
+      ]
+    },
+    {
+      "id": "autofill",
+      "name": ":autofill",
+      "featureBaselineDate": null,
+      "groups": [
+        "forms"
+      ],
+      "spec": [
+        "https://html.spec.whatwg.org/multipage/semantics-other.html#selector-autofill"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.autofill",
+          "baselineDate": null,
+          "chrome": "110"
+        }
+      ]
+    },
+    {
+      "id": "background-attachment",
+      "name": "background-attachment",
+      "featureBaselineDate": null,
+      "groups": [
+        "background"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-backgrounds-3/#the-background-attachment"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.background-attachment.fixed",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "background-clip-text",
+      "name": "background-clip: text",
+      "featureBaselineDate": null,
+      "groups": [
+        "background"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-backgrounds-4/#background-clip"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.background-clip.text",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.background.text",
+          "baselineDate": null,
+          "chrome": "120"
+        }
+      ]
+    },
+    {
+      "id": "baseline-shift",
+      "name": "baseline-shift",
+      "featureBaselineDate": "2026-03-24",
+      "groups": [
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-inline-3/#baseline-shift-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.baseline-shift",
+          "baselineDate": "2026-03-24",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.baseline-shift.sub",
+          "baselineDate": "2026-03-24",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.baseline-shift.super",
+          "baselineDate": "2026-03-24",
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "baseline-source",
+      "name": "baseline-source",
+      "featureBaselineDate": null,
+      "groups": [],
+      "spec": [
+        "https://drafts.csswg.org/css-inline-3/#baseline-source"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.baseline-source",
+          "baselineDate": null,
+          "chrome": "111"
+        },
+        {
+          "key": "css.properties.baseline-source.auto",
+          "baselineDate": null,
+          "chrome": "111"
+        },
+        {
+          "key": "css.properties.baseline-source.first",
+          "baselineDate": null,
+          "chrome": "111"
+        },
+        {
+          "key": "css.properties.baseline-source.last",
+          "baselineDate": null,
+          "chrome": "111"
+        }
+      ]
+    },
+    {
+      "id": "box-decoration-break",
+      "name": "box-decoration-break",
+      "featureBaselineDate": null,
+      "groups": [],
+      "spec": [
+        "https://drafts.csswg.org/css-break-4/#break-decoration"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.box-decoration-break",
+          "baselineDate": null,
+          "chrome": "130"
+        },
+        {
+          "key": "css.properties.box-decoration-break.clone",
+          "baselineDate": null,
+          "chrome": "130"
+        },
+        {
+          "key": "css.properties.box-decoration-break.slice",
+          "baselineDate": null,
+          "chrome": "130"
+        }
+      ]
+    },
+    {
+      "id": "calc-size",
+      "name": "calc-size()",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-5/#calc-size"
+      ],
+      "keys": [
+        {
+          "key": "css.types.calc-size",
+          "baselineDate": null,
+          "chrome": "129"
+        }
+      ]
+    },
+    {
+      "id": "clip",
+      "name": "clip",
+      "featureBaselineDate": null,
+      "groups": [
+        "clipping-shapes-masking"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-masking-1/#clip-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.clip",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.clip.auto",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.types.shape",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.types.shape.rect",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "colrv1",
+      "name": "COLRv1",
+      "featureBaselineDate": null,
+      "groups": [
+        "fonts"
+      ],
+      "spec": [
+        "https://www.iso.org/standard/87621.html"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.font-face.OpenType_COLRv1",
+          "baselineDate": null,
+          "chrome": "98"
+        }
+      ]
+    },
+    {
+      "id": "column-breaks",
+      "name": "Column breaks",
+      "featureBaselineDate": null,
+      "groups": [
+        "layout"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-break-3/#breaking-controls"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.break-after.avoid-column",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-after.column",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-after.multicol_context",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-after.multicol_context.avoid",
+          "baselineDate": null,
+          "chrome": "102"
+        },
+        {
+          "key": "css.properties.break-after.multicol_context.avoid-column",
+          "baselineDate": null,
+          "chrome": "102"
+        },
+        {
+          "key": "css.properties.break-after.multicol_context.column",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.avoid-column",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.column",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.multicol_context",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.multicol_context.avoid",
+          "baselineDate": null,
+          "chrome": "102"
+        },
+        {
+          "key": "css.properties.break-before.multicol_context.avoid-column",
+          "baselineDate": null,
+          "chrome": "102"
+        },
+        {
+          "key": "css.properties.break-before.multicol_context.column",
+          "baselineDate": null,
+          "chrome": "51"
+        }
+      ]
+    },
+    {
+      "id": "container-style-queries",
+      "name": "Container style queries",
+      "featureBaselineDate": "2026-05-19",
+      "groups": [
+        "container-queries"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-conditional-5/#style-container"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.container.style_queries_for_custom_properties",
+          "baselineDate": "2026-05-19",
+          "chrome": "111"
+        }
+      ]
+    },
+    {
+      "id": "content",
+      "name": "Content",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-content-3/#content-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.content.gradient",
+          "baselineDate": null,
+          "chrome": "26"
+        }
+      ]
+    },
+    {
+      "id": "content-visibility",
+      "name": "content-visibility",
+      "featureBaselineDate": "2025-09-15",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-contain-2/#content-visibility"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.content-visibility.auto",
+          "baselineDate": "2025-09-15",
+          "chrome": "85"
+        }
+      ]
+    },
+    {
+      "id": "counter-style",
+      "name": "@counter-style",
+      "featureBaselineDate": "2023-09-18",
+      "groups": [
+        "counters"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-counter-styles-3/"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.counter-style.speak-as",
+          "baselineDate": null,
+          "chrome": "91"
+        }
+      ]
+    },
+    {
+      "id": "cross-document-view-transitions",
+      "name": "Cross-document view transitions",
+      "featureBaselineDate": null,
+      "groups": [
+        "view-transitions"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-view-transitions-2/#cross-doc-opt-in"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.view-transition",
+          "baselineDate": null,
+          "chrome": "126"
+        }
+      ]
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor styles",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-ui-4/#cursor"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.cursor.alias",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.all-scroll",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.col-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.context-menu",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.copy",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.crosshair",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.default",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.e-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.ew-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.grab",
+          "baselineDate": null,
+          "chrome": "68"
+        },
+        {
+          "key": "css.properties.cursor.grabbing",
+          "baselineDate": null,
+          "chrome": "68"
+        },
+        {
+          "key": "css.properties.cursor.help",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.move",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.n-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.ne-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.nesw-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.no-drop",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.none",
+          "baselineDate": null,
+          "chrome": "5"
+        },
+        {
+          "key": "css.properties.cursor.not-allowed",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.ns-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.nw-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.nwse-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.pointer",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.progress",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.row-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.s-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.se-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.sw-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.url_positioning_syntax",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.vertical-text",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.w-resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.wait",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.cursor.zoom-in",
+          "baselineDate": null,
+          "chrome": "37"
+        },
+        {
+          "key": "css.properties.cursor.zoom-out",
+          "baselineDate": null,
+          "chrome": "37"
+        }
+      ]
+    },
+    {
+      "id": "details-content",
+      "name": "::details-content",
+      "featureBaselineDate": "2025-09-16",
+      "groups": [
+        "selectors"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-pseudo-4/#details-content-pseudo"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.details-content",
+          "baselineDate": "2025-09-16",
+          "chrome": "131"
+        }
+      ]
+    },
+    {
+      "id": "device-queries",
+      "name": "Device media queries",
+      "featureBaselineDate": null,
+      "groups": [
+        "media-queries"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/mediaqueries-5/#mf-deprecated"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.media.device-aspect-ratio",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.at-rules.media.device-height",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.at-rules.media.device-width",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "display",
+      "name": "Display",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-display-3/#the-display-properties"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.display.none.option_is_hidden",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "display-animation",
+      "name": "display animation",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-display-4/#display-animation",
+        "https://drafts.csswg.org/css-contain-3/#content-visibility-animation"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.content-visibility.is_animatable",
+          "baselineDate": null,
+          "chrome": "117"
+        },
+        {
+          "key": "css.properties.display.is_animatable",
+          "baselineDate": null,
+          "chrome": "117"
+        },
+        {
+          "key": "css.properties.transition-behavior.transitionable_content-visibility",
+          "baselineDate": null,
+          "chrome": "117"
+        },
+        {
+          "key": "css.properties.transition-behavior.transitionable_display",
+          "baselineDate": null,
+          "chrome": "117"
+        }
+      ]
+    },
+    {
+      "id": "display-contents",
+      "name": "display: contents",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-display-3/#box-generation"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.display.contents.contents_unusual",
+          "baselineDate": null,
+          "chrome": "65"
+        }
+      ]
+    },
+    {
+      "id": "display-list-item",
+      "name": "display: list-item",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "css",
+        "lists"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-display-3/#list-items"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.display.list-item.legend-support",
+          "baselineDate": null,
+          "chrome": "71"
+        }
+      ]
+    },
+    {
+      "id": "display-mode",
+      "name": "display-mode media query",
+      "featureBaselineDate": null,
+      "groups": [
+        "media-queries"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/mediaqueries-5/#display-modes"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.media.display-mode.fullscreen",
+          "baselineDate": null,
+          "chrome": "47"
+        },
+        {
+          "key": "css.at-rules.media.display-mode.minimal-ui",
+          "baselineDate": null,
+          "chrome": "42"
+        },
+        {
+          "key": "css.at-rules.media.display-mode.standalone",
+          "baselineDate": null,
+          "chrome": "42"
+        }
+      ]
+    },
+    {
+      "id": "display-ruby",
+      "name": "display: ruby",
+      "featureBaselineDate": null,
+      "groups": [
+        "css",
+        "ruby"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-display-3/#layout-specific-display"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.display.ruby",
+          "baselineDate": null,
+          "chrome": "121"
+        },
+        {
+          "key": "css.properties.display.ruby-text",
+          "baselineDate": null,
+          "chrome": "121"
+        }
+      ]
+    },
+    {
+      "id": "field-sizing",
+      "name": "field-sizing",
+      "featureBaselineDate": "2026-06-16",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-forms-1/#field-sizing"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.field-sizing",
+          "baselineDate": "2026-06-16",
+          "chrome": "123"
+        },
+        {
+          "key": "css.properties.field-sizing.content",
+          "baselineDate": "2026-06-16",
+          "chrome": "123"
+        },
+        {
+          "key": "css.properties.field-sizing.fixed",
+          "baselineDate": "2026-06-16",
+          "chrome": "123"
+        }
+      ]
+    },
+    {
+      "id": "flexbox",
+      "name": "Flexbox",
+      "featureBaselineDate": "2015-09-30",
+      "groups": [
+        "flexbox"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-flexbox-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.flex-grow.less_than_zero_animate",
+          "baselineDate": null,
+          "chrome": "49"
+        }
+      ]
+    },
+    {
+      "id": "font-face",
+      "name": "@font-face",
+      "featureBaselineDate": "2016-09-20",
+      "groups": [
+        "fonts"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-fonts-5/#font-face-rule"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.font-face.OpenType_CBDT_CBLC",
+          "baselineDate": null,
+          "chrome": "66"
+        },
+        {
+          "key": "css.at-rules.font-face.OpenType_SBIX",
+          "baselineDate": null,
+          "chrome": "66"
+        }
+      ]
+    },
+    {
+      "id": "font-family-math",
+      "name": "Math font family",
+      "featureBaselineDate": "2026-03-24",
+      "groups": [
+        "mathml",
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-fonts-4/#math-def"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.font-family.math",
+          "baselineDate": "2026-03-24",
+          "chrome": "109"
+        }
+      ]
+    },
+    {
+      "id": "font-metric-overrides",
+      "name": "Font metric overrides",
+      "featureBaselineDate": null,
+      "groups": [
+        "fonts"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-fonts-4/#font-metrics-override-desc"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.font-face.ascent-override",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.at-rules.font-face.descent-override",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.at-rules.font-face.line-gap-override",
+          "baselineDate": null,
+          "chrome": "87"
+        }
+      ]
+    },
+    {
+      "id": "font-palette-animation",
+      "name": "font-palette animation",
+      "featureBaselineDate": null,
+      "groups": [
+        "fonts"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-fonts-4/#font-palette-prop"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.font-palette.animation_computed",
+          "baselineDate": null,
+          "chrome": "121"
+        },
+        {
+          "key": "css.properties.font-palette.palette-mix_function",
+          "baselineDate": null,
+          "chrome": "121"
+        }
+      ]
+    },
+    {
+      "id": "font-variant-emoji",
+      "name": "font-variant-emoji",
+      "featureBaselineDate": null,
+      "groups": [
+        "font-features"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-fonts-4/#font-variant-emoji-prop"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.font-variant-emoji",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.properties.font-variant-emoji.emoji",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.properties.font-variant-emoji.normal",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.properties.font-variant-emoji.text",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.properties.font-variant-emoji.unicode",
+          "baselineDate": null,
+          "chrome": "131"
+        }
+      ]
+    },
+    {
+      "id": "forced-colors",
+      "name": "Forced colors",
+      "featureBaselineDate": "2022-09-12",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/mediaqueries-5/#forced-colors",
+        "https://drafts.csswg.org/css-color-adjust-1/#forced-color-adjust-prop"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.forced-color-adjust",
+          "baselineDate": null,
+          "chrome": "89"
+        },
+        {
+          "key": "css.properties.forced-color-adjust.auto",
+          "baselineDate": null,
+          "chrome": "89"
+        },
+        {
+          "key": "css.properties.forced-color-adjust.none",
+          "baselineDate": null,
+          "chrome": "89"
+        },
+        {
+          "key": "css.properties.forced-color-adjust.preserve-parent-color",
+          "baselineDate": null,
+          "chrome": "106"
+        }
+      ]
+    },
+    {
+      "id": "fullscreen",
+      "name": "Fullscreen API",
+      "featureBaselineDate": null,
+      "groups": [],
+      "spec": [
+        "https://fullscreen.spec.whatwg.org/"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.fullscreen",
+          "baselineDate": null,
+          "chrome": "71"
+        }
+      ]
+    },
+    {
+      "id": "highlight",
+      "name": "Custom highlights",
+      "featureBaselineDate": "2026-03-24",
+      "groups": [],
+      "spec": [
+        "https://drafts.csswg.org/css-highlight-api-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.highlight",
+          "baselineDate": "2026-03-24",
+          "chrome": "105"
+        }
+      ]
+    },
+    {
+      "id": "host-context",
+      "name": ":host-context()",
+      "featureBaselineDate": null,
+      "groups": [
+        "selectors",
+        "web-components"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-shadow-1/#host-selector"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.host-context",
+          "baselineDate": null,
+          "chrome": "54"
+        }
+      ]
+    },
+    {
+      "id": "hyphenate-limit-chars",
+      "name": "Hyphenate limit chars",
+      "featureBaselineDate": null,
+      "groups": [
+        "text-wrap"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-4/#hyphenate-char-limits"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.hyphenate-limit-chars",
+          "baselineDate": null,
+          "chrome": "109"
+        },
+        {
+          "key": "css.properties.hyphenate-limit-chars.auto",
+          "baselineDate": null,
+          "chrome": "109"
+        }
+      ]
+    },
+    {
+      "id": "hyphens",
+      "name": "Hyphenation",
+      "featureBaselineDate": "2023-09-18",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-3/#hyphens-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.hyphens.language_afrikaans",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_albanian",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_amharic",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_armenian",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_assamese",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_basque",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_belarusian",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_bengali",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_bulgarian",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_cyrillic_mongolian",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_estonian",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_ethiopic_script_mul",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_ethiopic_script_und",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_galician",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_georgian",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_german_swiss_orthography",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_german_traditional_orthography",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_gujarati",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_hindi",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_irish",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_kannada",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_latin",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_latvian",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_lithuanian",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_malayalam",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_marathi",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_modern_greek",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_norwegian_nn",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_old_slavonic",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_oriya",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_punjabi",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_slovak",
+          "baselineDate": null,
+          "chrome": "112"
+        },
+        {
+          "key": "css.properties.hyphens.language_slovenian",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_tamil",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_telugu",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_turkmen",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.hyphens.language_welsh",
+          "baselineDate": null,
+          "chrome": "87"
+        }
+      ]
+    },
+    {
+      "id": "initial-letter",
+      "name": "initial-letter",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-inline-3/#sizing-drop-initials"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.initial-letter",
+          "baselineDate": null,
+          "chrome": "110"
+        },
+        {
+          "key": "css.properties.initial-letter.normal",
+          "baselineDate": null,
+          "chrome": "110"
+        }
+      ]
+    },
+    {
+      "id": "interpolate-size",
+      "name": "interpolate-size",
+      "featureBaselineDate": null,
+      "groups": [
+        "transitions",
+        "animation"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-5/#interpolate-size"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.interpolate-size",
+          "baselineDate": null,
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.interpolate-size.allow-keywords",
+          "baselineDate": null,
+          "chrome": "129"
+        },
+        {
+          "key": "css.properties.interpolate-size.numeric-only",
+          "baselineDate": null,
+          "chrome": "129"
+        }
+      ]
+    },
+    {
+      "id": "justify-self-block",
+      "name": "justify-self in block layouts",
+      "featureBaselineDate": null,
+      "groups": [
+        "layout"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-align-3/#justify-block"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.justify-items.context_block",
+          "baselineDate": null,
+          "chrome": "130"
+        },
+        {
+          "key": "css.properties.justify-self.context_block",
+          "baselineDate": null,
+          "chrome": "130"
+        }
+      ]
+    },
+    {
+      "id": "marker",
+      "name": "::marker",
+      "featureBaselineDate": null,
+      "groups": [
+        "lists"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-pseudo-4/#marker-pseudo"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.marker",
+          "baselineDate": null,
+          "chrome": "86"
+        },
+        {
+          "key": "css.selectors.marker.animation_and_transition_support",
+          "baselineDate": null,
+          "chrome": "86"
+        }
+      ]
+    },
+    {
+      "id": "masks",
+      "name": "Masks",
+      "featureBaselineDate": "2023-12-07",
+      "groups": [
+        "clipping-shapes-masking"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-masking-1/#positioned-masks"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.mask-clip.border-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-clip.content-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-clip.fill-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-clip.no-clip",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-clip.padding-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-clip.stroke-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-clip.view-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-image.svg_masks",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-mode",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-mode.alpha",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-mode.luminance",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-mode.match-source",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-origin.border-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-origin.content-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-origin.fill-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-origin.padding-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-origin.stroke-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask-origin.view-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.border-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.content-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.fill-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.luminance",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.no-clip",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.padding-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.stroke-box",
+          "baselineDate": null,
+          "chrome": "120"
+        },
+        {
+          "key": "css.properties.mask.view-box",
+          "baselineDate": null,
+          "chrome": "120"
+        }
+      ]
+    },
+    {
+      "id": "mathml",
+      "name": "MathML",
+      "featureBaselineDate": "2023-01-12",
+      "groups": [
+        "mathml"
+      ],
+      "spec": [
+        "https://w3c.github.io/mathml-core/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.display.math",
+          "baselineDate": null,
+          "chrome": "109"
+        },
+        {
+          "key": "css.properties.font-size.math",
+          "baselineDate": "2026-03-24",
+          "chrome": "109"
+        },
+        {
+          "key": "css.properties.math-depth",
+          "baselineDate": "2026-03-24",
+          "chrome": "109"
+        },
+        {
+          "key": "css.properties.math-shift",
+          "baselineDate": "2025-12-12",
+          "chrome": "109"
+        },
+        {
+          "key": "css.properties.text-transform.math-auto",
+          "baselineDate": null,
+          "chrome": "109"
+        }
+      ]
+    },
+    {
+      "id": "media-queries",
+      "name": "Media queries",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "media-queries"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/mediaqueries-5/"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.media.color-index",
+          "baselineDate": null,
+          "chrome": "29"
+        },
+        {
+          "key": "css.at-rules.media.media_query_values",
+          "baselineDate": null,
+          "chrome": "66"
+        }
+      ]
+    },
+    {
+      "id": "mix-blend-mode",
+      "name": "mix-blend-mode",
+      "featureBaselineDate": "2020-01-15",
+      "groups": [
+        "blend-mode"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/compositing-2/#mix-blend-mode"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.mix-blend-mode.svg_elements",
+          "baselineDate": null,
+          "chrome": "41"
+        }
+      ]
+    },
+    {
+      "id": "multi-column",
+      "name": "Multi-column layout",
+      "featureBaselineDate": "2017-03-07",
+      "groups": [
+        "multi-column"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-multicol-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.align-content.context_multicol",
+          "baselineDate": null,
+          "chrome": "123"
+        }
+      ]
+    },
+    {
+      "id": "nth-child",
+      "name": ":nth-child()",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "selectors"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/selectors-3/#nth-child-pseudo",
+        "https://drafts.csswg.org/selectors-3/#nth-last-child-pseudo"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.first-child.no_parent_required",
+          "baselineDate": null,
+          "chrome": "57"
+        },
+        {
+          "key": "css.selectors.last-child.no_parent_required",
+          "baselineDate": null,
+          "chrome": "57"
+        },
+        {
+          "key": "css.selectors.nth-child.no_parent_required",
+          "baselineDate": null,
+          "chrome": "57"
+        },
+        {
+          "key": "css.selectors.nth-last-child.no_parent_required",
+          "baselineDate": null,
+          "chrome": "57"
+        }
+      ]
+    },
+    {
+      "id": "object-view-box",
+      "name": "object-view-box",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-images-5/#the-object-view-box"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.object-view-box",
+          "baselineDate": null,
+          "chrome": "104"
+        },
+        {
+          "key": "css.properties.object-view-box.none",
+          "baselineDate": null,
+          "chrome": "104"
+        }
+      ]
+    },
+    {
+      "id": "opacity-svg",
+      "name": "Opacity (SVG)",
+      "featureBaselineDate": "≤2020-03-24",
+      "groups": [
+        "svg"
+      ],
+      "spec": [
+        "https://w3c.github.io/svgwg/svg2-draft/render.html#ObjectAndGroupOpacityProperties"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.fill-opacity",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-opacity",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "overflow-anchor",
+      "name": "overflow-anchor",
+      "featureBaselineDate": "2026-09-14",
+      "groups": [
+        "scrolling"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-scroll-anchoring-1/#exclusion-api"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.overflow-anchor",
+          "baselineDate": "2026-09-14",
+          "chrome": "56"
+        },
+        {
+          "key": "css.properties.overflow-anchor.auto",
+          "baselineDate": "2026-09-14",
+          "chrome": "56"
+        },
+        {
+          "key": "css.properties.overflow-anchor.none",
+          "baselineDate": "2026-09-14",
+          "chrome": "56"
+        }
+      ]
+    },
+    {
+      "id": "overflow-overlay",
+      "name": "overflow: overlay",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-overflow-3/#propdef-overflow"
+      ],
+      "keys": [
+        {
+          "key": "css.types.overflow.overlay",
+          "baselineDate": null,
+          "chrome": "114"
+        }
+      ]
+    },
+    {
+      "id": "overlay",
+      "name": "overlay",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-position-4/#overlay"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.overlay",
+          "baselineDate": null,
+          "chrome": "117"
+        },
+        {
+          "key": "css.properties.overlay.auto",
+          "baselineDate": null,
+          "chrome": "117"
+        },
+        {
+          "key": "css.properties.overlay.none",
+          "baselineDate": null,
+          "chrome": "117"
+        }
+      ]
+    },
+    {
+      "id": "page-break-aliases",
+      "name": "Page break aliases",
+      "featureBaselineDate": null,
+      "groups": [
+        "layout"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-break-4/#page-break-properties"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.page-break-after",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-after.always",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-after.auto",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-after.avoid",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-after.left",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-after.right",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-before",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-before.always",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-before.auto",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-before.avoid",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-before.left",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-before.right",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-inside",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-inside.auto",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.page-break-inside.avoid",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "page-breaks",
+      "name": "Page breaks",
+      "featureBaselineDate": "2019-01-29",
+      "groups": [
+        "layout"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-break-4/#breaking-controls"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.break-after.avoid",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-after.avoid-page",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-after.paged_context.avoid-page",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-after.paged_context.recto",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.break-after.recto",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-after.verso",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.avoid",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.avoid-page",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.paged_context.recto",
+          "baselineDate": null,
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.break-before.recto",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-before.verso",
+          "baselineDate": null,
+          "chrome": "50"
+        },
+        {
+          "key": "css.properties.break-inside.paged_context.avoid-page",
+          "baselineDate": null,
+          "chrome": "51"
+        }
+      ]
+    },
+    {
+      "id": "page-orientation",
+      "name": "page-orientation",
+      "featureBaselineDate": null,
+      "groups": [
+        "layout",
+        "print"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-page-3/#page-orientation-prop"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.page.page-orientation",
+          "baselineDate": null,
+          "chrome": "85"
+        }
+      ]
+    },
+    {
+      "id": "page-selectors",
+      "name": "Page selectors",
+      "featureBaselineDate": null,
+      "groups": [
+        "selectors",
+        "print"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-page-3/#page-selectors"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.left",
+          "baselineDate": null,
+          "chrome": "6"
+        },
+        {
+          "key": "css.selectors.right",
+          "baselineDate": null,
+          "chrome": "6"
+        }
+      ]
+    },
+    {
+      "id": "page-setup",
+      "name": "Page setup",
+      "featureBaselineDate": "2024-12-11",
+      "groups": [
+        "layout",
+        "print"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-page-3/#at-page-rule"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.page.at_bottom-center",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_bottom-left",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_bottom-left-corner",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_bottom-right",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_bottom-right-corner",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_left-bottom",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_left-middle",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_left-top",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_right-bottom",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_right-middle",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_right-top",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_top-center",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_top-left",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_top-left-corner",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_top-right",
+          "baselineDate": null,
+          "chrome": "131"
+        },
+        {
+          "key": "css.at-rules.page.at_top-right-corner",
+          "baselineDate": null,
+          "chrome": "131"
+        }
+      ]
+    },
+    {
+      "id": "paint",
+      "name": "paint()",
+      "featureBaselineDate": null,
+      "groups": [
+        "css",
+        "worklets"
+      ],
+      "spec": [
+        "https://drafts.css-houdini.org/css-paint-api-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.types.image.paint",
+          "baselineDate": null,
+          "chrome": "65"
+        }
+      ]
+    },
+    {
+      "id": "path-shape",
+      "name": "path()",
+      "featureBaselineDate": null,
+      "groups": [],
+      "spec": [
+        "https://drafts.csswg.org/css-shapes-1/#supported-basic-shapes"
+      ],
+      "keys": [
+        {
+          "key": "css.types.basic-shape.path.d",
+          "baselineDate": null,
+          "chrome": "52"
+        }
+      ]
+    },
+    {
+      "id": "picture-in-picture",
+      "name": "Picture-in-picture (video)",
+      "featureBaselineDate": null,
+      "groups": [],
+      "spec": [
+        "https://w3c.github.io/picture-in-picture/"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.media.display-mode.picture-in-picture",
+          "baselineDate": null,
+          "chrome": "123"
+        },
+        {
+          "key": "css.selectors.picture-in-picture",
+          "baselineDate": null,
+          "chrome": "110"
+        }
+      ]
+    },
+    {
+      "id": "prefers-color-scheme",
+      "name": "prefers-color-scheme media query",
+      "featureBaselineDate": "2020-01-15",
+      "groups": [
+        "media-queries"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/mediaqueries-5/#prefers-color-scheme"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.media.prefers-color-scheme.respects-inherited-scheme",
+          "baselineDate": null,
+          "chrome": "129"
+        }
+      ]
+    },
+    {
+      "id": "prefers-reduced-transparency",
+      "name": "prefers-reduced-transparency media query",
+      "featureBaselineDate": null,
+      "groups": [
+        "media-queries"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/mediaqueries-5/#prefers-reduced-transparency"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.media.prefers-reduced-transparency",
+          "baselineDate": null,
+          "chrome": "118"
+        }
+      ]
+    },
+    {
+      "id": "rcap",
+      "name": "rcap unit",
+      "featureBaselineDate": "2026-01-13",
+      "groups": [
+        "units"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-4/#font-relative-lengths"
+      ],
+      "keys": [
+        {
+          "key": "css.types.length.rcap",
+          "baselineDate": "2026-01-13",
+          "chrome": "118"
+        }
+      ]
+    },
+    {
+      "id": "rch",
+      "name": "rch unit",
+      "featureBaselineDate": "2026-01-13",
+      "groups": [
+        "units"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-4/#font-relative-lengths"
+      ],
+      "keys": [
+        {
+          "key": "css.types.length.rch",
+          "baselineDate": "2026-01-13",
+          "chrome": "111"
+        }
+      ]
+    },
+    {
+      "id": "resize",
+      "name": "resize (CSS property)",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-ui-4/#resize"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.resize",
+          "baselineDate": null,
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.resize.block",
+          "baselineDate": null,
+          "chrome": "118"
+        },
+        {
+          "key": "css.properties.resize.block_level_support",
+          "baselineDate": null,
+          "chrome": "4"
+        },
+        {
+          "key": "css.properties.resize.inline",
+          "baselineDate": null,
+          "chrome": "118"
+        }
+      ]
+    },
+    {
+      "id": "rex",
+      "name": "rex unit",
+      "featureBaselineDate": "2026-01-13",
+      "groups": [
+        "units"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-4/#font-relative-lengths"
+      ],
+      "keys": [
+        {
+          "key": "css.types.length.rex",
+          "baselineDate": "2026-01-13",
+          "chrome": "111"
+        }
+      ]
+    },
+    {
+      "id": "ric",
+      "name": "ric unit",
+      "featureBaselineDate": "2026-01-13",
+      "groups": [
+        "units"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-values-4/#font-relative-lengths"
+      ],
+      "keys": [
+        {
+          "key": "css.types.length.ric",
+          "baselineDate": "2026-01-13",
+          "chrome": "111"
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "name": "@scope",
+      "featureBaselineDate": "2026-03-24",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-cascade-6/#scope-atrule"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.scope",
+          "baselineDate": "2026-03-24",
+          "chrome": "118"
+        }
+      ]
+    },
+    {
+      "id": "scroll-driven-animations",
+      "name": "Scroll-driven animations",
+      "featureBaselineDate": "2026-10-27",
+      "groups": [
+        "scrolling",
+        "animation"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/scroll-animations-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.animation-range",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-range-end",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-range-end.normal",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-range-start",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-range-start.normal",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-timeline",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-timeline.scroll",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.animation-timeline.view",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.scroll-timeline",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.scroll-timeline-axis",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.scroll-timeline-axis.block",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.scroll-timeline-axis.inline",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.scroll-timeline-axis.x",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.scroll-timeline-axis.y",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.scroll-timeline-name",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.timeline-scope",
+          "baselineDate": "2026-10-27",
+          "chrome": "116"
+        },
+        {
+          "key": "css.properties.timeline-scope.none",
+          "baselineDate": "2026-10-27",
+          "chrome": "116"
+        },
+        {
+          "key": "css.properties.view-timeline",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-axis",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-axis.block",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-axis.inline",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-axis.x",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-axis.y",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-inset",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-inset.auto",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        },
+        {
+          "key": "css.properties.view-timeline-name",
+          "baselineDate": "2026-10-27",
+          "chrome": "115"
+        }
+      ]
+    },
+    {
+      "id": "scrollbar-color",
+      "name": "scrollbar-color",
+      "featureBaselineDate": "2025-12-12",
+      "groups": [
+        "scrolling"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-scrollbars-1/#scrollbar-color"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.scrollbar-color",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        },
+        {
+          "key": "css.properties.scrollbar-color.auto",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        }
+      ]
+    },
+    {
+      "id": "selection",
+      "name": "::selection",
+      "featureBaselineDate": null,
+      "groups": [
+        "selectors",
+        "selection"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-pseudo-4/#selectordef-selection"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.selection",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "shape-outside",
+      "name": "shape-outside",
+      "featureBaselineDate": "2020-01-15",
+      "groups": [
+        "clipping-shapes-masking"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-shapes-1/#declaring-shapes"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.shape-image-threshold.percentages",
+          "baselineDate": null,
+          "chrome": "78"
+        }
+      ]
+    },
+    {
+      "id": "spelling-grammar-error",
+      "name": "::spelling-error and ::grammar-error",
+      "featureBaselineDate": null,
+      "groups": [
+        "selectors"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-pseudo-4/#selectordef-spelling-error",
+        "https://drafts.csswg.org/css-pseudo-4/#selectordef-grammar-error"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.grammar-error",
+          "baselineDate": null,
+          "chrome": "121"
+        },
+        {
+          "key": "css.selectors.spelling-error",
+          "baselineDate": null,
+          "chrome": "121"
+        }
+      ]
+    },
+    {
+      "id": "svg",
+      "name": "SVG",
+      "featureBaselineDate": "2020-01-15",
+      "groups": [
+        "svg",
+        "image-formats"
+      ],
+      "spec": [
+        "https://w3c.github.io/svgwg/svg2-draft/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.d",
+          "baselineDate": null,
+          "chrome": "52"
+        },
+        {
+          "key": "css.properties.fill",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.fill-rule",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.fill-rule.evenodd",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.fill-rule.nonzero",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.fill.none",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker-end",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker-end.none",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker-mid",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker-mid.none",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker-start",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker-start.none",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.marker.none",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stop-color",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stop-color.currentColor",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stop-color.transparent",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stop-opacity",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-dasharray",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-dasharray.none",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-dashoffset",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linecap",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linecap.butt",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linecap.round",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linecap.square",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linejoin",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linejoin.bevel",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linejoin.miter",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-linejoin.round",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-miterlimit",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke-width",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.stroke.none",
+          "baselineDate": "≤2017-04-05",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.text-anchor",
+          "baselineDate": "≤2016-08-02",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.text-anchor.end",
+          "baselineDate": "≤2016-08-02",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.text-anchor.middle",
+          "baselineDate": "≤2016-08-02",
+          "chrome": "1"
+        },
+        {
+          "key": "css.properties.text-anchor.start",
+          "baselineDate": "≤2016-08-02",
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "svg-filters",
+      "name": "SVG filters",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "svg"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/filter-effects-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.filter.svg_elements",
+          "baselineDate": null,
+          "chrome": "89"
+        }
+      ]
+    },
+    {
+      "id": "system-color",
+      "name": "System colors",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "color-types"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-color-4/#css-system-colors"
+      ],
+      "keys": [
+        {
+          "key": "css.types.color.system-color.buttonborder",
+          "baselineDate": null,
+          "chrome": "101"
+        },
+        {
+          "key": "css.types.color.system-color.mark",
+          "baselineDate": null,
+          "chrome": "102"
+        },
+        {
+          "key": "css.types.color.system-color.marktext",
+          "baselineDate": null,
+          "chrome": "102"
+        }
+      ]
+    },
+    {
+      "id": "text-decoration",
+      "name": "text-decoration",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-decor-4/#line-decoration"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-decoration.currentColor",
+          "baselineDate": "2025-12-12",
+          "chrome": "57"
+        },
+        {
+          "key": "css.properties.text-decoration.includes_color-and-style",
+          "baselineDate": "2025-12-12",
+          "chrome": "57"
+        },
+        {
+          "key": "css.properties.text-decoration.includes_thickness",
+          "baselineDate": "2025-12-12",
+          "chrome": "87"
+        },
+        {
+          "key": "css.properties.text-decoration.transparent",
+          "baselineDate": "2025-12-12",
+          "chrome": "57"
+        }
+      ]
+    },
+    {
+      "id": "text-decoration-line-blink",
+      "name": "text-decoration-line: blink",
+      "featureBaselineDate": null,
+      "groups": [
+        "animation",
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-decor-3/#valdef-text-decoration-line-blink"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-decoration-line.blink",
+          "baselineDate": null,
+          "chrome": "57"
+        }
+      ]
+    },
+    {
+      "id": "text-decoration-selection",
+      "name": "text-decoration in ::selection",
+      "featureBaselineDate": null,
+      "groups": [
+        "selectors",
+        "selection",
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-pseudo-4/#highlight-styling"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.selection.text-decoration",
+          "baselineDate": null,
+          "chrome": "105"
+        }
+      ]
+    },
+    {
+      "id": "text-decoration-spelling-grammar",
+      "name": "Spelling and grammar text decorations",
+      "featureBaselineDate": "2025-12-12",
+      "groups": [
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-decor-4/#valdef-text-decoration-line-spelling-error"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-decoration-line.grammar-error",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        },
+        {
+          "key": "css.properties.text-decoration-line.spelling-error",
+          "baselineDate": "2025-12-12",
+          "chrome": "121"
+        }
+      ]
+    },
+    {
+      "id": "text-size-adjust",
+      "name": "text-size-adjust",
+      "featureBaselineDate": null,
+      "groups": [],
+      "spec": [
+        "https://drafts.csswg.org/css-size-adjust-1/#adjustment-control"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-size-adjust",
+          "baselineDate": null,
+          "chrome": "54"
+        },
+        {
+          "key": "css.properties.text-size-adjust.auto",
+          "baselineDate": null,
+          "chrome": "54"
+        },
+        {
+          "key": "css.properties.text-size-adjust.none",
+          "baselineDate": null,
+          "chrome": "54"
+        },
+        {
+          "key": "css.properties.text-size-adjust.percentages",
+          "baselineDate": null,
+          "chrome": "54"
+        }
+      ]
+    },
+    {
+      "id": "text-spacing-trim",
+      "name": "text-spacing-trim",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-4/#text-spacing-trim-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-spacing-trim",
+          "baselineDate": null,
+          "chrome": "123"
+        },
+        {
+          "key": "css.properties.text-spacing-trim.normal",
+          "baselineDate": null,
+          "chrome": "123"
+        },
+        {
+          "key": "css.properties.text-spacing-trim.space-all",
+          "baselineDate": null,
+          "chrome": "123"
+        },
+        {
+          "key": "css.properties.text-spacing-trim.space-first",
+          "baselineDate": null,
+          "chrome": "123"
+        },
+        {
+          "key": "css.properties.text-spacing-trim.trim-start",
+          "baselineDate": null,
+          "chrome": "123"
+        }
+      ]
+    },
+    {
+      "id": "text-transform",
+      "name": "text-transform",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [
+        "text"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-4/#text-transform-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-transform.greek_accented_characters",
+          "baselineDate": null,
+          "chrome": "34"
+        }
+      ]
+    },
+    {
+      "id": "text-wrap-pretty",
+      "name": "text-wrap: pretty",
+      "featureBaselineDate": null,
+      "groups": [
+        "text-wrap"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-4/#valdef-text-wrap-style-pretty"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.text-wrap-style.pretty",
+          "baselineDate": null,
+          "chrome": "130"
+        },
+        {
+          "key": "css.properties.text-wrap.pretty",
+          "baselineDate": null,
+          "chrome": "117"
+        }
+      ]
+    },
+    {
+      "id": "time-relative-selectors",
+      "name": "Time-relative pseudo-selectors",
+      "featureBaselineDate": null,
+      "groups": [
+        "selectors"
+      ],
+      "spec": [
+        "https://w3c.github.io/webvtt/#the-past-and-future-pseudo-classes"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.future",
+          "baselineDate": null,
+          "chrome": "23"
+        },
+        {
+          "key": "css.selectors.past",
+          "baselineDate": null,
+          "chrome": "23"
+        }
+      ]
+    },
+    {
+      "id": "touch-action",
+      "name": "touch-action",
+      "featureBaselineDate": "2019-09-19",
+      "groups": [],
+      "spec": [
+        "https://w3c.github.io/pointerevents/#the-touch-action-css-property",
+        "https://compat.spec.whatwg.org/#touch-action"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.touch-action.pan-down",
+          "baselineDate": null,
+          "chrome": "55"
+        },
+        {
+          "key": "css.properties.touch-action.pan-left",
+          "baselineDate": null,
+          "chrome": "55"
+        },
+        {
+          "key": "css.properties.touch-action.pan-right",
+          "baselineDate": null,
+          "chrome": "55"
+        },
+        {
+          "key": "css.properties.touch-action.pan-up",
+          "baselineDate": null,
+          "chrome": "55"
+        }
+      ]
+    },
+    {
+      "id": "transition-behavior",
+      "name": "transition-behavior",
+      "featureBaselineDate": "2024-08-06",
+      "groups": [
+        "transitions"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-transitions-2/#transition-behavior-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.transition-behavior",
+          "baselineDate": null,
+          "chrome": "117"
+        }
+      ]
+    },
+    {
+      "id": "user-select",
+      "name": "user-select",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-ui-4/#content-selection"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.user-select",
+          "baselineDate": null,
+          "chrome": "54"
+        },
+        {
+          "key": "css.properties.user-select.all",
+          "baselineDate": null,
+          "chrome": "54"
+        },
+        {
+          "key": "css.properties.user-select.auto",
+          "baselineDate": null,
+          "chrome": "54"
+        },
+        {
+          "key": "css.properties.user-select.none",
+          "baselineDate": null,
+          "chrome": "54"
+        },
+        {
+          "key": "css.properties.user-select.text",
+          "baselineDate": null,
+          "chrome": "54"
+        }
+      ]
+    },
+    {
+      "id": "vertical-form-controls",
+      "name": "Vertical form controls",
+      "featureBaselineDate": "2024-04-18",
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-writing-modes-4/#vertical-modes"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.direction.vertical_slider_direction",
+          "baselineDate": null,
+          "chrome": "124"
+        }
+      ]
+    },
+    {
+      "id": "view-transition-class",
+      "name": "view-transition-class",
+      "featureBaselineDate": "2025-10-14",
+      "groups": [
+        "view-transitions"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-class"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.view-transition-class",
+          "baselineDate": "2025-10-14",
+          "chrome": "125"
+        },
+        {
+          "key": "css.properties.view-transition-class.none",
+          "baselineDate": "2025-10-14",
+          "chrome": "125"
+        }
+      ]
+    },
+    {
+      "id": "view-transitions",
+      "name": "View transitions",
+      "featureBaselineDate": "2025-10-14",
+      "groups": [
+        "view-transitions"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-view-transitions-1/"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.view-transition-name",
+          "baselineDate": "2025-10-14",
+          "chrome": "111"
+        },
+        {
+          "key": "css.properties.view-transition-name.none",
+          "baselineDate": "2025-10-14",
+          "chrome": "111"
+        },
+        {
+          "key": "css.selectors.view-transition",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-group",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-image-pair",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-new",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        },
+        {
+          "key": "css.selectors.view-transition-old",
+          "baselineDate": "2025-10-14",
+          "chrome": "109"
+        }
+      ]
+    },
+    {
+      "id": "webvtt",
+      "name": "WebVTT",
+      "featureBaselineDate": "2015-07-29",
+      "groups": [],
+      "spec": [
+        "https://w3c.github.io/webvtt/"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.cue.selector_argument",
+          "baselineDate": null,
+          "chrome": "26"
+        }
+      ]
+    },
+    {
+      "id": "webxr-dom-overlays",
+      "name": "DOM overlays for WebXR",
+      "featureBaselineDate": null,
+      "groups": [
+        "webxr"
+      ],
+      "spec": [
+        "https://immersive-web.github.io/dom-overlays/"
+      ],
+      "keys": [
+        {
+          "key": "css.selectors.xr-overlay",
+          "baselineDate": null,
+          "chrome": "83"
+        }
+      ]
+    },
+    {
+      "id": "widows-orphans",
+      "name": "Widows and orphans",
+      "featureBaselineDate": null,
+      "groups": [
+        "layout"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-break-4/#widows-orphans"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.orphans",
+          "baselineDate": null,
+          "chrome": "25"
+        },
+        {
+          "key": "css.properties.widows",
+          "baselineDate": null,
+          "chrome": "25"
+        }
+      ]
+    },
+    {
+      "id": "window-controls-overlay",
+      "name": "Window Controls Overlay",
+      "featureBaselineDate": null,
+      "groups": [
+        "progressive-web-app"
+      ],
+      "spec": [
+        "https://wicg.github.io/window-controls-overlay/"
+      ],
+      "keys": [
+        {
+          "key": "css.at-rules.media.display-mode.window-controls-overlay",
+          "baselineDate": null,
+          "chrome": "105"
+        },
+        {
+          "key": "css.types.env.titlebar-area-height",
+          "baselineDate": null,
+          "chrome": "93"
+        },
+        {
+          "key": "css.types.env.titlebar-area-width",
+          "baselineDate": null,
+          "chrome": "93"
+        },
+        {
+          "key": "css.types.env.titlebar-area-x",
+          "baselineDate": null,
+          "chrome": "93"
+        },
+        {
+          "key": "css.types.env.titlebar-area-y",
+          "baselineDate": null,
+          "chrome": "93"
+        }
+      ]
+    },
+    {
+      "id": "word-break-auto-phrase",
+      "name": "word-break: auto-phrase",
+      "featureBaselineDate": null,
+      "groups": [
+        "text-wrap"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-4/#valdef-word-break-auto-phrase"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.word-break.auto-phrase",
+          "baselineDate": null,
+          "chrome": "119"
+        }
+      ]
+    },
+    {
+      "id": "word-break-break-word",
+      "name": "word-break: break-word",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-text-3/#word-break-property"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.word-break.break-word",
+          "baselineDate": null,
+          "chrome": "1"
+        }
+      ]
+    },
+    {
+      "id": "writing-mode-svg-values",
+      "name": "writing-mode SVG 1.1 values",
+      "featureBaselineDate": null,
+      "groups": [
+        "css"
+      ],
+      "spec": [
+        "https://drafts.csswg.org/css-writing-modes-4/#block-flow"
+      ],
+      "keys": [
+        {
+          "key": "css.properties.writing-mode.lr",
+          "baselineDate": null,
+          "chrome": "48"
+        },
+        {
+          "key": "css.properties.writing-mode.lr-tb",
+          "baselineDate": null,
+          "chrome": "48"
+        },
+        {
+          "key": "css.properties.writing-mode.rl",
+          "baselineDate": null,
+          "chrome": "48"
+        },
+        {
+          "key": "css.properties.writing-mode.rl-tb",
+          "baselineDate": null,
+          "chrome": "48"
+        },
+        {
+          "key": "css.properties.writing-mode.tb",
+          "baselineDate": null,
+          "chrome": "48"
+        },
+        {
+          "key": "css.properties.writing-mode.tb-rl",
+          "baselineDate": null,
+          "chrome": "48"
+        }
+      ]
+    }
+  ]
+}

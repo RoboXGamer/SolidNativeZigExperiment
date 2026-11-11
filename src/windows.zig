@@ -60,6 +60,8 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_off
         const rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
         const is_button = std.mem.eql(u8, n.type, "button");
         const is_input = std.mem.eql(u8, n.type, "input");
+        const is_select = std.mem.eql(u8, n.type, "select");
+        const is_option = std.mem.eql(u8, n.type, "option");
         const radius = if (n.style.borderTopLeftRadius > 0) n.style.borderTopLeftRadius else n.style.borderRadius;
 
         var clip = scene.clipFor(item);
@@ -83,8 +85,8 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_off
             rl.drawRectangleRounded(shad, roundness(shad, radius), 8, color(cstr, rl.Color.init(0, 0, 0, 128)));
             _ = blur;
         }
-        if (n.style.backgroundColor.len > 0 or is_button or is_input) {
-            const fallback: rl.Color = if (is_button) .dark_gray else if (is_input) .dark_gray else .blank;
+        if (n.style.backgroundColor.len > 0 or is_button or is_input or is_select or is_option) {
+            const fallback: rl.Color = if (is_button or is_select) .dark_gray else if (is_input) .dark_gray else if (is_option) rl.Color.init(40, 40, 40, 255) else .blank;
             if (radius > 0) {
                 rl.drawRectangleRounded(rect, roundness(rect, radius), 8, color(n.style.backgroundColor, fallback));
             } else {
@@ -121,6 +123,18 @@ fn renderScene(scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, scroll_off
                 const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
                 const c_text = try allocator.dupeSentinel(u8, sline.text, 0);
                 rl.drawText(c_text, @intFromFloat(@round(line_x)), @intFromFloat(@round(line_y)), font_size_int, color(n.style.color, .white));
+            }
+        }
+        if (std.mem.eql(u8, n.type, "select")) {
+            const display_text = if (n.text.len > 0) n.text else n.value;
+            const content = n.contentBox(b);
+            if (display_text.len > 0) {
+                const text = try allocator.dupeSentinel(u8, display_text, 0);
+                rl.drawText(text, @intFromFloat(content.x), @intFromFloat(content.y), font_size_int, color(n.style.color, .white));
+            }
+            const arrow_x = b.x + b.width - 20;
+            if (arrow_x > content.x) {
+                rl.drawText("v", @intFromFloat(arrow_x), @intFromFloat(content.y), font_size_int, color(n.style.color, .light_gray));
             }
         }
         if (std.mem.eql(u8, n.type, "input")) {
@@ -168,6 +182,20 @@ fn pressed(key: rl.KeyboardKey) bool {
 
 fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator: std.mem.Allocator) !void {
     const item = scene.find(focused orelse return) orelse return;
+    if (std.mem.eql(u8, item.node.type, "select")) {
+        if (pressed(.up)) {
+            try runtime.key(item.node.id, "ArrowUp");
+        } else if (pressed(.down)) {
+            try runtime.key(item.node.id, "ArrowDown");
+        } else if (rl.isKeyPressed(.space)) {
+            try runtime.key(item.node.id, "Space");
+        } else if (rl.isKeyPressed(.enter)) {
+            try runtime.key(item.node.id, "Enter");
+        } else if (rl.isKeyPressed(.escape)) {
+            try runtime.key(item.node.id, "Escape");
+        }
+        return;
+    }
     if (!std.mem.eql(u8, item.node.type, "input")) return;
     const a = allocator;
     var value = item.node.value;
@@ -301,6 +329,8 @@ pub fn run() void {
                     }
                 }
                 runtime.click(id) catch |err| std.log.err("Click failed: {}", .{err});
+            } else {
+                runtime.click(0) catch {};
             }
         } else if (rl.isMouseButtonDown(.left)) {
             if (focused) |id| {
@@ -338,7 +368,11 @@ pub fn run() void {
             focused = selected orelse (if (reverse) previous else first);
         }
         if (rl.isKeyPressed(.enter)) if (focused) |id| {
-            if (scene.find(id) != null) runtime.click(id) catch {};
+            if (scene.find(id)) |item| {
+                if (!std.mem.eql(u8, item.node.type, "select")) {
+                    runtime.click(id) catch {};
+                }
+            }
         };
         if (rl.isKeyPressed(.space)) if (focused) |id| {
             if (scene.find(id)) |item| {

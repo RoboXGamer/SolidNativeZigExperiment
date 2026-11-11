@@ -50,6 +50,13 @@ pub const Runtime = struct {
         var result: [32]u8 = undefined;
         if (ui_eval(@ptrCast(expression.ptr), &result, result.len) == 0) return error.JavaScriptEvaluationFailed;
     }
+    pub fn key(_: *Runtime, id: u32, key_name: []const u8) !void {
+        var command: [128]u8 = undefined;
+        const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "uiDispatchKey({d},\"{s}\")", .{ id, key_name });
+        command[expression.len] = 0;
+        var result: [32]u8 = undefined;
+        if (ui_eval(@ptrCast(expression.ptr), &result, result.len) == 0) return error.JavaScriptEvaluationFailed;
+    }
     pub fn reload(_: *Runtime) bool {
         return ui_reload() != 0;
     }

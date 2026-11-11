@@ -6,12 +6,13 @@
     "build:ui": "vite build",
     "dev:ui": "node tools/dev.mjs",
     "dev:app": "vite build --mode native-hmr && node tools/run.mjs",
-    "test": "npm run test:features && npm run test:bridge && npm run test:refresh && npm run test:tree && npm run test:packages",
+    "test": "npm run test:features && npm run test:bridge && npm run test:refresh && npm run test:tree && npm run test:select && npm run test:packages",
     "test:packages": "node packages/solid-zig/tests/text-overflow.mjs && node packages/solid-zig/tests/box-style.mjs && node packages/solid-zig/tests/flex-block.mjs",
     "test:features": "node --conditions=browser tests/features_probe.mjs",
     "test:bridge": "node --conditions=browser --conditions=development tests/bridge_probe.mjs",
     "test:refresh": "node --conditions=browser --conditions=development tests/refresh_probe.mjs",
-    "test:tree": "node --conditions=browser --conditions=development tests/tree_probe.mjs"
+    "test:tree": "node --conditions=browser --conditions=development tests/tree_probe.mjs",
+    "test:select": "node --conditions=browser --conditions=development packages/solid-zig/tests/select-control.mjs"
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.21",

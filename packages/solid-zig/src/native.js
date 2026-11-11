@@ -160,13 +160,14 @@ export function snapshot(node, inherited = {}) {
   const flex = flexValues(style);
   const basis = flex.basis === "auto" || flex.basis === "content" ? flex.basis : spacingValue(flex.basis);
   if (style.aspectRatio != null && (typeof style.aspectRatio !== "number" || !Number.isFinite(style.aspectRatio) || style.aspectRatio <= 0)) throw Error(`Invalid aspect ratio: ${style.aspectRatio}`);
+  if (style.fontSize != null && (typeof style.fontSize !== "number" || !Number.isFinite(style.fontSize) || style.fontSize <= 0)) throw Error(`Invalid font size: ${style.fontSize}`);
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
     writingMode: style.writingMode,
     direction: style.direction,
   };
-  const columns = style.gridTemplateColumns == null ? [] :
+  const columns = displayOf(node, style) !== "grid" || style.gridTemplateColumns == null ? [] :
     (Array.isArray(style.gridTemplateColumns) ? style.gridTemplateColumns : String(style.gridTemplateColumns).trim().split(/\s+/)).map(track => {
       if (typeof track === "number") return track;
       if (/^\d+(?:\.\d+)?fr$/.test(track)) return -Number(track.slice(0, -2));

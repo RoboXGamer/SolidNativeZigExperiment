@@ -72,10 +72,6 @@ pub const Node = struct {
         return self.paddingBox(bounds).inset(self.padding());
     }
 
-    pub fn marginBox(self: *const Node, bounds: Rect) Rect {
-        return bounds.outset(self.margin());
-    }
-
     pub fn borderSize(self: *const Node, value: f32, frame: f32) f32 {
         return @max(frame, value + if (std.mem.eql(u8, self.style.boxSizing, "content-box")) frame else @as(f32, 0));
     }
@@ -100,7 +96,16 @@ pub const Node = struct {
     }
 };
 
-pub const Item = struct { node: *const Node, bounds: Rect, parent_id: ?u32 = null };
+pub const Item = struct {
+    node: *const Node,
+    bounds: Rect,
+    parent_id: ?u32 = null,
+    used_margin: Edges = .{},
+
+    pub fn marginBox(self: Item) Rect {
+        return self.bounds.outset(self.used_margin);
+    }
+};
 
 // The retained tree stays untouched: contents only disappears from this layout
 // projection, so Solid's node identities and event-parent links remain intact.
@@ -289,8 +294,12 @@ pub const Scene = struct {
             }
             const frame_w = child.padding().horizontal() + child.border().horizontal();
             const frame_h = child.padding().vertical() + child.border().vertical();
-            const child_w = if (child.style.width) |v| child.borderSize(v, frame_w) else width;
-            const child_h: ?f32 = if (child.style.height) |v| child.borderSize(v, frame_h) else null;
+            var child_w = child.constrain(if (child.style.width) |v| child.borderSize(v, frame_w) else @max(0, width - child.margin().horizontal()), true);
+            const child_h: ?f32 = if (child.style.height) |v| child.constrain(child.borderSize(v, frame_h), false) else null;
+            if (child.style.width == null) if (child_h) |h| if (child.aspectRatio()) |ratio| {
+                const basis = if (std.mem.eql(u8, child.style.boxSizing, "content-box")) @max(0, h - frame_h) else h;
+                child_w = child.constrain(child.borderSize(basis * ratio, frame_w), true);
+            };
             try self.prepareChildren(child, @max(0, child_w - frame_w), if (child_h) |h| @max(0, h - frame_h) else null);
             try self.resolveStyle(child, self.length_context, width, height, inline_size);
         }
@@ -385,7 +394,13 @@ pub const Scene = struct {
             const child_frame = child.padding().horizontal() + child.border().horizontal();
             const track = if (grid and n.style.columns.len > 0) n.style.columns[i % count] else @as(f32, -1);
             const available = if (!grid or n.style.columns.len == 0) inner_width else if (track >= 0) track else if (fractions > 0) free * -track / fractions else 0;
-            const child_width = child.constrain(if (child.style.width) |value| child.borderSize(value, child_frame) else @max(0, available - margins.horizontal()), true);
+            var child_width = child.constrain(if (child.style.width) |value| child.borderSize(value, child_frame) else @max(0, available - margins.horizontal()), true);
+            if (child.style.width == null) if (child.style.height) |preferred_height| if (child.aspectRatio()) |ratio| {
+                const child_frame_y = child.padding().vertical() + child.border().vertical();
+                const child_height = child.constrain(child.borderSize(preferred_height, child_frame_y), false);
+                const basis = if (std.mem.eql(u8, child.style.boxSizing, "content-box")) @max(0, child_height - child_frame_y) else child_height;
+                child_width = child.constrain(child.borderSize(basis * ratio, child_frame), true);
+            };
             const height = self.naturalHeightForWidth(child, child_width);
             if (grid) {
                 row_height = @max(row_height, height + margins.vertical());
@@ -504,7 +519,7 @@ pub const Scene = struct {
         const frame_h = n.padding().vertical() + n.border().vertical();
         try self.prepareChildren(n, @max(0, bounds.width - frame_w), if (parent_id == null or n.style.height != null) @max(0, bounds.height - frame_h) else null);
         try self.index.put(self.arena.allocator(), n.id, self.items.items.len);
-        try self.items.append(self.arena.allocator(), .{ .node = n, .bounds = bounds, .parent_id = parent_id });
+        try self.items.append(self.arena.allocator(), .{ .node = n, .bounds = bounds, .parent_id = parent_id, .used_margin = n.margin() });
 
         const pad = n.padding();
         const bd = n.border();
@@ -530,8 +545,15 @@ pub const Scene = struct {
                 const margin = child.margin();
                 const frame = child.padding().horizontal() + child.border().horizontal();
                 const width = child.constrain(if (child.style.width) |value| child.borderSize(value, frame) else @max(0, track_width - margin.horizontal()), true);
+                const available_margin = @max(0, track_width - width - margin.horizontal());
+                const auto_count: u8 = @intFromBool(child.style.marginLeftAuto) + @as(u8, @intFromBool(child.style.marginRightAuto));
+                const auto_share = if (auto_count == 0) 0 else available_margin / @as(f32, @floatFromInt(auto_count));
+                var used_margin = margin;
+                if (child.style.marginLeftAuto) used_margin.left = auto_share;
+                if (child.style.marginRightAuto) used_margin.right = auto_share;
                 const height = self.naturalHeightForWidth(child, width);
-                try self.layout(child, .{ .x = bounds.x + pad.left + bd.left + x + margin.left, .y = bounds.y + pad.top + bd.top + y + margin.top, .width = width, .height = height }, n.id);
+                try self.layout(child, .{ .x = bounds.x + pad.left + bd.left + x + used_margin.left, .y = bounds.y + pad.top + bd.top + y + margin.top, .width = width, .height = height }, n.id);
+                self.setUsedMargin(child.id, used_margin);
                 row_height = @max(row_height, self.find(child.id).?.bounds.height + margin.vertical());
                 x += track_width + n.style.gap;
                 if (column + 1 == column_count) {
@@ -557,6 +579,11 @@ pub const Scene = struct {
         const item = self.items.items[self.index.get(id) orelse return null];
         if (std.mem.eql(u8, item.node.type, "__layout_root")) return null;
         return item;
+    }
+
+    pub fn setUsedMargin(self: *Scene, id: u32, margin: Edges) void {
+        const index = self.index.get(id) orelse return;
+        self.items.items[index].used_margin = margin;
     }
 
     pub fn clipFor(self: *const Scene, item: Item) Rect {

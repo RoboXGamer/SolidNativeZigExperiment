@@ -64,6 +64,17 @@ test "block horizontal auto margins distribute space" {
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
     try std.testing.expectEqual(@as(f32, 100), scene.find(2).?.bounds.x);
+    try std.testing.expectEqual(@as(f32, 0), scene.find(2).?.marginBox().x);
+    try std.testing.expectEqual(@as(f32, 300), scene.find(2).?.marginBox().width);
+}
+
+test "over-wide block child is not clamped to parent width" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":400,"height":20}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 100);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 400), scene.find(2).?.bounds.width);
 }
 
 test "flex explicit zero minimum permits shrinking" {
@@ -127,6 +138,10 @@ test "intrinsic width keywords use measured text" {
     try std.testing.expectEqual(@as(f32, 40), scene.find(2).?.bounds.width);
     try std.testing.expectEqual(@as(f32, 70), scene.find(3).?.bounds.width);
     try std.testing.expectEqual(@as(f32, 50), scene.find(4).?.bounds.width);
+    const leaf = scene.find(3).?.node;
+    try std.testing.expectEqual(@as(f32, 40), scene.intrinsicWidthFor(leaf, .min_content));
+    try std.testing.expectEqual(@as(f32, 70), scene.intrinsicWidthFor(leaf, .max_content));
+    try std.testing.expectEqual(@as(f32, 50), scene.intrinsicWidthFor(leaf, .{ .definite = 50 }));
 }
 
 test "tree owns changed css length strings" {

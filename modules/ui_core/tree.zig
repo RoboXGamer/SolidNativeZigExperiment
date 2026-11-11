@@ -57,9 +57,10 @@ pub const Tree = struct {
             copy.style.overflow = try a.dupe(u8, n.style.overflow);
             copy.style.outlineColor = try a.dupe(u8, n.style.outlineColor);
             copy.style.boxShadow = try a.dupe(u8, n.style.boxShadow);
-            inline for (@typeInfo(core.Style).@"struct".fields) |field| {
-                if (field.type == ?[]const u8) {
-                    if (@field(n.style, field.name)) |value| @field(copy.style, field.name) = try a.dupe(u8, value);
+            const s_info = @typeInfo(core.Style).@"struct";
+            inline for (s_info.field_names, s_info.field_types) |fname, ftype| {
+                if (ftype == ?[]const u8) {
+                    if (@field(n.style, fname)) |value| @field(copy.style, fname) = try a.dupe(u8, value);
                 }
             }
             copy.children = try a.dupe(u32, n.children);

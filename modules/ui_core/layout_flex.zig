@@ -105,9 +105,9 @@ fn clampCross(child: *const Node, is_row: bool, v: f32) f32 {
     return child.constrain(v, !is_row);
 }
 
-fn resolveMainBasis(scene: *const Scene, child: *const Node, is_row: bool) f32 {
+fn resolveMainBasis(scene: *const Scene, child: *const Node, is_row: bool, available_width: f32) f32 {
     if (child.style.flexBasis) |b| return child.borderSize(b, if (is_row) frameWidth(child) else child.padding().vertical() + child.border().vertical());
-    if (child.style.flexBasisContent) return if (is_row) maxContentWidth(scene, child) else contentHeight(scene, child);
+    if (child.style.flexBasisContent) return if (is_row) maxContentWidth(scene, child) else scene.naturalHeightForWidth(child, available_width);
     // flex-basis: auto -> main size property, else content size.
     const main_preferred = preferred(child, is_row);
     if (main_preferred) |value| return value;
@@ -122,7 +122,7 @@ fn resolveMainBasis(scene: *const Scene, child: *const Node, is_row: bool) f32 {
     if (is_row) {
         return maxContentWidth(scene, child);
     }
-    return contentHeight(scene, child);
+    return scene.naturalHeightForWidth(child, available_width);
 }
 
 fn minMainSize(scene: *const Scene, child: *const Node, is_row: bool) f32 {
@@ -136,11 +136,11 @@ fn minMainSize(scene: *const Scene, child: *const Node, is_row: bool) f32 {
             const intrinsic = minContentWidth(scene, &content);
             return if (preferred(child, true)) |width| @min(width, intrinsic) else intrinsic;
         }
-        return 0;
+        return frameWidth(child);
     }
     if (child.style.minHeight) |value| return child.borderSize(value, child.padding().vertical() + child.border().vertical());
     if (std.mem.eql(u8, child.style.overflow, "visible")) return contentHeight(scene, child);
-    return 0;
+    return child.padding().vertical() + child.border().vertical();
 }
 
 fn maxMainSize(child: *const Node, is_row: bool) f32 {
@@ -253,13 +253,13 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         info.mb = child_mg.bottom;
         info.ml = child_mg.left;
 
-        const before = if (is_row) info.ml else info.mt;
-        const after = if (is_row) info.mr else info.mb;
+        const before = if (is_row) (if (reverse) info.mr else info.ml) else (if (reverse) info.mb else info.mt);
+        const after = if (is_row) (if (reverse) info.ml else info.mr) else (if (reverse) info.mt else info.mb);
         const cross_before = if (is_row) info.mt else info.ml;
         const cross_after = if (is_row) info.mb else info.mr;
 
-        info.main_before_auto = if (is_row) child.style.marginLeftAuto else child.style.marginTopAuto;
-        info.main_after_auto = if (is_row) child.style.marginRightAuto else child.style.marginBottomAuto;
+        info.main_before_auto = if (is_row) (if (reverse) child.style.marginRightAuto else child.style.marginLeftAuto) else (if (reverse) child.style.marginBottomAuto else child.style.marginTopAuto);
+        info.main_after_auto = if (is_row) (if (reverse) child.style.marginLeftAuto else child.style.marginRightAuto) else (if (reverse) child.style.marginTopAuto else child.style.marginBottomAuto);
         info.cross_before_auto = if (is_row) child.style.marginTopAuto else child.style.marginLeftAuto;
         info.cross_after_auto = if (is_row) child.style.marginBottomAuto else child.style.marginRightAuto;
         info.main_before = before;
@@ -271,7 +271,8 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
         info.shrink = @max(0, child.style.flexShrink);
         info.min_main = minMainSize(self, child, is_row);
         info.max_main = @max(info.min_main, maxMainSize(child, is_row));
-        info.base_main = std.math.clamp(resolveMainBasis(self, child, is_row), info.min_main, info.max_main);
+        const available_width = if (is_row) main_avail else @max(0, cross_avail - info.cross_before - info.cross_after);
+        info.base_main = std.math.clamp(resolveMainBasis(self, child, is_row, available_width), info.min_main, info.max_main);
         info.main_size = info.base_main;
         info.cross_size = hypotheticalCross(self, child, is_row);
         infos[k] = info;
@@ -324,6 +325,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
             const info = &infos[k];
             const child = info.child;
             const cross_auto = if (is_row) child.style.height == null else child.style.width == null;
+            if (is_row and cross_auto) info.cross_size = self.naturalHeightForWidth(child, info.main_size);
             if (cross_auto) if (child.aspectRatio()) |ratio| {
                 const main_frame = if (is_row) frameWidth(child) else child.padding().vertical() + child.border().vertical();
                 const cross_frame = if (is_row) child.padding().vertical() + child.border().vertical() else frameWidth(child);
@@ -515,6 +517,23 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
             else
                 Rect{ .x = cross_pos_abs, .y = main_pos, .width = info.cross_size, .height = info.main_size };
             try self.layout(child, rect, n.id);
+            var margin = child.margin();
+            const before = if (info.main_before_auto) auto_each else info.main_before;
+            const after = if (info.main_after_auto) auto_each else info.main_after;
+            const cross_before_used = if (info.cross_before_auto) offset else info.cross_before;
+            const cross_after_used = if (info.cross_after_auto) @max(0, remaining - offset) else info.cross_after;
+            if (is_row) {
+                margin.left = if (reverse) after else before;
+                margin.right = if (reverse) before else after;
+                margin.top = cross_before_used;
+                margin.bottom = cross_after_used;
+            } else {
+                margin.top = if (reverse) after else before;
+                margin.bottom = if (reverse) before else after;
+                margin.left = cross_before_used;
+                margin.right = cross_after_used;
+            }
+            self.setUsedMargin(child.id, margin);
         }
     }
 }

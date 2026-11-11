@@ -119,13 +119,20 @@ const Parser = struct {
         if (p.pos < p.input.len and (p.input[p.pos] == '+' or p.input[p.pos] == '-')) p.pos += 1;
         while (p.pos < p.input.len and (std.ascii.isDigit(p.input[p.pos]) or p.input[p.pos] == '.')) : (p.pos += 1) {}
         if (p.pos > start and !(p.pos == start + 1 and (p.input[start] == '+' or p.input[start] == '-'))) {
+            if (p.pos < p.input.len and (p.input[p.pos] == 'e' or p.input[p.pos] == 'E')) {
+                var exponent_end = p.pos + 1;
+                if (exponent_end < p.input.len and (p.input[exponent_end] == '+' or p.input[exponent_end] == '-')) exponent_end += 1;
+                const digits_start = exponent_end;
+                while (exponent_end < p.input.len and std.ascii.isDigit(p.input[exponent_end])) : (exponent_end += 1) {}
+                if (exponent_end > digits_start) p.pos = exponent_end;
+            }
             const value = std.fmt.parseFloat(f32, p.input[start..p.pos]) catch return error.InvalidLength;
             if (!std.math.isFinite(value)) return error.InvalidLength;
             const unit_start = p.pos;
             while (p.pos < p.input.len and (std.ascii.isAlphabetic(p.input[p.pos]) or p.input[p.pos] == '%')) : (p.pos += 1) {}
-            const unit = p.input[unit_start..p.pos];
-            if (unit.len == 0) return .{ .value = value, .dimension = .number };
-            return .{ .value = try p.unit(value, unit), .dimension = .length };
+            const unit_str = p.input[unit_start..p.pos];
+            if (unit_str.len == 0) return .{ .value = value, .dimension = .number };
+            return .{ .value = try p.unit(value, unit_str), .dimension = .length };
         }
         p.pos = start;
         while (p.pos < p.input.len and (std.ascii.isAlphabetic(p.input[p.pos]) or p.input[p.pos] == '-')) : (p.pos += 1) {}

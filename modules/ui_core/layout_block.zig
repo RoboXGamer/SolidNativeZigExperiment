@@ -48,6 +48,7 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
         const free = @max(0, inner_width - child_w - child_mg.horizontal());
         const auto_count: u8 = @intFromBool(child.style.marginLeftAuto) + @as(u8, @intFromBool(child.style.marginRightAuto));
         const auto_left = if (child.style.marginLeftAuto and auto_count > 0) free / @as(f32, @floatFromInt(auto_count)) else 0;
+        const auto_right = if (child.style.marginRightAuto and auto_count > 0) free / @as(f32, @floatFromInt(auto_count)) else 0;
         const child_h = self.naturalHeightForWidth(child, child_w);
 
         // A box with no content, no fixed height and no padding/border collapses
@@ -67,6 +68,10 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
             else
                 content_top + cursor_y + own_top;
             try self.layout(child, .{ .x = x, .y = y0, .width = child_w, .height = 0 }, n.id);
+            var used_margin = child_mg;
+            used_margin.left += auto_left;
+            used_margin.right += auto_right;
+            self.setUsedMargin(child.id, used_margin);
             prev_mb = if (first_child) collapsePair(cmt, cmb) else collapsePair(own_top, cmb);
             first_child = false;
             continue;
@@ -88,6 +93,10 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
         else
             content_top + cursor_y + margin_before;
         try self.layout(child, .{ .x = x, .y = y, .width = child_w, .height = child_h }, n.id);
+        var used_margin = child_mg;
+        used_margin.left += auto_left;
+        used_margin.right += auto_right;
+        self.setUsedMargin(child.id, used_margin);
         const used_height = self.find(child.id).?.bounds.height;
 
         if (first_child) {

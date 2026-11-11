@@ -15,7 +15,7 @@ export interface NativeInputEvent extends NativeEvent {
 export type NativeLength = number | string;
 
 export interface NativeStyle {
-  display?: "block" | "flow-root" | "flex" | "grid" | "none" | "contents";
+  display?: "block" | "flow-root" | "flex" | "grid" | "none" | "contents" | "inline-flex" | "inline" | "inline-block";
   writingMode?: "horizontal-tb" | "vertical-rl" | "vertical-lr";
   direction?: "ltr" | "rtl";
   flexDirection?: "row" | "column" | "row-reverse" | "column-reverse";
@@ -26,7 +26,7 @@ export interface NativeStyle {
   flexShrink?: number;
   flexBasis?: NativeLength;
   justifyContent?: "flex-start" | "flex-end" | "center" | "space-between" | "space-around" | "space-evenly";
-  alignItems?: "stretch" | "flex-start" | "flex-end" | "center" | "baseline";
+  alignItems?: "stretch" | "flex-start" | "flex-end" | "center" | "baseline" | "first-baseline" | "last-baseline";
   alignSelf?: NativeStyle["alignItems"] | "auto";
   alignContent?: NativeStyle["justifyContent"] | "stretch";
   width?: NativeLength;
@@ -72,6 +72,9 @@ export interface NativeStyle {
   backgroundColor?: string;
   color?: string;
   fontSize?: number;
+  lineHeight?: NativeLength;
+  whiteSpace?: "normal" | "nowrap" | "pre" | "pre-wrap" | "pre-line";
+  textAlign?: "left" | "center" | "right" | "justify";
   borderWidth?: NativeLength;
   border?: NativeLength;
   borderColor?: string;
@@ -95,7 +98,11 @@ export interface NativeStyle {
   borderBottomRightRadius?: number;
   borderBottomLeftRadius?: number;
   boxSizing?: "border-box" | "content-box";
-  overflow?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  overflow?: "visible" | "hidden" | "clip" | "auto" | "scroll" | string;
+  overflowX?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  overflowY?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  scrollbarGutter?: string;
+  scrollbarWidth?: "auto" | "thin" | "none";
   outlineWidth?: number;
   outlineColor?: string;
   boxShadow?: string;
@@ -115,6 +122,8 @@ export interface NativeProps {
   value?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  tabIndex?: number;
+  focusable?: boolean;
 }
 
 export namespace JSX {

@@ -18,11 +18,62 @@ pub const Node = struct {
     type: []const u8,
     text: []const u8 = "",
     clickable: bool = false,
+    focusable: bool = false,
+    tabIndex: ?i32 = null,
     value: []const u8 = "",
     /// Optional input for a future replaced-element measurement provider.
     intrinsicAspectRatio: ?f32 = null,
     style: Style = .{},
     children: []Node = &.{},
+
+    pub fn effectiveOverflowX(self: *const Node) []const u8 {
+        if (self.style.overflowX.len > 0) return self.style.overflowX;
+        return self.style.overflow;
+    }
+
+    pub fn effectiveOverflowY(self: *const Node) []const u8 {
+        if (self.style.overflowY.len > 0) return self.style.overflowY;
+        return self.style.overflow;
+    }
+
+    pub fn isScrollContainerX(self: *const Node) bool {
+        const ox = self.effectiveOverflowX();
+        return std.mem.eql(u8, ox, "scroll") or std.mem.eql(u8, ox, "auto");
+    }
+
+    pub fn isScrollContainerY(self: *const Node) bool {
+        const oy = self.effectiveOverflowY();
+        return std.mem.eql(u8, oy, "scroll") or std.mem.eql(u8, oy, "auto");
+    }
+
+    pub fn isScrollContainer(self: *const Node) bool {
+        return self.isScrollContainerX() or self.isScrollContainerY();
+    }
+
+    pub fn clipsX(self: *const Node) bool {
+        const ox = self.effectiveOverflowX();
+        return std.mem.eql(u8, ox, "hidden") or std.mem.eql(u8, ox, "clip") or std.mem.eql(u8, ox, "scroll") or std.mem.eql(u8, ox, "auto");
+    }
+
+    pub fn clipsY(self: *const Node) bool {
+        const oy = self.effectiveOverflowY();
+        return std.mem.eql(u8, oy, "hidden") or std.mem.eql(u8, oy, "clip") or std.mem.eql(u8, oy, "scroll") or std.mem.eql(u8, oy, "auto");
+    }
+
+    pub fn isFocusable(self: *const Node) bool {
+        if (std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "button")) {
+            return self.clickable;
+        }
+        if (self.focusable) return true;
+        if (self.tabIndex != null) return true;
+        return false;
+    }
+
+    pub fn isFocusableForTab(self: *const Node) bool {
+        if (!self.isFocusable()) return false;
+        if (self.tabIndex) |ti| return ti >= 0;
+        return true;
+    }
 
     /// Padding ring; controls provide a default which author values override.
     pub fn padding(self: *const Node) Edges {
@@ -127,7 +178,9 @@ fn appendGenerated(a: std.mem.Allocator, out: *std.ArrayList(Node), source: Node
         return;
     }
     if (!std.mem.eql(u8, display, "block") and !std.mem.eql(u8, display, "flow-root") and
-        !std.mem.eql(u8, display, "flex") and !std.mem.eql(u8, display, "grid")) return error.UnsupportedDisplay;
+        !std.mem.eql(u8, display, "flex") and !std.mem.eql(u8, display, "inline-flex") and
+        !std.mem.eql(u8, display, "grid") and !std.mem.eql(u8, display, "inline") and
+        !std.mem.eql(u8, display, "inline-block")) return error.UnsupportedDisplay;
     var children: std.ArrayList(Node) = .empty;
     for (source.children) |child| try appendGenerated(a, &children, child);
     var copy = source;
@@ -149,6 +202,18 @@ fn generateRoot(a: std.mem.Allocator, source: Node) !*Node {
     return root;
 }
 
+pub const ScrollOffset = struct {
+    x: f32 = 0,
+    y: f32 = 0,
+};
+
+pub const ScrollExtent = struct {
+    max_scroll_x: f32 = 0,
+    max_scroll_y: f32 = 0,
+    total_width: f32 = 0,
+    total_height: f32 = 0,
+};
+
 pub const Scene = struct {
     arena: std.heap.ArenaAllocator,
     root: *Node,
@@ -162,7 +227,8 @@ pub const Scene = struct {
     fn intrinsicWidth(self: *const Scene, n: *const Node, minimum: bool) f32 {
         const frame = n.padding().horizontal() + n.border().horizontal();
         if (std.mem.eql(u8, n.type, "text")) return frame + if (minimum) self.text.minContentWidth(n.text, n.fontSize()) else self.text.maxContentWidth(n.text, n.fontSize());
-        const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
+        const is_flex = std.mem.eql(u8, n.style.display, "flex") or std.mem.eql(u8, n.style.display, "inline-flex");
+        const row = is_flex and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         var width: f32 = 0;
         for (n.children, 0..) |*child, i| {
             const child_frame = child.padding().horizontal() + child.border().horizontal();
@@ -189,15 +255,24 @@ pub const Scene = struct {
 
     fn intrinsicHeight(self: *const Scene, n: *const Node) f32 {
         const frame = n.padding().vertical() + n.border().vertical();
-        if (std.mem.eql(u8, n.type, "text")) return frame + if (n.text.len == 0) @as(f32, 0) else self.text.lineHeight(n.fontSize());
-        const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
+        if (std.mem.eql(u8, n.type, "text")) {
+            if (n.text.len == 0) return frame;
+            const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else self.text.lineHeight(n.fontSize())) else self.text.lineHeight(n.fontSize());
+            var lines: usize = 1;
+            for (n.text) |ch| if (ch == '\n') {
+                lines += 1;
+            };
+            return frame + @as(f32, @floatFromInt(lines)) * line_h;
+        }
+        const is_flex = std.mem.eql(u8, n.style.display, "flex") or std.mem.eql(u8, n.style.display, "inline-flex");
+        const row = is_flex and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         var height: f32 = 0;
         for (n.children, 0..) |*child, i| {
             const child_frame = child.padding().vertical() + child.border().vertical();
             const contribution = if (child.style.height) |v| child.constrain(child.borderSize(v, child_frame), false) else child.constrain(self.intrinsicHeight(child), false);
             const child_height = contribution + child.margin().vertical();
             if (row) height = @max(height, child_height) else {
-                if (i > 0 and std.mem.eql(u8, n.style.display, "flex")) height += n.style.gap;
+                if (i > 0 and is_flex) height += n.style.gap;
                 height += child_height;
             }
         }
@@ -206,7 +281,7 @@ pub const Scene = struct {
 
     fn resolveStyle(self: *const Scene, n: *Node, context: sizing.Context, containing_width: ?f32, containing_height: ?f32, inline_size: ?f32) !void {
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
-        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap" }) |name| {
+        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight" }) |name| {
             if (@field(n.style, name)) |number| {
                 if (!std.math.isFinite(number) or (number < 0 and !std.mem.startsWith(u8, name, "margin"))) return error.InvalidLength;
             }
@@ -400,7 +475,15 @@ pub const Scene = struct {
             const basis = if (std.mem.eql(u8, n.style.boxSizing, "content-box")) @max(0, width - frame_x) else width;
             return n.constrain(n.borderSize(basis / ratio, frame_y), false);
         }
-        if (std.mem.eql(u8, n.type, "text")) return n.constrain(frame_y + if (n.text.len == 0) @as(f32, 0) else self.text.lineHeight(n.fontSize()), false);
+        if (std.mem.eql(u8, n.type, "text")) {
+            if (n.text.len == 0) return n.constrain(frame_y, false);
+            const lh = if (n.style.lineHeight) |h| (if (h > 0) h else self.text.lineHeight(n.fontSize())) else self.text.lineHeight(n.fontSize());
+            if (!std.mem.eql(u8, n.style.whiteSpace, "nowrap")) {
+                const lines = self.text.wrap(n.text, n.fontSize(), @max(0, border_width - frame_x));
+                return n.constrain(frame_y + @as(f32, @floatFromInt(lines.lines)) * lh, false);
+            }
+            return n.constrain(frame_y + lh, false);
+        }
         const inner_width = @max(0, border_width - frame_x);
         const grid = std.mem.eql(u8, n.style.display, "grid");
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
@@ -468,7 +551,17 @@ pub const Scene = struct {
             }
         }
         if (std.mem.eql(u8, n.type, "text")) {
-            return n.constrain(if (n.text.len == 0) frame else self.text.lineHeight(n.fontSize()) + frame, false);
+            if (n.text.len == 0) return n.constrain(frame, false);
+            const lh = if (n.style.lineHeight) |h| (if (h > 0) h else self.text.lineHeight(n.fontSize())) else self.text.lineHeight(n.fontSize());
+            if (n.style.width) |width| {
+                if (!std.mem.eql(u8, n.style.whiteSpace, "nowrap")) {
+                    const horizontal_frame = n.padding().horizontal() + n.border().horizontal();
+                    const inner_w = @max(0, n.constrain(n.borderSize(width, horizontal_frame), true) - horizontal_frame);
+                    const lines = self.text.wrap(n.text, n.fontSize(), inner_w);
+                    return n.constrain(frame + @as(f32, @floatFromInt(lines.lines)) * lh, false);
+                }
+            }
+            return n.constrain(frame + lh, false);
         }
         var total: f32 = 0;
         if (std.mem.eql(u8, n.style.display, "grid")) {
@@ -607,9 +700,18 @@ pub const Scene = struct {
         var parent_id = item.parent_id;
         while (parent_id) |id| {
             const parent = self.find(id) orelse break;
-            const overflow = parent.node.style.overflow;
-            if (std.mem.eql(u8, overflow, "hidden") or std.mem.eql(u8, overflow, "clip") or std.mem.eql(u8, overflow, "scroll") or std.mem.eql(u8, overflow, "auto")) {
-                clip = clip.intersect(parent.bounds.inset(parent.node.border()));
+            const pbox = parent.bounds.inset(parent.node.border());
+            if (parent.node.clipsX()) {
+                const new_x = @max(clip.x, pbox.x);
+                const right = @min(clip.right(), pbox.right());
+                clip.x = new_x;
+                clip.width = @max(0, right - new_x);
+            }
+            if (parent.node.clipsY()) {
+                const new_y = @max(clip.y, pbox.y);
+                const bottom = @min(clip.bottom(), pbox.bottom());
+                clip.y = new_y;
+                clip.height = @max(0, bottom - new_y);
             }
             parent_id = parent.parent_id;
         }
@@ -625,17 +727,77 @@ pub const Scene = struct {
         return false;
     }
 
+    pub fn scrollExtent(self: *const Scene, viewport_id: u32) ScrollExtent {
+        const viewport = self.find(viewport_id) orelse return .{};
+        var max_x = viewport.bounds.right();
+        var max_y = viewport.bounds.bottom();
+
+        for (self.items.items) |child| {
+            if (child.node.id == viewport_id) continue;
+            if (!self.descendsFrom(child, viewport_id)) continue;
+
+            var path_visible = true;
+            var cur_parent = child.parent_id;
+            while (cur_parent) |pid| {
+                if (pid == viewport_id) break;
+                if (self.find(pid)) |parent_item| {
+                    if (parent_item.node.clipsX() or parent_item.node.clipsY()) {
+                        path_visible = false;
+                        break;
+                    }
+                    cur_parent = parent_item.parent_id;
+                } else break;
+            }
+
+            if (path_visible) {
+                const child_bottom = child.bounds.bottom() + child.node.margin().bottom + viewport.node.padding().bottom;
+                const child_right = child.bounds.right() + child.node.margin().right + viewport.node.padding().right;
+                max_y = @max(max_y, child_bottom);
+                max_x = @max(max_x, child_right);
+            }
+        }
+
+        return .{
+            .max_scroll_x = @max(0, max_x - viewport.bounds.right()),
+            .max_scroll_y = @max(0, max_y - viewport.bounds.bottom()),
+            .total_width = max_x - viewport.bounds.x,
+            .total_height = max_y - viewport.bounds.y,
+        };
+    }
+
+    pub fn applyScrollOffsets(self: *Scene, offsets: *std.AutoHashMap(u32, ScrollOffset)) void {
+        for (0..self.items.items.len) |i| {
+            const viewport = self.items.items[i];
+            if (!viewport.node.isScrollContainer()) continue;
+            const extent = self.scrollExtent(viewport.node.id);
+            const entry = offsets.getPtr(viewport.node.id) orelse continue;
+            if (viewport.node.isScrollContainerX()) {
+                entry.x = std.math.clamp(entry.x, 0, extent.max_scroll_x);
+            } else {
+                entry.x = 0;
+            }
+            if (viewport.node.isScrollContainerY()) {
+                entry.y = std.math.clamp(entry.y, 0, extent.max_scroll_y);
+            } else {
+                entry.y = 0;
+            }
+            const offset = entry.*;
+            for (self.items.items[i + 1 ..]) |*child| {
+                if (self.descendsFrom(child.*, viewport.node.id)) {
+                    child.bounds.x -= offset.x;
+                    child.bounds.y -= offset.y;
+                }
+            }
+        }
+    }
+
     pub fn applyScroll(self: *Scene, offsets: *std.AutoHashMap(u32, f32)) void {
         for (0..self.items.items.len) |i| {
             const viewport = self.items.items[i];
-            if (!std.mem.eql(u8, viewport.node.style.overflow, "scroll") and !std.mem.eql(u8, viewport.node.style.overflow, "auto")) continue;
-            var bottom = viewport.bounds.bottom();
-            for (self.items.items) |child| {
-                if (child.parent_id == viewport.node.id) bottom = @max(bottom, child.bounds.bottom() + child.node.margin().bottom + viewport.node.padding().bottom);
-            }
-            const maximum = @max(0, bottom - viewport.bounds.bottom());
+            if (!viewport.node.isScrollContainer()) continue;
+            const extent = self.scrollExtent(viewport.node.id);
             const entry = offsets.getPtr(viewport.node.id) orelse continue;
-            entry.* = std.math.clamp(entry.*, 0, maximum);
+            entry.* = std.math.clamp(entry.*, 0, extent.max_scroll_y);
             const offset = entry.*;
             for (self.items.items[i + 1 ..]) |*child| {
                 if (self.descendsFrom(child.*, viewport.node.id)) child.bounds.y -= offset;
@@ -643,12 +805,81 @@ pub const Scene = struct {
         }
     }
 
+    pub fn chainWheel(
+        self: *const Scene,
+        mouse_x: f32,
+        mouse_y: f32,
+        delta_x: f32,
+        delta_y: f32,
+        offsets: *std.AutoHashMap(u32, ScrollOffset),
+    ) bool {
+        var rem_x = delta_x;
+        var rem_y = delta_y;
+        var consumed = false;
+
+        var i = self.items.items.len;
+        while (i > 0) {
+            i -= 1;
+            const item = self.items.items[i];
+            if (!item.node.isScrollContainer()) continue;
+            if (!item.bounds.contains(mouse_x, mouse_y) or !self.clipFor(item).contains(mouse_x, mouse_y)) continue;
+
+            const extent = self.scrollExtent(item.node.id);
+            const entry = offsets.getOrPut(item.node.id) catch continue;
+            if (!entry.found_existing) entry.value_ptr.* = .{};
+
+            if (rem_y != 0 and item.node.isScrollContainerY()) {
+                if (rem_y > 0) {
+                    const room = extent.max_scroll_y - entry.value_ptr.y;
+                    if (room > 0) {
+                        const take = @min(rem_y, room);
+                        entry.value_ptr.y += take;
+                        rem_y -= take;
+                        consumed = true;
+                    }
+                } else if (rem_y < 0) {
+                    const room = entry.value_ptr.y;
+                    if (room > 0) {
+                        const take = @min(-rem_y, room);
+                        entry.value_ptr.y -= take;
+                        rem_y += take;
+                        consumed = true;
+                    }
+                }
+            }
+
+            if (rem_x != 0 and item.node.isScrollContainerX()) {
+                if (rem_x > 0) {
+                    const room = extent.max_scroll_x - entry.value_ptr.x;
+                    if (room > 0) {
+                        const take = @min(rem_x, room);
+                        entry.value_ptr.x += take;
+                        rem_x -= take;
+                        consumed = true;
+                    }
+                } else if (rem_x < 0) {
+                    const room = entry.value_ptr.x;
+                    if (room > 0) {
+                        const take = @min(-rem_x, room);
+                        entry.value_ptr.x -= take;
+                        rem_x += take;
+                        consumed = true;
+                    }
+                }
+            }
+
+            if (rem_x == 0 and rem_y == 0) break;
+        }
+
+        return consumed;
+    }
+
     pub fn scrollTarget(self: *const Scene, x: f32, y: f32) ?u32 {
         var i = self.items.items.len;
         while (i > 0) {
             i -= 1;
             const item = self.items.items[i];
-            if ((std.mem.eql(u8, item.node.style.overflow, "scroll") or std.mem.eql(u8, item.node.style.overflow, "auto")) and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
+            if (item.node.isScrollContainer() and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
         }
         return null;
     }
@@ -658,7 +889,7 @@ pub const Scene = struct {
         while (i > 0) {
             i -= 1;
             const item = self.items.items[i];
-            if (item.node.clickable and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
+            if ((item.node.clickable or item.node.isFocusable()) and item.bounds.contains(x, y) and self.clipFor(item).contains(x, y)) return item.node.id;
         }
         return null;
     }

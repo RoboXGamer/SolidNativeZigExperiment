@@ -220,25 +220,57 @@ fn alignOf(container: *const Node, child: *const Node) []const u8 {
     return child.style.alignSelf;
 }
 
-fn findFirstBaseline(scene: *const Scene, n: *const Node) ?f32 {
+pub fn findFirstBaseline(scene: *const Scene, n: *const Node) ?f32 {
     const pad_top = n.padding().top;
     const bd_top = n.border().top;
+    if (std.mem.eql(u8, n.type, "text")) {
+        return pad_top + bd_top + scene.text.ascent(n.fontSize());
+    }
     for (n.children) |*child| {
-        if (std.mem.eql(u8, child.type, "text")) {
-            return pad_top + bd_top + scene.text.ascent(child.fontSize());
-        }
         if (findFirstBaseline(scene, child)) |b| {
-            return pad_top + bd_top + b;
+            return pad_top + bd_top + child.margin().top + b;
         }
     }
     return null;
 }
 
-/// Baseline offset from the top of the line box, from real font ascent.
-fn baselineOf(scene: *const Scene, child: *const Node) f32 {
+pub fn findLastBaseline(scene: *const Scene, n: *const Node) ?f32 {
+    const pad_top = n.padding().top;
+    const bd_top = n.border().top;
+    if (std.mem.eql(u8, n.type, "text")) {
+        const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else scene.text.lineHeight(n.fontSize())) else scene.text.lineHeight(n.fontSize());
+        var lines: usize = 1;
+        for (n.text) |ch| if (ch == '\n') {
+            lines += 1;
+        };
+        return pad_top + bd_top + @as(f32, @floatFromInt(lines - 1)) * line_h + scene.text.ascent(n.fontSize());
+    }
+    var i = n.children.len;
+    while (i > 0) {
+        i -= 1;
+        if (findLastBaseline(scene, &n.children[i])) |b| {
+            return pad_top + bd_top + n.children[i].margin().top + b;
+        }
+    }
+    return null;
+}
+
+/// First baseline offset from top of box.
+pub fn firstBaselineOf(scene: *const Scene, child: *const Node) f32 {
     if (std.mem.eql(u8, child.type, "text")) return scene.text.ascent(child.fontSize());
     if (findFirstBaseline(scene, child)) |b| return b;
     return child.constrain(scene.naturalHeight(child), false);
+}
+
+/// Last baseline offset from top of box.
+pub fn lastBaselineOf(scene: *const Scene, child: *const Node) f32 {
+    if (findLastBaseline(scene, child)) |b| return b;
+    return child.constrain(scene.naturalHeight(child), false);
+}
+
+/// Default baseline offset (first baseline).
+pub fn baselineOf(scene: *const Scene, child: *const Node) f32 {
+    return firstBaselineOf(scene, child);
 }
 
 fn orderedIndices(n: *const Node, out: []usize, count: usize) void {
@@ -653,12 +685,17 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
 
         // Baseline reference for the line.
         var max_baseline: f32 = 0;
+        var max_last_baseline: f32 = 0;
         if (is_row) {
             for (start..end) |k| {
                 const info = &infos[k];
-                if (std.mem.eql(u8, alignOf(n, info.child), "baseline")) {
+                const al = alignOf(n, info.child);
+                if (std.mem.eql(u8, al, "baseline") or std.mem.eql(u8, al, "first-baseline")) {
                     const b = baselineOf(self, info.child);
                     if (b > max_baseline) max_baseline = b;
+                } else if (std.mem.eql(u8, al, "last-baseline")) {
+                    const b = lastBaselineOf(self, info.child);
+                    if (b > max_last_baseline) max_last_baseline = b;
                 }
             }
         }
@@ -683,9 +720,12 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
                     if (remaining > 0) offset = if (wrap_reverse) 0 else remaining;
                 } else if (std.mem.eql(u8, al, "flex-start") or std.mem.eql(u8, al, "start")) {
                     if (remaining > 0) offset = if (wrap_reverse) remaining else 0;
-                } else if (std.mem.eql(u8, al, "baseline") and is_row) {
+                } else if ((std.mem.eql(u8, al, "baseline") or std.mem.eql(u8, al, "first-baseline")) and is_row) {
                     const b = baselineOf(self, child);
                     if (b < max_baseline) offset = max_baseline - b;
+                } else if (std.mem.eql(u8, al, "last-baseline") and is_row) {
+                    const b = lastBaselineOf(self, child);
+                    if (b < max_last_baseline) offset = max_last_baseline - b;
                 }
             }
 

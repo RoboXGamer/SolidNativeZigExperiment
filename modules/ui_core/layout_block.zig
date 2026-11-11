@@ -1,7 +1,7 @@
 //! CSS block layout algorithm: used widths, vertical stacking, margin collapsing,
-//! BFC detection, and horizontal auto margin distribution.
+//! BFC detection, horizontal auto margin distribution, and inline formatting context (line boxes).
 //!
-//! Conforms to CSS 2.1 / CSS Box Model Level 3.
+//! Conforms to CSS 2.1 / CSS Box Model Level 3 and CSS Inline Layout Level 3.
 const std = @import("std");
 const root = @import("root.zig");
 const Node = root.Node;
@@ -56,10 +56,24 @@ pub fn collapsePair(a: f32, b: f32) f32 {
 /// - overflow: visible and overflow: clip do NOT establish a BFC.
 pub fn establishesBfc(n: *const Node) bool {
     if (std.mem.eql(u8, n.style.display, "flow-root")) return true;
-    const overflow = n.style.overflow;
-    return std.mem.eql(u8, overflow, "hidden") or
-        std.mem.eql(u8, overflow, "scroll") or
-        std.mem.eql(u8, overflow, "auto");
+    const ox = n.effectiveOverflowX();
+    const oy = n.effectiveOverflowY();
+    const is_bfc_val = struct {
+        fn check(val: []const u8) bool {
+            return std.mem.eql(u8, val, "hidden") or
+                std.mem.eql(u8, val, "scroll") or
+                std.mem.eql(u8, val, "auto");
+        }
+    }.check;
+    return is_bfc_val(ox) or is_bfc_val(oy);
+}
+
+/// Checks if a child participates in an Inline Formatting Context (IFC) rather than block flow.
+pub fn isInlineLevel(child: *const Node) bool {
+    return std.mem.eql(u8, child.type, "text") or
+        std.mem.eql(u8, child.style.display, "inline") or
+        std.mem.eql(u8, child.style.display, "inline-block") or
+        std.mem.eql(u8, child.style.display, "inline-flex");
 }
 
 pub const BlockChildLayout = struct {
@@ -78,7 +92,7 @@ pub const BlockLayoutOutput = struct {
     is_empty: bool,
 };
 
-/// Computes block layout sizing, margin collapsing, and positioning.
+/// Computes block layout sizing, margin collapsing, line boxes, and positioning.
 /// Used both for measuring natural height and for the final layout pass.
 pub fn computeBlockLayout(
     scene: *const Scene,
@@ -97,11 +111,110 @@ pub fn computeBlockLayout(
     var collapsible_top = CollapsibleMarginSet.zero;
     var has_in_flow_content = false;
 
+    var in_inline_run = false;
+    var line_start: usize = 0;
+    var line_x: f32 = 0;
+    var line_h: f32 = 0;
+
     for (n.children, 0..) |*child, i| {
         const child_mg = child.margin();
         const child_bd = child.border();
         const child_pad = child.padding();
         const child_inset_x = child_pad.horizontal() + child_bd.horizontal();
+
+        if (isInlineLevel(child)) {
+            // Inline box formatting context
+            var child_w = child.constrain(if (child.style.width) |width|
+                child.borderSize(width, child_inset_x)
+            else
+                scene.intrinsicWidthFor(child, if (inner_width > 0) .{ .definite = inner_width } else .max_content), true);
+
+            if (child.style.width == null and child.style.height != null) {
+                if (child.aspectRatio()) |ratio| {
+                    const inset_y = child_pad.vertical() + child_bd.vertical();
+                    const border_height = child.constrain(child.borderSize(child.style.height.?, inset_y), false);
+                    const basis = if (std.mem.eql(u8, child.style.boxSizing, "content-box")) @max(0, border_height - inset_y) else border_height;
+                    child_w = child.constrain(child.borderSize(basis * ratio, child_inset_x), true);
+                }
+            }
+
+            const child_h = scene.naturalHeightForWidth(child, child_w);
+            const item_outer_w = child_w + child_mg.horizontal();
+
+            if (in_inline_run and inner_width > 0 and line_x + item_outer_w > inner_width and i > line_start) {
+                // Wrap to a new line box
+                const free_line_x = inner_width - line_x;
+                if (children_out) |out| {
+                    var shift: f32 = 0;
+                    if (std.mem.eql(u8, n.style.textAlign, "center") and free_line_x > 0) {
+                        shift = free_line_x * 0.5;
+                    } else if (std.mem.eql(u8, n.style.textAlign, "right") and free_line_x > 0) {
+                        shift = free_line_x;
+                    }
+                    if (shift > 0) {
+                        for (out[line_start..i]) |*item| item.x += shift;
+                    }
+                }
+                cursor_y += line_h;
+                line_x = 0;
+                line_h = 0;
+                line_start = i;
+            }
+
+            if (!in_inline_run) {
+                if (!has_in_flow_content) {
+                    if (!parent_can_collapse_top) {
+                        cursor_y += margin_strut.resolve();
+                    }
+                    has_in_flow_content = true;
+                } else {
+                    cursor_y += margin_strut.resolve();
+                }
+                margin_strut = CollapsibleMarginSet.zero;
+                in_inline_run = true;
+                line_start = i;
+                line_x = 0;
+                line_h = 0;
+            }
+
+            const child_x = line_x + child_mg.left;
+            const child_y = cursor_y + child_mg.top;
+            line_x += item_outer_w;
+            line_h = @max(line_h, child_h + child_mg.vertical());
+
+            if (children_out) |out| {
+                out[i] = .{
+                    .x = child_x,
+                    .y = child_y,
+                    .width = child_w,
+                    .height = child_h,
+                    .used_margin = child_mg,
+                    .is_empty = false,
+                };
+            }
+            continue;
+        }
+
+        // Child is a block-level box
+        if (in_inline_run) {
+            // Flush preceding inline line box
+            const free_line_x = inner_width - line_x;
+            if (children_out) |out| {
+                var shift: f32 = 0;
+                if (std.mem.eql(u8, n.style.textAlign, "center") and free_line_x > 0) {
+                    shift = free_line_x * 0.5;
+                } else if (std.mem.eql(u8, n.style.textAlign, "right") and free_line_x > 0) {
+                    shift = free_line_x;
+                }
+                if (shift > 0) {
+                    for (out[line_start..i]) |*item| item.x += shift;
+                }
+            }
+            cursor_y += line_h;
+            line_x = 0;
+            line_h = 0;
+            in_inline_run = false;
+        }
 
         var child_w = child.constrain(if (child.style.width) |width|
             child.borderSize(width, child_inset_x)
@@ -187,6 +300,22 @@ pub fn computeBlockLayout(
                 .is_empty = is_empty,
             };
         }
+    }
+
+    if (in_inline_run) {
+        const free_line_x = inner_width - line_x;
+        if (children_out) |out| {
+            var shift: f32 = 0;
+            if (std.mem.eql(u8, n.style.textAlign, "center") and free_line_x > 0) {
+                shift = free_line_x * 0.5;
+            } else if (std.mem.eql(u8, n.style.textAlign, "right") and free_line_x > 0) {
+                shift = free_line_x;
+            }
+            if (shift > 0) {
+                for (out[line_start..n.children.len]) |*item| item.x += shift;
+            }
+        }
+        cursor_y += line_h;
     }
 
     var collapsible_bottom = CollapsibleMarginSet.zero;

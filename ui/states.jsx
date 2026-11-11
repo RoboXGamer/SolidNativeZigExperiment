@@ -18,33 +18,6 @@ async function getStates() {
   return ["California", "Florida", "New York", "Texas", "Utah"];
 }
 
-function Dropdown({ label, items, selected, onSelect, loading }) {
-  const [open, setOpen] = createSignal(false);
-  return (
-    <column style={{ gap: 4 }}>
-      <button onClick={() => setOpen(!open())}>
-        {label}: {selected() ?? (loading() ? "Loading..." : "None")}
-      </button>
-      {open() && (
-        <column style={{ padding: 4, gap: 2, backgroundColor: "#222222" }}>
-          <For each={items()}>
-            {(item) => (
-              <button
-                onClick={() => {
-                  onSelect(item);
-                  setOpen(false);
-                }}
-              >
-                {item}
-              </button>
-            )}
-          </For>
-        </column>
-      )}
-    </column>
-  );
-}
-
 export default function States() {
   const [states, setStates] = createSignal([]);
   const [selectedState, setSelectedState] = createSignal(null);
@@ -52,6 +25,8 @@ export default function States() {
   const [selectedCity, setSelectedCity] = createSignal(null);
   const [loadingStates, setLoadingStates] = createSignal(true);
   const [loadingCities, setLoadingCities] = createSignal(false);
+
+  let cityRequestId = 0;
 
   onSettled(() => {
     (async () => {
@@ -66,12 +41,21 @@ export default function States() {
   createEffect(
     () => selectedState(),
     (state) => {
-      if (!state) return;
+      const token = ++cityRequestId;
+      if (!state) {
+        setCities([]);
+        setSelectedCity(null);
+        setLoadingCities(false);
+        return;
+      }
+      setLoadingCities(true);
+      setCities([]);
+      setSelectedCity(null);
       (async () => {
-        setLoadingCities(true);
         const c = await getCities(state);
+        if (token !== cityRequestId) return;
         setCities(c);
-        setSelectedCity(c[0]);
+        setSelectedCity(c[0] ?? null);
         setLoadingCities(false);
       })();
     },
@@ -80,21 +64,37 @@ export default function States() {
   return (
     <column style={{ padding: 20, gap: 8 }}>
       <label>Loading states: {loadingStates() ? "yes" : "no"}</label>
-      <Dropdown
-        label="State"
-        items={states}
-        selected={selectedState}
-        onSelect={setSelectedState}
-        loading={loadingStates}
-      />
+      <label>State:</label>
+      <select
+        value={selectedState() ?? ""}
+        onChange={(e) => setSelectedState(e.target.value)}
+        disabled={loadingStates()}
+      >
+        <For each={states()}>
+          {(state) => (
+            <option value={state} selected={state === selectedState()}>
+              {state}
+            </option>
+          )}
+        </For>
+      </select>
+
       <label>Loading cities: {loadingCities() ? "yes" : "no"}</label>
-      <Dropdown
-        label="City"
-        items={cities}
-        selected={selectedCity}
-        onSelect={setSelectedCity}
-        loading={loadingCities}
-      />
+      <label>City:</label>
+      <select
+        value={selectedCity() ?? ""}
+        onChange={(e) => setSelectedCity(e.target.value)}
+        disabled={loadingCities() || cities().length === 0}
+      >
+        <For each={cities()}>
+          {(city) => (
+            <option value={city} selected={city === selectedCity()}>
+              {city}
+            </option>
+          )}
+        </For>
+      </select>
+
       <label>
         Selection: {selectedCity() ?? ""}, {selectedState() ?? ""}
       </label>

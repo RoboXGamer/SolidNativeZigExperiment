@@ -22,13 +22,17 @@ function mount(Component) {
 // one axis and their children laid out on the other.
 function flexDirectionOf(node, style) {
   if (typeof style.flexDirection === "string") return style.flexDirection;
-  return ["row", "label", "button", "input"].includes(node.type) ? "row" : "column";
+  if (node.type === "select") return "column";
+  return ["row", "label", "button", "input", "option"].includes(node.type) ? "row" : "column";
 }
 
 function displayOf(node, style) {
   if (typeof style.display === "string") return style.display;
   if (node.type === "text") return "block";
   if (node.type === "grid") return "grid";
+  if (node.type === "option" && node.parent?.type === "select") {
+    return node.parent._open ? "flex" : "none";
+  }
   return "flex";
 }
 
@@ -174,12 +178,44 @@ export function snapshot(node, inherited = {}) {
       if (/^\d+(?:\.\d+)?px$/.test(track)) return Number(track.slice(0, -2));
       throw Error(`Unsupported grid track: ${track}; use px or fr tracks`);
     });
+  const isSelected = isSelectedOption(node);
+  const defaultSelectStyle = node.type === "select" ? {
+    backgroundColor: style.backgroundColor || "#2d2d2d",
+    borderColor: style.borderColor || "#4f4f4f",
+    borderTopWidth: lengths.borderTopWidth != null ? lengths.borderTopWidth : 1,
+    borderRightWidth: lengths.borderRightWidth != null ? lengths.borderRightWidth : 1,
+    borderBottomWidth: lengths.borderBottomWidth != null ? lengths.borderBottomWidth : 1,
+    borderLeftWidth: lengths.borderLeftWidth != null ? lengths.borderLeftWidth : 1,
+    borderRadius: typeof style.borderRadius === "number" ? style.borderRadius : 4,
+    paddingTop: lengths.paddingTop != null ? lengths.paddingTop : 6,
+    paddingBottom: lengths.paddingBottom != null ? lengths.paddingBottom : 6,
+    paddingLeft: lengths.paddingLeft != null ? lengths.paddingLeft : 10,
+    paddingRight: lengths.paddingRight != null ? lengths.paddingRight : 10,
+  } : {};
+  const defaultOptionStyle = node.type === "option" ? {
+    backgroundColor: style.backgroundColor || (isSelected ? "#2563eb" : "#1e1e1e"),
+    color: style.color || "#ffffff",
+    paddingTop: lengths.paddingTop != null ? lengths.paddingTop : 6,
+    paddingBottom: lengths.paddingBottom != null ? lengths.paddingBottom : 6,
+    paddingLeft: lengths.paddingLeft != null ? lengths.paddingLeft : 10,
+    paddingRight: lengths.paddingRight != null ? lengths.paddingRight : 10,
+  } : {};
   return {
     id: node.id,
     type: node.type,
-    text: node.text,
-    clickable: !node.props.disabled && (typeof node.props.onClick === "function" || node.type === "input"),
-    value: node.type === "input" ? String(node.props.value ?? "") : "",
+    text: node.type === "select" ? getSelectedLabel(node) :
+          node.type === "option" ? getOptionLabel(node) : node.text,
+    clickable: !node.props.disabled && (
+      typeof node.props.onClick === "function" ||
+      node.type === "input" ||
+      node.type === "select" ||
+      (node.type === "option" && (!node.parent || !node.parent.props.disabled))
+    ),
+    value: node.type === "input" ? String(node.props.value ?? "") :
+           node.type === "select" ? getSelectValue(node) :
+           node.type === "option" ? getOptionValue(node) : "",
+    selected: node.type === "option" ? isSelectedOption(node) : undefined,
+    open: node.type === "select" ? Boolean(node._open) : undefined,
     style: {
       direction: style.direction ?? "ltr",
       writingMode: style.writingMode,
@@ -219,16 +255,224 @@ export function snapshot(node, inherited = {}) {
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",
       ...textStyle,
+      ...defaultSelectStyle,
+      ...defaultOptionStyle,
     },
     children: node.children.map(child => snapshot(child, textStyle)),
   };
 }
 
-function findId(node, id) {
+export function getOptions(selectNode) {
+  const options = [];
+  function collect(n) {
+    if (!n) return;
+    if (n.type === "option") {
+      options.push(n);
+      return;
+    }
+    if (["optgroup", "div", "row", "column"].includes(n.type)) {
+      for (const child of n.children || []) collect(child);
+    }
+  }
+  for (const child of selectNode.children || []) {
+    collect(child);
+  }
+  return options;
+}
+
+export function getOptionLabel(optNode) {
+  let label = "";
+  function walk(n) {
+    if (!n) return;
+    if (n.type === "text") label += n.text ?? "";
+    for (const child of n.children || []) walk(child);
+  }
+  walk(optNode);
+  return label.trim() || String(optNode.props.value ?? "");
+}
+
+export function getOptionValue(optNode) {
+  if (optNode.props.value !== undefined) return String(optNode.props.value);
+  return getOptionLabel(optNode);
+}
+
+export function getSelectValue(selectNode) {
+  if (selectNode.props.value !== undefined && selectNode.props.value !== null) {
+    return String(selectNode.props.value);
+  }
+  if (selectNode._value !== undefined && selectNode._value !== null) {
+    return String(selectNode._value);
+  }
+  const options = getOptions(selectNode);
+  const selectedOpt = options.find(o => o.props.selected && !o.props.disabled);
+  if (selectedOpt) return getOptionValue(selectedOpt);
+  const firstEnabled = options.find(o => !o.props.disabled);
+  return firstEnabled ? getOptionValue(firstEnabled) : "";
+}
+
+export function getSelectedLabel(selectNode) {
+  const val = getSelectValue(selectNode);
+  const options = getOptions(selectNode);
+  const opt = options.find(o => getOptionValue(o) === val);
+  if (opt) return getOptionLabel(opt);
+  return val;
+}
+
+export function isSelectedOption(optNode) {
+  if (optNode.props.selected) return true;
+  if (optNode.parent && optNode.parent.type === "select") {
+    return getSelectValue(optNode.parent) === getOptionValue(optNode);
+  }
+  return false;
+}
+
+export function findId(node, id) {
+  if (!node) return null;
   if (node.id === id) return node;
-  for (const child of node.children) {
+  for (const child of node.children || []) {
     const match = findId(child, id);
     if (match) return match;
+  }
+  return null;
+}
+
+export function closeAllSelects(exceptNode = null) {
+  function walk(n) {
+    if (!n) return;
+    if (n.type === "select" && n !== exceptNode) {
+      n._open = false;
+    }
+    for (const child of n.children || []) walk(child);
+  }
+  walk(root);
+}
+
+export function dispatch(target, name, type, value) {
+  let stopped = false;
+  const event = {
+    type,
+    target: { id: target.id, value: value ?? target.props.value },
+    currentTarget: undefined,
+    stopPropagation() { stopped = true; },
+  };
+  for (let current = target; current; current = current.parent) {
+    event.currentTarget = { id: current.id, value: current.props.value };
+    if (typeof current.props[name] === "function") current.props[name](event);
+    if (stopped) break;
+  }
+}
+
+export function dispatchSelectChange(selectNode, newValue) {
+  selectNode.props.value = newValue;
+  selectNode._value = newValue;
+  dispatch(selectNode, "onInput", "input", newValue);
+  dispatch(selectNode, "onChange", "change", newValue);
+}
+
+export function dispatchClick(id) {
+  const target = findId(root, id);
+  if (!target) {
+    closeAllSelects();
+    return;
+  }
+  if (target.props.disabled) return;
+
+  if (target.type === "select") {
+    closeAllSelects(target);
+    target._open = !target._open;
+    if (target._open) {
+      target._initialValue = getSelectValue(target);
+      const options = getOptions(target).filter(o => !o.props.disabled);
+      target._highlightedIndex = options.findIndex(o => getOptionValue(o) === target._initialValue);
+    }
+    dispatch(target, "onClick", "click");
+    return;
+  }
+
+  if (target.type === "option") {
+    let selectNode = target.parent;
+    while (selectNode && selectNode.type !== "select") {
+      selectNode = selectNode.parent;
+    }
+    if (selectNode && !selectNode.props.disabled) {
+      const newValue = getOptionValue(target);
+      selectNode._open = false;
+      dispatch(target, "onClick", "click");
+      dispatchSelectChange(selectNode, newValue);
+    }
+    return;
+  }
+
+  closeAllSelects();
+  dispatch(target, "onClick", "click");
+}
+
+export function dispatchInput(id, value) {
+  const target = findId(root, id);
+  if (!target || target.type !== "input" || target.props.disabled || target.props.readOnly) return;
+  target.props.value = value;
+  dispatch(target, "onInput", "input", value);
+}
+
+export function dispatchKey(id, key) {
+  const target = findId(root, id);
+  if (!target) return;
+  if (target.type === "select" && !target.props.disabled) {
+    const options = getOptions(target).filter(o => !o.props.disabled);
+    if (options.length === 0) return;
+
+    if (key === "ArrowDown" || key === "Down") {
+      if (!target._open) {
+        const curVal = getSelectValue(target);
+        const curIdx = options.findIndex(o => getOptionValue(o) === curVal);
+        const nextIdx = Math.min(options.length - 1, (curIdx < 0 ? 0 : curIdx + 1));
+        const nextVal = getOptionValue(options[nextIdx]);
+        if (nextVal !== curVal) {
+          dispatchSelectChange(target, nextVal);
+        }
+      } else {
+        const curIdx = target._highlightedIndex ?? options.findIndex(o => getOptionValue(o) === getSelectValue(target));
+        target._highlightedIndex = Math.min(options.length - 1, (curIdx < 0 ? 0 : curIdx + 1));
+        const nextVal = getOptionValue(options[target._highlightedIndex]);
+        dispatchSelectChange(target, nextVal);
+      }
+    } else if (key === "ArrowUp" || key === "Up") {
+      if (!target._open) {
+        const curVal = getSelectValue(target);
+        const curIdx = options.findIndex(o => getOptionValue(o) === curVal);
+        const prevIdx = Math.max(0, (curIdx < 0 ? 0 : curIdx - 1));
+        const prevVal = getOptionValue(options[prevIdx]);
+        if (prevVal !== curVal) {
+          dispatchSelectChange(target, prevVal);
+        }
+      } else {
+        const curIdx = target._highlightedIndex ?? options.findIndex(o => getOptionValue(o) === getSelectValue(target));
+        target._highlightedIndex = Math.max(0, curIdx - 1);
+        const prevVal = getOptionValue(options[target._highlightedIndex]);
+        dispatchSelectChange(target, prevVal);
+      }
+    } else if (key === "Enter" || key === "Space" || key === " ") {
+      if (!target._open) {
+        closeAllSelects(target);
+        target._open = true;
+        target._initialValue = getSelectValue(target);
+        target._highlightedIndex = options.findIndex(o => getOptionValue(o) === target._initialValue);
+      } else {
+        const curIdx = target._highlightedIndex ?? options.findIndex(o => getOptionValue(o) === getSelectValue(target));
+        if (curIdx >= 0 && curIdx < options.length) {
+          const commitVal = getOptionValue(options[curIdx]);
+          dispatchSelectChange(target, commitVal);
+        }
+        target._open = false;
+      }
+    } else if (key === "Escape") {
+      if (target._open) {
+        if (target._initialValue !== undefined) {
+          dispatchSelectChange(target, target._initialValue);
+        }
+        target._open = false;
+      }
+    }
   }
 }
 
@@ -260,30 +504,9 @@ export function mountApp(Component) {
     return JSON.stringify({ root: root.id, nodes, removed });
   };
   globalThis.uiCommit = () => { if (pendingCommit) committed = pendingCommit; pendingCommit = undefined; };
-  function dispatch(target, name, type, value) {
-    let stopped = false;
-    const event = {
-      type,
-      target: { id: target.id, value: value ?? target.props.value },
-      currentTarget: undefined,
-      stopPropagation() { stopped = true; },
-    };
-    for (let current = target; current; current = current.parent) {
-      event.currentTarget = { id: current.id, value: current.props.value };
-      if (typeof current.props[name] === "function") current.props[name](event);
-      if (stopped) break;
-    }
-  }
-  globalThis.uiDispatchClick = id => {
-    const target = findId(root, id);
-    if (target && !target.props.disabled) dispatch(target, "onClick", "click");
-  };
-  globalThis.uiDispatchInput = (id, value) => {
-    const target = findId(root, id);
-    if (!target || target.type !== "input" || target.props.disabled || target.props.readOnly) return;
-    target.props.value = value;
-    dispatch(target, "onInput", "input", value);
-  };
+  globalThis.uiDispatchClick = id => dispatchClick(id);
+  globalThis.uiDispatchInput = (id, value) => dispatchInput(id, value);
+  globalThis.uiDispatchKey = (id, key) => dispatchKey(id, key);
   globalThis.uiDispose = () => {
     dispose?.();
     dispose = undefined;

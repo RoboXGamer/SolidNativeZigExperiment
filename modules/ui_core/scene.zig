@@ -26,7 +26,7 @@ pub const Node = struct {
 
     /// Padding ring; controls provide a default which author values override.
     pub fn padding(self: *const Node) Edges {
-        const default: f32 = if (std.mem.eql(u8, self.type, "button") or std.mem.eql(u8, self.type, "input")) 10 else 0;
+        const default: f32 = if (std.mem.eql(u8, self.type, "button") or std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "select") or std.mem.eql(u8, self.type, "option")) 10 else 0;
         const base = self.style.padding orelse default;
         return .{
             .top = self.style.paddingTop orelse base,
@@ -152,6 +152,11 @@ pub const Scene = struct {
     fn intrinsicWidth(self: *const Scene, n: *const Node, minimum: bool) f32 {
         const frame = n.padding().horizontal() + n.border().horizontal();
         if (std.mem.eql(u8, n.type, "text")) return frame + if (minimum) self.text.minContentWidth(n.text, n.fontSize()) else self.text.maxContentWidth(n.text, n.fontSize());
+        if (std.mem.eql(u8, n.type, "select") and n.children.len == 0) {
+            const display_text = if (n.text.len > 0) n.text else n.value;
+            const text_w = if (minimum) self.text.minContentWidth(display_text, n.fontSize()) else self.text.maxContentWidth(display_text, n.fontSize());
+            return frame + text_w + self.text.maxContentWidth(" v", n.fontSize());
+        }
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         var width: f32 = 0;
         for (n.children, 0..) |*child, i| {
@@ -180,6 +185,9 @@ pub const Scene = struct {
     fn intrinsicHeight(self: *const Scene, n: *const Node) f32 {
         const frame = n.padding().vertical() + n.border().vertical();
         if (std.mem.eql(u8, n.type, "text")) return frame + if (n.text.len == 0) @as(f32, 0) else self.text.lineHeight(n.fontSize());
+        if (std.mem.eql(u8, n.type, "select") and n.children.len == 0) {
+            return frame + self.text.lineHeight(n.fontSize());
+        }
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         var height: f32 = 0;
         for (n.children, 0..) |*child, i| {

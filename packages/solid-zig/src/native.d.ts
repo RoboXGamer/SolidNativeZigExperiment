@@ -1,7 +1,7 @@
 import type { Component, Element as SolidElement } from "solid-js";
 
 export interface NativeEvent {
-  type: "click" | "input";
+  type: "click" | "input" | "change";
   target: { id: number; value?: string };
   currentTarget: { id: number; value?: string };
   stopPropagation(): void;
@@ -9,6 +9,11 @@ export interface NativeEvent {
 
 export interface NativeInputEvent extends NativeEvent {
   type: "input";
+  target: { id: number; value: string };
+}
+
+export interface NativeChangeEvent extends NativeEvent {
+  type: "change";
   target: { id: number; value: string };
 }
 
@@ -108,10 +113,12 @@ export interface NativeProps {
   style?: NativeStyle;
   ref?: ((node: NativeNode) => void) | NativeNode;
   onClick?: (event: NativeEvent) => void;
-  onInput?: (event: NativeInputEvent) => void;
-  value?: string;
+  onInput?: (event: NativeInputEvent | NativeChangeEvent) => void;
+  onChange?: (event: NativeChangeEvent) => void;
+  value?: string | number;
   disabled?: boolean;
   readOnly?: boolean;
+  selected?: boolean;
 }
 
 export namespace JSX {
@@ -126,7 +133,13 @@ export namespace JSX {
     button: NativeProps;
     input: NativeProps;
     grid: NativeProps;
+    select: NativeProps;
+    option: NativeProps;
+    optgroup: NativeProps;
   }
 }
 
+export function dispatchClick(id: number): void;
+export function dispatchInput(id: number, value: string): void;
+export function dispatchKey(id: number, key: string): void;
 export function mountApp(component: Component): void;

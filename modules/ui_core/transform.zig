@@ -119,28 +119,21 @@ pub const Matrix2D = struct {
 };
 
 fn parseAngle(str: []const u8) !f32 {
-    const trimmed = std.mem.trim(u8, str, " \t\r\n");
-    if (std.mem.endsWith(u8, trimmed, "deg")) {
-        const num = try std.fmt.parseFloat(f32, trimmed[0 .. trimmed.len - 3]);
-        return num * (std.math.pi / 180.0);
-    } else if (std.mem.endsWith(u8, trimmed, "rad")) {
-        return try std.fmt.parseFloat(f32, trimmed[0 .. trimmed.len - 3]);
-    } else if (std.mem.endsWith(u8, trimmed, "turn")) {
-        const num = try std.fmt.parseFloat(f32, trimmed[0 .. trimmed.len - 4]);
-        return num * (2.0 * std.math.pi);
-    } else {
-        // Plain number defaults to radians or degrees? In CSS deg is standard for angle properties.
-        const num = try std.fmt.parseFloat(f32, trimmed);
-        return num * (std.math.pi / 180.0);
-    }
+    const input = std.mem.trim(u8, str, " \t\r\n");
+    if (std.fmt.parseFloat(f32, input)) |v| return v * std.math.pi / 180 else |_| {}
+    const value = try @import("sizing.zig").resolveValue(input, .{});
+    if (value.dimension != .angle) return error.InvalidTransformArgs;
+    const degrees = value.value orelse return error.InvalidTransformArgs;
+    if (!std.math.isFinite(degrees)) return error.InvalidTransformArgs;
+    return degrees * std.math.pi / 180;
 }
-
 fn parseLength(str: []const u8) !f32 {
-    const trimmed = std.mem.trim(u8, str, " \t\r\n");
-    if (std.mem.endsWith(u8, trimmed, "px")) {
-        return try std.fmt.parseFloat(f32, trimmed[0 .. trimmed.len - 2]);
-    }
-    return try std.fmt.parseFloat(f32, trimmed);
+    const input = std.mem.trim(u8, str, " \t\r\n");
+    if (std.fmt.parseFloat(f32, input)) |v| return v else |_| {}
+    return switch (try @import("sizing.zig").resolve(input, .{})) {
+        .length => |v| v,
+        else => error.InvalidTransformArgs,
+    };
 }
 
 /// Parses a 2D CSS transform string into a cumulative Matrix2D.
@@ -175,7 +168,7 @@ pub fn parseTransformSized(css: []const u8, width: f32, height: f32) !Matrix2D {
         const args_end = if (i > 0) i - 1 else args_start;
         const args_str = css[args_start..args_end];
 
-        var args_it = std.mem.tokenizeAny(u8, args_str, ", \t");
+        var args_it = @import("css_syntax.zig").Tokens{ .input = args_str, .separators = ", \t" };
 
         if (std.mem.eql(u8, fn_name, "translate")) {
             const tx_str = args_it.next() orelse return error.InvalidTransformArgs;
@@ -275,6 +268,10 @@ pub fn parseTransformOrigin(css: []const u8, width: f32, height: f32) Point {
 }
 
 fn sizedLength(str: []const u8, size: f32) !f32 {
-    if (std.mem.endsWith(u8, str, "%")) return (try std.fmt.parseFloat(f32, str[0 .. str.len - 1])) * size / 100;
-    return parseLength(str);
+    const input = std.mem.trim(u8, str, " \t\r\n");
+    if (std.fmt.parseFloat(f32, input)) |v| return v else |_| {}
+    return switch (try @import("sizing.zig").resolve(input, .{ .percentage = size })) {
+        .length => |v| v,
+        else => error.InvalidTransformArgs,
+    };
 }

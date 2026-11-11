@@ -21,38 +21,8 @@ fn color(value: []const u8, fallback: rl.Color) rl.Color {
 
 fn colorWithOpacity(value: []const u8, fallback: rl.Color, opacity: f32) rl.Color {
     var c = fallback;
-    const trimmed = std.mem.trim(u8, value, " \t\r\n");
-    if (trimmed.len == 7 and trimmed[0] == '#') {
-        if (std.fmt.parseInt(u32, trimmed[1..], 16)) |rgb| {
-            c = rl.Color.init(@intCast((rgb >> 16) & 255), @intCast((rgb >> 8) & 255), @intCast(rgb & 255), 255);
-        } else |_| {}
-    } else if (trimmed.len == 9 and trimmed[0] == '#') {
-        if (std.fmt.parseInt(u32, trimmed[1..], 16)) |rgba| {
-            c = rl.Color.init(@intCast((rgba >> 24) & 255), @intCast((rgba >> 16) & 255), @intCast((rgba >> 8) & 255), @intCast(rgba & 255));
-        } else |_| {}
-    } else if (std.mem.startsWith(u8, trimmed, "rgb(") or std.mem.startsWith(u8, trimmed, "rgba(")) {
-        const start = std.mem.indexOfScalar(u8, trimmed, '(') orelse 0;
-        const end = std.mem.lastIndexOfScalar(u8, trimmed, ')') orelse trimmed.len;
-        var it = std.mem.tokenizeAny(u8, trimmed[start + 1 .. end], ",/ \t");
-        const r_str = it.next();
-        const g_str = it.next();
-        const b_str = it.next();
-        const a_str = it.next();
-        if (r_str != null and g_str != null and b_str != null) {
-            const r = std.fmt.parseInt(u8, std.mem.trim(u8, r_str.?, " "), 10) catch 0;
-            const g = std.fmt.parseInt(u8, std.mem.trim(u8, g_str.?, " "), 10) catch 0;
-            const b = std.fmt.parseInt(u8, std.mem.trim(u8, b_str.?, " "), 10) catch 0;
-            var a: u8 = 255;
-            if (a_str) |as| {
-                const a_flt = std.fmt.parseFloat(f32, std.mem.trim(u8, as, " ")) catch 1.0;
-                a = @intFromFloat(std.math.clamp(a_flt * 255.0, 0, 255));
-            }
-            c = rl.Color.init(r, g, b, a);
-        }
-    }
-    const op = std.math.clamp(opacity, 0.0, 1.0);
-    const alpha_f = @as(f32, @floatFromInt(c.a)) * op;
-    c.a = @intFromFloat(std.math.clamp(alpha_f, 0, 255));
+    if (ui.gradient.parseColor(value)) |rgba| c = rl.Color.init(rgba[0], rgba[1], rgba[2], rgba[3]);
+    c.a = @intFromFloat(@as(f32, @floatFromInt(c.a)) * std.math.clamp(opacity, 0, 1));
     return c;
 }
 

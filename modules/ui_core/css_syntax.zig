@@ -1,5 +1,29 @@
 //! Small balanced-token scanner shared by CSS value consumers.
 const std = @import("std");
+/// Balanced splitting retains empty fields, so invalid commas/slashes stay invalid.
+pub const Split = struct {
+    input: []const u8,
+    separator: u8,
+    pos: usize = 0,
+    done: bool = false,
+    pub fn next(self: *Split) ?[]const u8 {
+        if (self.done) return null;
+        const start = self.pos;
+        var depth: usize = 0;
+        while (self.pos < self.input.len) : (self.pos += 1) {
+            const c = self.input[self.pos];
+            if (c == '(') depth += 1 else if (c == ')') {
+                if (depth > 0) depth -= 1;
+            } else if (depth == 0 and c == self.separator) {
+                const end = self.pos;
+                self.pos += 1;
+                return std.mem.trim(u8, self.input[start..end], " \t\r\n");
+            }
+        }
+        self.done = true;
+        return std.mem.trim(u8, self.input[start..], " \t\r\n");
+    }
+};
 pub const Tokens = struct {
     input: []const u8,
     separators: []const u8,

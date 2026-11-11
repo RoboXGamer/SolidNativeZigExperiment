@@ -1,0 +1,295 @@
+{
+    "date":  "2026-11-12",
+    "scope":  "native Solid/Zig consumer paths",
+    "validationPaused":  true,
+    "issues":  [
+                   {
+                       "issue":  232,
+                       "feature":  "static-positioning",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.properties.position.static"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/scene.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  179,
+                       "feature":  "opacity",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.properties.opacity",
+                                                 "css.properties.opacity.percentages",
+                                                 "css.types.number",
+                                                 "css.types.number.scientific_notation"
+                                             ],
+                       "implementationOwner":  "packages/solid-zig/src/native.js; modules/ui_core/scene.zig; src/renderer.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  143,
+                       "feature":  "isolation",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.properties.isolation"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/scene.zig; src/renderer.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  63,
+                       "feature":  "cubic-bezier-easing",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.easing-function",
+                                                 "css.types.easing-function.cubic-bezier"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/animation.zig; modules/ui_core/transitions.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  233,
+                       "feature":  "steps-easing",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.easing-function.steps",
+                                                 "css.types.easing-function.steps.jump"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/animation.zig; modules/ui_core/transitions.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  152,
+                       "feature":  "linear-easing",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.easing-function.linear-function"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/animation.zig; modules/ui_core/transitions.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  289,
+                       "feature":  "abs-sign",
+                       "baseline":  2025,
+                       "compatibilityKeys":  [
+                                                 "css.types.abs",
+                                                 "css.types.sign"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/sizing.zig; modules/ui_core/css_math.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  30,
+                       "feature":  "calc-constants",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.calc-keyword",
+                                                 "css.types.calc-keyword.e",
+                                                 "css.types.calc-keyword.infinity",
+                                                 "css.types.calc-keyword.NaN",
+                                                 "css.types.calc-keyword.pi"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/sizing.zig; modules/ui_core/css_math.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  267,
+                       "feature":  "trig-functions",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.acos",
+                                                 "css.types.asin",
+                                                 "css.types.atan",
+                                                 "css.types.atan2",
+                                                 "css.types.cos",
+                                                 "css.types.sin",
+                                                 "css.types.tan"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/sizing.zig; modules/ui_core/css_math.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  80,
+                       "feature":  "exp-functions",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.exp",
+                                                 "css.types.hypot",
+                                                 "css.types.log",
+                                                 "css.types.pow",
+                                                 "css.types.sqrt"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/sizing.zig; modules/ui_core/css_math.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  215,
+                       "feature":  "round-mod-rem",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.mod",
+                                                 "css.types.mod.mixed_type_parameters",
+                                                 "css.types.rem",
+                                                 "css.types.rem.mixed_type_parameters",
+                                                 "css.types.round",
+                                                 "css.types.round.mixed_type_parameters"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/sizing.zig; modules/ui_core/css_math.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  169,
+                       "feature":  "named-color",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.color.named-color",
+                                                 "css.types.color.named-color.rebeccapurple",
+                                                 "css.types.color.named-color.transparent"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/colors.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  212,
+                       "feature":  "rgb",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.color.rgb",
+                                                 "css.types.color.rgb.alpha_parameter",
+                                                 "css.types.color.rgb.float_values",
+                                                 "css.types.color.rgb.mixed_type_parameters",
+                                                 "css.types.color.rgb.space_separated_parameters",
+                                                 "css.types.color.rgb_hexadecimal_notation",
+                                                 "css.types.color.rgb_hexadecimal_notation.alpha_hexadecimal_notation"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/colors.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  127,
+                       "feature":  "hsl",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.color.hsl",
+                                                 "css.types.color.hsl.alpha_parameter",
+                                                 "css.types.color.hsl.mixed_type_parameters",
+                                                 "css.types.color.hsl.space_separated_parameters"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/colors.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  128,
+                       "feature":  "hwb",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.color.hwb",
+                                                 "css.types.color.hwb.mixed_type_parameters"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/colors.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  144,
+                       "feature":  "lab",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.color.lab",
+                                                 "css.types.color.lab.mixed_type_parameters",
+                                                 "css.types.color.lch",
+                                                 "css.types.color.lch.mixed_type_parameters"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/colors.zig",
+                       "status":  "partial-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  178,
+                       "feature":  "oklab",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.color.oklab",
+                                                 "css.types.color.oklab.mixed_type_parameters",
+                                                 "css.types.color.oklch",
+                                                 "css.types.color.oklch.mixed_type_parameters"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/colors.zig",
+                       "status":  "partial-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  41,
+                       "feature":  "color-function",
+                       "baseline":  2024,
+                       "compatibilityKeys":  [
+                                                 "css.types.color.color",
+                                                 "css.types.color.color.mixed_type_parameters"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/colors.zig",
+                       "status":  "partial-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  293,
+                       "feature":  "conic-gradients",
+                       "baseline":  2025,
+                       "compatibilityKeys":  [
+                                                 "css.types.gradient.conic-gradient.single_color_stop",
+                                                 "css.types.gradient.repeating-conic-gradient.single_color_stop"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/gradient.zig; src/renderer.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   },
+                   {
+                       "issue":  297,
+                       "feature":  "gradients",
+                       "baseline":  2025,
+                       "compatibilityKeys":  [
+                                                 "css.types.gradient.linear-gradient.single_color_stop",
+                                                 "css.types.gradient.radial-gradient.single_color_stop",
+                                                 "css.types.gradient.repeating-linear-gradient.single_color_stop",
+                                                 "css.types.gradient.repeating-radial-gradient.single_color_stop"
+                                             ],
+                       "implementationOwner":  "modules/ui_core/gradient.zig; src/renderer.zig",
+                       "status":  "implemented-unverified",
+                       "validation":  "Not run: user explicitly paused builds and tests",
+                       "browserConformance":  "Not certified"
+                   }
+               ]
+}

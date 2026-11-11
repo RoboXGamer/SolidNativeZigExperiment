@@ -76,7 +76,7 @@ export interface NativeStyle {
   marginBlockEnd?: NativeLength;
   backgroundColor?: string;
   color?: string;
-  fontSize?: number;
+  fontSize?: number | string;
   lineHeight?: NativeLength;
   whiteSpace?: "normal" | "nowrap" | "pre" | "pre-wrap" | "pre-line";
   textAlign?: "left" | "center" | "right" | "justify";
@@ -135,7 +135,8 @@ export interface NativeStyle {
   justifySelf?: string;
   backgroundGradient?: string;
   backgroundImage?: string;
-  opacity?: number;
+  opacity?: number | string;
+  isolation?: "auto" | "isolate";
   transform?: string;
   transformOrigin?: string;
   transition?: string;

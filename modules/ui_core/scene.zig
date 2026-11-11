@@ -70,9 +70,10 @@ pub const Node = struct {
         };
     }
 
-    /// Border box of this node laid out at `bounds` (content box in this engine).
+    /// Layout bounds are the border box, excluding the node's margins.
     pub fn borderBox(self: *const Node, bounds: Rect) Rect {
-        return bounds.outset(self.border());
+        _ = self;
+        return bounds;
     }
 
     /// Padding box of this node laid out at `bounds`.
@@ -140,7 +141,7 @@ pub const Scene = struct {
             return if (n.text.len == 0) frame else self.text.lineHeight(n.fontSize()) + frame;
         }
         var total: f32 = 0;
-        if (n.style.columns.len > 0) {
+        if (std.mem.eql(u8, n.style.display, "grid") and n.style.columns.len > 0) {
             var row_height: f32 = 0;
             for (n.children, 0..) |*child, i| {
                 row_height = @max(row_height, self.outerHeight(child));
@@ -151,7 +152,8 @@ pub const Scene = struct {
             }
             return total + frame;
         }
-        const is_row = std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse");
+        const is_row = std.mem.eql(u8, n.style.display, "flex") and
+            (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         if (is_row) {
             for (n.children) |*child| total = @max(total, self.outerHeight(child));
         } else {
@@ -170,10 +172,10 @@ pub const Scene = struct {
 
     pub fn layout(self: *Scene, n: *const Node, bounds_in: Rect, parent_id: ?u32) std.mem.Allocator.Error!void {
         var b = bounds_in;
-        if (n.style.minWidth > 0) b.width = @max(b.width, n.style.minWidth);
-        if (n.style.minHeight > 0) b.height = @max(b.height, n.style.minHeight);
         if (n.style.maxWidth > 0) b.width = @min(b.width, n.style.maxWidth);
         if (n.style.maxHeight > 0) b.height = @min(b.height, n.style.maxHeight);
+        if (n.style.minWidth > 0) b.width = @max(b.width, n.style.minWidth);
+        if (n.style.minHeight > 0) b.height = @max(b.height, n.style.minHeight);
         if (n.style.aspectRatio > 0 and b.height == 0) b.height = b.width / n.style.aspectRatio;
         const bounds = b;
         try self.index.put(self.arena.allocator(), n.id, self.items.items.len);
@@ -181,12 +183,11 @@ pub const Scene = struct {
 
         const pad = n.padding();
         const bd = n.border();
-        const mg = n.margin();
-        const inset_x = pad.horizontal() + bd.horizontal() + mg.horizontal();
+        const inset_x = pad.horizontal() + bd.horizontal();
         const inner_width = @max(0, bounds.width - inset_x);
-        const inner_height = @max(0, bounds.height - (pad.vertical() + bd.vertical() + mg.vertical()));
+        const inner_height = @max(0, bounds.height - (pad.vertical() + bd.vertical()));
 
-        if (n.style.columns.len > 0) {
+        if (std.mem.eql(u8, n.style.display, "grid") and n.style.columns.len > 0) {
             var fixed: f32 = 0;
             var fractions: f32 = 0;
             for (n.style.columns) |track| {
@@ -201,7 +202,7 @@ pub const Scene = struct {
                 const track = n.style.columns[column];
                 const width = if (track >= 0) track else if (fractions > 0) free * -track / fractions else 0;
                 const height = self.naturalHeight(child);
-                try self.layout(child, .{ .x = bounds.x + pad.left + bd.left + mg.left + x, .y = bounds.y + pad.top + bd.top + mg.top + y, .width = width, .height = height }, n.id);
+                try self.layout(child, .{ .x = bounds.x + pad.left + bd.left + x, .y = bounds.y + pad.top + bd.top + y, .width = width, .height = height }, n.id);
                 row_height = @max(row_height, height);
                 x += width + n.style.gap;
                 if (column + 1 == n.style.columns.len) {

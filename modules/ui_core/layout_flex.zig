@@ -234,7 +234,6 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
 
     const pad = n.padding();
     const bd = n.border();
-    const mg = n.margin();
 
     // Scene-owned workspace scales with the actual children instead of silently
     // dropping siblings after a fixed stack buffer fills up.
@@ -375,8 +374,8 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inne
     }
 
     // Container content origins, from the box model rings.
-    const main_base = if (is_row) bounds.x + pad.left + bd.left + mg.left else bounds.y + pad.top + bd.top + mg.top;
-    const cross_base = if (is_row) bounds.y + pad.top + bd.top + mg.top else bounds.x + pad.left + bd.left + mg.left;
+    const main_base = if (is_row) bounds.x + pad.left + bd.left else bounds.y + pad.top + bd.top;
+    const cross_base = if (is_row) bounds.y + pad.top + bd.top else bounds.x + pad.left + bd.left;
 
     // Lay out each line.
     for (0..line_count) |li| {

@@ -2,6 +2,58 @@ const std = @import("std");
 const root = @import("root.zig");
 const Scene = root.Scene;
 
+// These regression fixtures were written under the application testing pause.
+test "block sibling advances by constrained height" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"height":10,"minHeight":50}},{"id":3,"type":"column","style":{"height":10}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 200);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 50), scene.find(2).?.bounds.height);
+    try std.testing.expectEqual(@as(f32, 50), scene.find(3).?.bounds.y);
+}
+
+test "block natural height ignores flex direction" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block","flexDirection":"row"},"children":[{"id":3,"type":"column","style":{"height":10}},{"id":4,"type":"column","style":{"height":10}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 200);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 20), scene.find(2).?.bounds.height);
+    try std.testing.expectEqual(@as(f32, 10), scene.find(4).?.bounds.y);
+}
+
+test "nested block margin is an outer offset" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block","width":100,"marginLeft":10},"children":[{"id":3,"type":"column","style":{"width":100,"height":10}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 200);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 10), scene.find(2).?.bounds.x);
+    try std.testing.expectEqual(@as(f32, 10), scene.find(3).?.bounds.x);
+    try std.testing.expectEqual(@as(f32, 100), scene.find(3).?.bounds.width);
+}
+
+test "minimum wins conflicting maximum" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":75,"height":75,"minWidth":100,"maxWidth":50,"minHeight":100,"maxHeight":50}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 200);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 100), scene.find(2).?.bounds.width);
+    try std.testing.expectEqual(@as(f32, 100), scene.find(2).?.bounds.height);
+}
+
+test "grid tracks do not override block display" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","columns":[30,30]},"children":[{"id":2,"type":"column","style":{"height":10}},{"id":3,"type":"column","style":{"height":10}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 300, 200);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 0), scene.find(3).?.bounds.x);
+    try std.testing.expectEqual(@as(f32, 10), scene.find(3).?.bounds.y);
+}
+
 test "layout and hit testing use node identity" {
     const json =
         \\{"id":1,"type":"root","children":[{"id":2,"type":"button","clickable":true,"children":[{"id":3,"type":"text","text":"Click"}]}]}

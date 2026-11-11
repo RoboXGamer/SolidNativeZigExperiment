@@ -19,14 +19,12 @@ pub fn collapsePair(a: f32, b: f32) f32 {
 pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) std.mem.Allocator.Error!void {
     const pad = n.padding();
     const bd = n.border();
-    const mg = n.margin();
 
     var cursor_y: f32 = 0;
     var prev_mb: f32 = 0;
     var first_child = true;
     const parent_bfc = !std.mem.eql(u8, n.style.overflow, "visible");
     const parent_can_collapse_top = pad.top == 0 and bd.top == 0 and !parent_bfc;
-    var parent_top_margin_used: f32 = mg.top;
 
     for (n.children) |*child| {
         const child_mg = child.margin();
@@ -35,11 +33,10 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) std.
         const child_bd = child.border();
         const child_pad = child.padding();
         const child_inset_x = child_pad.horizontal() + child_bd.horizontal();
-        var child_w = if (child.style.width > 0)
+        const child_w = if (child.style.width > 0)
             (if (std.mem.eql(u8, child.style.boxSizing, "content-box")) child.style.width + child_inset_x else child.style.width)
         else
             inner_width;
-        if (child_w > inner_width) child_w = inner_width;
         const child_h = self.naturalHeight(child);
 
         // A box with no content, no fixed height and no padding/border collapses
@@ -47,19 +44,18 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) std.
         const is_empty = child_h == 0 and child.style.height == 0 and child.children.len == 0 and
             child_pad.vertical() == 0 and child_bd.vertical() == 0;
 
-        const content_top = bounds.y + pad.top + bd.top + (if (parent_can_collapse_top) parent_top_margin_used else 0);
-        const x = bounds.x + pad.left + bd.left + mg.left + child_mg.left;
+        const content_top = bounds.y + pad.top + bd.top;
+        const x = bounds.x + pad.left + bd.left + child_mg.left;
 
         if (is_empty) {
             // The empty box renders at zero height; its margins merge into the
             // gap left for the next sibling instead of advancing the cursor.
             const own_top = if (first_child) cmt else collapsePair(prev_mb, cmt);
             const y0 = if (first_child)
-                bounds.y + pad.top + bd.top + (if (parent_can_collapse_top) parent_top_margin_used else mg.top + cmt)
+                content_top + (if (parent_can_collapse_top) 0 else cmt)
             else
-                bounds.y + pad.top + bd.top + (if (parent_can_collapse_top) parent_top_margin_used else mg.top) + cursor_y + own_top;
+                content_top + cursor_y + own_top;
             try self.layout(child, .{ .x = x, .y = y0, .width = child_w, .height = 0 }, n.id);
-            if (first_child and parent_can_collapse_top) parent_top_margin_used = @max(mg.top, collapsePair(cmt, cmb));
             prev_mb = if (first_child) collapsePair(cmt, cmb) else collapsePair(own_top, cmb);
             first_child = false;
             continue;
@@ -68,7 +64,6 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) std.
         var margin_before: f32 = 0;
         if (first_child) {
             if (parent_can_collapse_top) {
-                parent_top_margin_used = @max(mg.top, cmt);
                 margin_before = 0;
             } else {
                 margin_before = cmt;
@@ -82,11 +77,12 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) std.
         else
             content_top + cursor_y + margin_before;
         try self.layout(child, .{ .x = x, .y = y, .width = child_w, .height = child_h }, n.id);
+        const used_height = self.find(child.id).?.bounds.height;
 
         if (first_child) {
-            cursor_y = (if (parent_can_collapse_top) 0 else cmt) + child_h;
+            cursor_y = (if (parent_can_collapse_top) 0 else cmt) + used_height;
         } else {
-            cursor_y = cursor_y + margin_before + child_h;
+            cursor_y = cursor_y + margin_before + used_height;
         }
         prev_mb = cmb;
         first_child = false;

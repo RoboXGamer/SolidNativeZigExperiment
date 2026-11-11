@@ -11,6 +11,12 @@ pub fn build(b: *std.Build) void {
     });
     module.addImport("raylib", raylib.module("raylib"));
     module.linkLibrary(raylib.artifact("raylib"));
+    module.addIncludePath(b.path("vendor/quickjs"));
+    module.addCSourceFiles(.{
+        .files = &.{ "src/quickjs_bridge.c", "vendor/quickjs/cutils.c", "vendor/quickjs/dtoa.c", "vendor/quickjs/libregexp.c", "vendor/quickjs/libunicode.c", "vendor/quickjs/quickjs.c" },
+        .flags = &.{ "-D_GNU_SOURCE", "-DWIN32_LEAN_AND_MEAN", "-D_WIN32_WINNT=0x0601" },
+    });
+    module.link_libc = true;
     const exe = b.addExecutable(.{
         .name = "windows",
         .root_module = b.createModule(.{

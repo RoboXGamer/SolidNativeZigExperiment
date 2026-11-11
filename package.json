@@ -1,9 +1,12 @@
 {
   "private": true,
+  "type": "module",
   "scripts": {
     "build:ui": "vite build",
     "dev:ui": "node tools/dev.mjs",
-    "dev:app": "pnpm run build:ui && node tools/run.mjs"
+    "dev:app": "vite build --mode native-hmr && node tools/run.mjs",
+    "test:ui": "pnpm run build:ui && node tools/test-ui.mjs",
+    "test:refresh": "node --conditions=browser --conditions=development tests/refresh_probe.mjs"
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.21",

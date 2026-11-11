@@ -44,6 +44,7 @@
         "vendor",
         "ui",
         "tools",
+        "tests",
         "package.json",
         "vite.config.mjs",
         "pnpm-lock.yaml",

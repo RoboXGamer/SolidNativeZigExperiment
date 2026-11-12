@@ -4,52 +4,49 @@ Scope note: this file is a standalone backlog record. It is **not** part of the
 12-batch integration PR (#328) and carries no validation claims for any item
 listed here.
 
-The 12 original batches integrated into `master` covered 120 distinct GitHub
-issues across `#168`–`#308`. Two separate groups of work remain open:
+The 12 original batches integrated into `master` (PR #328) covered 120 distinct
+GitHub issues across `#168`–`#308`. **None of those 120 were closed by the
+integration** — all 120 remain open. The PR body itself stated "No issue
+closures or complete CSS conformance claim."
 
-1. **21 issues in the `#168`–`#308` range that no batch covered.**
-2. **5 issues whose batch implementation landed but is documented as partial.**
+The earlier version of this file incorrectly listed 21 issues in that range as
+"not covered by any batch." Those 21 are in fact already **closed** by earlier
+merged work (PRs #314 and #315 plus Phase E / box-model work) and are not
+remaining work.
+
+What remains open from this integration:
+
+1. **5 issues whose batch implementation landed but is documented as partial.**
+2. **#144 (Lab and LCH) and #41 (color())** — open, marked
+   `partial-unverified` by the earlier css-subsystem batch (#314).
+3. **146 other open issues below `#168`** from the original 2024 Baseline
+   catalog that were never part of the 12 batches.
 
 All 26 issues are still OPEN on `RoboXGamer/SolidNativeZigExperiment`. None of
 them were implemented, and none were validated.
 
 ---
 
-## Group 1 — Not covered by any of the 12 batches (21 issues)
+## Group 1 — Correction: the 21 "uncovered" issues are already closed
 
-These issue numbers fall inside the `#168`–`#308` span covered by the batches,
-but were never assigned to one of the 12 batch scopes.
+Note: a earlier pass of this file listed 21 issues inside `#168`–`#308` that
+appeared to fall outside the 12 batch scopes. That was wrong. Those 21 issues
+are in fact **already CLOSED** on GitHub — they were implemented and closed by
+earlier merged work, not by the 12-batch integration:
 
-### CSS 2024 (18 issues)
+- 10 of them (#169, #179, #212, #215, #232, #233, #267, #289, #293, #297)
+  were closed by PR #314 (`feat/css-small-batch`) via "Fixes #N".
+- 4 of them (#180, #181, #241, #285) were closed by PR #315
+  (`feat/css-app-essentials`).
+- The remaining 7 (#183, #184, #186, #245, #275, #276, #280) were closed by
+  earlier Phase E / box-model-sizing work.
 
-| Issue | Title | Feature key |
-|---|---|---|
-| #169 | Named colors | `named-color` |
-| #179 | opacity | `opacity` |
-| #180 | outline | `outline` |
-| #181 | Outlines | `outlines` |
-| #183 | overflow: clip | `overflow-clip` |
-| #184 | overflow | `overflow-shorthand` |
-| #186 | padding | `padding` |
-| #212 | RGB | `rgb` |
-| #215 | round(), mod(), and rem() | `round-mod-rem` |
-| #232 | Static positioning | `static-positioning` |
-| #233 | steps() easing | `steps-easing` |
-| #241 | tab-size | `tab-size` |
-| #245 | text-align | `text-align` |
-| #267 | Trigonometric functions | `trig-functions` |
-| #275 | Small, large, and dynamic viewport units | `viewport-unit-variants` |
-| #276 | Viewport units | `viewport-units` |
-| #280 | white-space | `white-space` |
-| #285 | word-spacing | `word-spacing` |
+They are **not** remaining work and should not be re-opened. They are listed
+here only so the earlier incorrect "remaining 21" list is corrected.
 
-### CSS 2025 additions (3 issues)
-
-| Issue | Title | Feature key |
-|---|---|---|
-| #289 | abs() and sign() | `abs-sign` |
-| #293 | Conic gradients | `conic-gradients` |
-| #297 | Gradients | `gradients` |
+The 120 issues that **were** covered by the 12 batches are all still **OPEN**
+after the integration PR #328 — none were closed. The PR body itself stated
+"No issue closures or complete CSS conformance claim."
 
 ---
 

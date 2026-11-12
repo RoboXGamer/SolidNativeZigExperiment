@@ -27,7 +27,30 @@ function flexDirectionOf(node, style) {
 }
 
 function displayOf(node, style) {
-  if (typeof style.display === "string") return style.display;
+  let d = style.display;
+  if (typeof d === "string") {
+    const tokens = d.trim().toLowerCase().split(/\s+/);
+    if (tokens.length === 2) {
+      const [first, second] = tokens;
+      const outside = ["block", "inline"].includes(first) ? first : (["block", "inline"].includes(second) ? second : null);
+      const inside = ["flow", "flow-root", "flex", "grid", "table", "ruby"].includes(second) ? second : (["flow", "flow-root", "flex", "grid", "table", "ruby"].includes(first) ? first : null);
+      if (outside === "block" && inside === "flow") return "block";
+      if (outside === "inline" && inside === "flow") return "inline";
+      if (outside === "block" && inside === "flow-root") return "flow-root";
+      if (outside === "inline" && inside === "flow-root") return "inline-block";
+      if (outside === "block" && inside === "flex") return "flex";
+      if (outside === "inline" && inside === "flex") return "inline-flex";
+      if (outside === "block" && inside === "grid") return "grid";
+      if (outside === "inline" && inside === "grid") return "inline-grid";
+      if (outside === "inline" && inside === "table") return "inline-table";
+      if (outside === "block" && inside === "table") return "table";
+      if (first === "inline" && second === "block") return "inline-block";
+      if (first === "block" && second === "inline") return "inline-block";
+    } else if (tokens.length === 1) {
+      return tokens[0];
+    }
+    return d;
+  }
   if (node.type === "text") return "block";
   if (node.type === "grid") return "grid";
   if (node.type === "option" && node.parent?.type === "select") {
@@ -277,8 +300,143 @@ function styleLength(value,{normal=false,negative=false}={}) {
   throw Error("Invalid style length: "+value);
 }
 
+export const INHERITED_CSS_PROPERTIES = new Set([
+  "color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "language",
+  "lineHeight", "letterSpacing", "wordSpacing", "tabSize", "textAlign",
+  "textAlignLast", "textTransform", "textIndent", "whiteSpace", "visibility",
+  "cursor", "direction", "writingMode"
+]);
+
+export const INITIAL_CSS_VALUES = {
+  display: "block",
+  writingMode: "horizontal-tb",
+  direction: "ltr",
+  flexDirection: "row",
+  flexWrap: "nowrap",
+  justifyContent: "normal",
+  alignItems: "stretch",
+  alignContent: "stretch",
+  alignSelf: "auto",
+  flexGrow: 0,
+  flexShrink: 1,
+  flexBasis: "auto",
+  order: 0,
+  width: null,
+  height: null,
+  minWidth: null,
+  minHeight: null,
+  maxWidth: null,
+  maxHeight: null,
+  aspectRatio: null,
+  margin: 0,
+  padding: 0,
+  borderWidth: 0,
+  borderColor: "",
+  borderRadius: 0,
+  backgroundColor: "",
+  color: "",
+  fontFamily: "system-ui",
+  fontSize: 0,
+  fontWeight: 400,
+  fontStyle: "normal",
+  language: "",
+  lineHeight: "normal",
+  letterSpacing: "normal",
+  wordSpacing: "normal",
+  tabSize: 8,
+  textAlign: "left",
+  textAlignLast: "auto",
+  textTransform: "none",
+  textIndent: 0,
+  textOverflow: "clip",
+  whiteSpace: "normal",
+  visibility: "visible",
+  pointerEvents: "auto",
+  cursor: "auto",
+  position: "static",
+  top: null,
+  right: null,
+  bottom: null,
+  left: null,
+  zIndex: null,
+  opacity: 1.0,
+  isolation: "auto",
+  transform: "none",
+  transformOrigin: "50% 50%",
+  transformBox: "border-box",
+  backfaceVisibility: "visible",
+  transformStyle: "flat",
+  perspective: null,
+  perspectiveOrigin: "50% 50%",
+  touchAction: "auto",
+  transition: "",
+  transitionProperty: "all",
+  transitionDuration: 0,
+  transitionTimingFunction: "ease",
+  transitionDelay: 0,
+  transitionBehavior: "normal",
+  boxSizing: "content-box",
+  overflow: "visible",
+  outlineStyle: "none",
+  outlineWidth: 0,
+  outlineColor: ""
+};
+
+export function resolveUnsetValues(style, inherited = {}) {
+  const resolved = { ...style };
+  for (const [key, value] of Object.entries(resolved)) {
+    if (value === "unset") {
+      if (INHERITED_CSS_PROPERTIES.has(key)) {
+        resolved[key] = inherited[key] !== undefined ? inherited[key] : INITIAL_CSS_VALUES[key];
+      } else {
+        resolved[key] = INITIAL_CSS_VALUES[key];
+      }
+    }
+  }
+  return resolved;
+}
+
+export function evaluateMediaQuery(query) {
+  if (typeof query !== "string") return false;
+  const q = query.trim().toLowerCase();
+  if (q.includes("update")) {
+    if (q.includes("update: fast") || q.includes("update:fast")) return true;
+    if (q.includes("update: none") || q.includes("update:none") || q.includes("update: slow") || q.includes("update:slow")) return false;
+    if (/\(\s*update\s*\)/.test(q)) return true;
+  }
+  return true;
+}
+
+export function matchMedia(query) {
+  return {
+    media: query,
+    matches: evaluateMediaQuery(query),
+    addEventListener() {},
+    removeEventListener() {}
+  };
+}
+
 export function snapshot(node, inherited = {}) {
-  const style = physicalStyle(node.props.style || {}, inherited);
+  let authored = resolveUnsetValues(node.props.style || {}, inherited);
+  if (node._isHovered) {
+    if (authored[":hover"]) Object.assign(authored, resolveUnsetValues(authored[":hover"], inherited));
+    if (authored["_hover"]) Object.assign(authored, resolveUnsetValues(authored["_hover"], inherited));
+    if (node.props[":hover"]) Object.assign(authored, resolveUnsetValues(node.props[":hover"], inherited));
+    if (node.props["_hover"]) Object.assign(authored, resolveUnsetValues(node.props["_hover"], inherited));
+  }
+  if (node._isFocused) {
+    if (authored[":focus"]) Object.assign(authored, resolveUnsetValues(authored[":focus"], inherited));
+    if (authored["_focus"]) Object.assign(authored, resolveUnsetValues(authored["_focus"], inherited));
+    if (node.props[":focus"]) Object.assign(authored, resolveUnsetValues(node.props[":focus"], inherited));
+    if (node.props["_focus"]) Object.assign(authored, resolveUnsetValues(node.props["_focus"], inherited));
+  }
+  if (node._isActive) {
+    if (authored[":active"]) Object.assign(authored, resolveUnsetValues(authored[":active"], inherited));
+    if (authored["_active"]) Object.assign(authored, resolveUnsetValues(authored["_active"], inherited));
+    if (node.props[":active"]) Object.assign(authored, resolveUnsetValues(node.props[":active"], inherited));
+    if (node.props["_active"]) Object.assign(authored, resolveUnsetValues(node.props["_active"], inherited));
+  }
+  const style = physicalStyle(authored, inherited);
   if(typeof style.outline==="string") {
     let width,kind,color;
     for(const token of splitSpacing(style.outline)) {
@@ -470,6 +628,9 @@ export function snapshot(node, inherited = {}) {
     clickable,
     focusable,
     tabIndex,
+    hovered: Boolean(node._isHovered),
+    active: Boolean(node._isActive),
+    focused: Boolean(node._isFocused),
     value: node.type === "input" ? String(node.props.value ?? "") :
            node.type === "select" ? getSelectValue(node) :
            node.type === "option" ? getOptionValue(node) : "",
@@ -566,6 +727,14 @@ export function snapshot(node, inherited = {}) {
       transitionDuration: typeof style.transitionDuration === "number" ? style.transitionDuration : (typeof style.transitionDuration === "string" ? (parseFloat(style.transitionDuration) * (style.transitionDuration.endsWith("ms") ? 0.001 : 1.0) || 0) : 0),
       transitionTimingFunction: typeof style.transitionTimingFunction === "string" ? style.transitionTimingFunction : "ease",
       transitionDelay: typeof style.transitionDelay === "number" ? style.transitionDelay : (typeof style.transitionDelay === "string" ? (parseFloat(style.transitionDelay) * (style.transitionDelay.endsWith("ms") ? 0.001 : 1.0) || 0) : 0),
+      transitionBehavior: typeof style.transitionBehavior === "string" ? style.transitionBehavior : "normal",
+      transformBox: typeof style.transformBox === "string" ? style.transformBox : "border-box",
+      backfaceVisibility: typeof style.backfaceVisibility === "string" ? style.backfaceVisibility : "visible",
+      transformStyle: typeof style.transformStyle === "string" ? style.transformStyle : "flat",
+      perspective: typeof style.perspective === "number" ? style.perspective : null,
+      perspectiveCss: typeof style.perspective === "string" ? style.perspective : (typeof style.perspective === "number" ? String(style.perspective) + "px" : null),
+      perspectiveOrigin: typeof style.perspectiveOrigin === "string" ? style.perspectiveOrigin : "50% 50%",
+      touchAction: typeof style.touchAction === "string" ? style.touchAction : "auto",
       ...textStyle,
       lineHeight,
       lineHeightCss,
@@ -790,6 +959,30 @@ export function dispatchKey(id, key) {
   }
 }
 
+export function dispatchHover(id, hovered) {
+  const target = findId(root, id);
+  if (target) {
+    target._isHovered = Boolean(hovered);
+    if (typeof target.props.onHover === "function") {
+      target.props.onHover(Boolean(hovered));
+    }
+  }
+}
+
+export function dispatchActive(id, active) {
+  const target = findId(root, id);
+  if (target) {
+    target._isActive = Boolean(active);
+  }
+}
+
+export function dispatchFocus(id, focused) {
+  const target = findId(root, id);
+  if (target) {
+    target._isFocused = Boolean(focused);
+  }
+}
+
 export function mountApp(Component) {
   globalThis.__uiRenderer = renderer;
   globalThis.__uiSolid = solid;
@@ -819,6 +1012,9 @@ export function mountApp(Component) {
   };
   globalThis.uiCommit = () => { if (pendingCommit) committed = pendingCommit; pendingCommit = undefined; };
   globalThis.uiDispatchClick = id => dispatchClick(id);
+  globalThis.uiDispatchHover = (id, hovered) => dispatchHover(id, hovered);
+  globalThis.uiDispatchActive = (id, active) => dispatchActive(id, active);
+  globalThis.uiDispatchFocus = (id, focused) => dispatchFocus(id, focused);
   globalThis.uiDispatchInput = (id, value) => dispatchInput(id, value);
   globalThis.uiDispatchKey = (id, key) => dispatchKey(id, key);
   globalThis.uiDispose = () => {

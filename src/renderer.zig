@@ -123,6 +123,14 @@ pub const Renderer = struct {
     fn affine(m: ui.transform.Matrix2D) rl.Matrix {
         return .{ .m0 = m.a, .m1 = m.b, .m2 = 0, .m3 = 0, .m4 = m.c, .m5 = m.d, .m6 = 0, .m7 = 0, .m8 = 0, .m9 = 0, .m10 = 1, .m11 = 0, .m12 = m.tx, .m13 = m.ty, .m14 = 0, .m15 = 1 };
     }
+    fn matrix4(m: ui.transform.Matrix4x4) rl.Matrix {
+        return .{
+            .m0 = m.m[0], .m1 = m.m[1], .m2 = m.m[2], .m3 = m.m[3],
+            .m4 = m.m[4], .m5 = m.m[5], .m6 = m.m[6], .m7 = m.m[7],
+            .m8 = m.m[8], .m9 = m.m[9], .m10 = m.m[10], .m11 = m.m[11],
+            .m12 = m.m[12], .m13 = m.m[13], .m14 = m.m[14], .m15 = m.m[15],
+        };
+    }
     fn textureAt(texture: rl.Texture2D, x: f32, y: f32) void {
         rl.drawTextureV(texture, .{ .x = x, .y = y }, .white);
     }
@@ -141,7 +149,7 @@ pub const Renderer = struct {
             const p = scene.find(pid) orelse break;
             parent = p.parent_id;
             if ((!p.node.clipsX() and !p.node.clipsY()) or !scene.clipApplies(item, p)) continue;
-            const inv = scene.worldTransform(p).inverse() orelse return current.texture;
+            const inv = scene.worldTransform4x4(p).inverse() orelse return current.texture;
             const box = p.node.paddingBox(p.bounds);
             const rect = [4]f32{ box.x, box.y, box.width, box.height };
             const radius = ui.paint.paddingRadii(p.node, p.bounds);
@@ -155,7 +163,7 @@ pub const Renderer = struct {
             uniform(self.mask_shader, "radiiY", &radius.y, .vec4);
             uniform(self.mask_shader, "axes", &axes, .vec2);
             uniform(self.mask_shader, "resolution", &resolution, .vec2);
-            rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), affine(inv));
+            rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), matrix4(inv));
             self.full(current.texture);
             rl.endShaderMode();
             rl.endTextureMode();
@@ -173,7 +181,7 @@ pub const Renderer = struct {
         const clips_x = item.node.clipsX() or input;
         const clips_y = item.node.clipsY() or input;
         if (!clips_x and !clips_y) return current.texture;
-        const inv = scene.worldTransform(item).inverse() orelse {
+        const inv = scene.worldTransform4x4(item).inverse() orelse {
             clear(current, .blank);
             return current.texture;
         };
@@ -190,7 +198,7 @@ pub const Renderer = struct {
         uniform(self.mask_shader, "radiiY", &radius.y, .vec4);
         uniform(self.mask_shader, "axes", &axes, .vec2);
         uniform(self.mask_shader, "resolution", &resolution, .vec2);
-        rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), affine(inv));
+        rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), matrix4(inv));
         self.full(current.texture);
         rl.endShaderMode();
         rl.endTextureMode();
@@ -209,13 +217,14 @@ pub const Renderer = struct {
     }
     fn drawItem(self: *Renderer, scene: *ui.Scene, item: ui.Item, dest: rl.RenderTexture2D, ctx: *anyopaque, draw: DrawFn, a: std.mem.Allocator) !void {
         if (item.bounds.width <= 0 or item.bounds.height <= 0 or !ui.interaction.isVisible(item.node)) return;
+        const w4 = scene.worldTransform4x4(item);
+        if (std.ascii.eqlIgnoreCase(item.node.style.backfaceVisibility, "hidden") and w4.isBackface()) return;
         const layer = try self.target(2);
         const c = try self.cached(item, a);
         clear(layer, .blank);
         rl.beginTextureMode(layer);
         rl.gl.rlPushMatrix();
-        const m = scene.worldTransform(item);
-        const matrix = [16]f32{ m.a, m.b, 0, 0, m.c, m.d, 0, 0, 0, 0, 1, 0, m.tx, m.ty, 0, 1 };
+        const matrix = w4.m;
         rl.gl.rlMultMatrixf(&matrix);
         for (c.layers.items) |effect| if (!effect.inset) textureAt(effect.texture, item.bounds.x + effect.x, item.bounds.y + effect.y);
         if (c.background) |texture| textureAt(texture, item.bounds.x, item.bounds.y);

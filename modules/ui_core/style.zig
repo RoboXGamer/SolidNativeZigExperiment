@@ -160,4 +160,12 @@ pub const Style = struct {
     transitionDuration: f32 = 0,
     transitionTimingFunction: []const u8 = "ease",
     transitionDelay: f32 = 0,
+    transitionBehavior: []const u8 = "normal",
+    transformBox: []const u8 = "border-box",
+    backfaceVisibility: []const u8 = "visible",
+    transformStyle: []const u8 = "flat",
+    perspective: ?f32 = null,
+    perspectiveCss: ?[]const u8 = null,
+    perspectiveOrigin: []const u8 = "50% 50%",
+    touchAction: []const u8 = "auto",
 };

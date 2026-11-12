@@ -21,6 +21,9 @@ pub const Node = struct {
     clickable: bool = false,
     focusable: bool = false,
     tabIndex: ?i32 = null,
+    hovered: bool = false,
+    active: bool = false,
+    focused: bool = false,
     value: []const u8 = "",
     /// Optional input for a future replaced-element measurement provider.
     intrinsicAspectRatio: ?f32 = null,
@@ -423,6 +426,27 @@ pub const Scene = struct {
         if (std.math.isNan(n.style.opacity)) n.style.opacity = 0;
         n.style.opacity = std.math.clamp(n.style.opacity, 0, 1);
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
+        if (n.style.perspectiveCss) |css| {
+            if (std.ascii.eqlIgnoreCase(std.mem.trim(u8, css, " \t\r\n"), "none")) {
+                n.style.perspective = null;
+            } else {
+                var ctx = context;
+                ctx.font_size = n.fontSize();
+                ctx.percentage = containing_height;
+                const res = sizing.resolve(css, ctx) catch null;
+                if (res) |r| {
+                    n.style.perspective = switch (r) {
+                        .length => |v| if (v > 0) v else null,
+                        else => null,
+                    };
+                }
+            }
+            n.style.perspectiveCss = null;
+        }
+        if (n.style.transformBox.len == 0) n.style.transformBox = "border-box";
+        if (n.style.touchAction.len == 0) n.style.touchAction = "auto";
+        if (n.style.backfaceVisibility.len == 0) n.style.backfaceVisibility = "visible";
+        if (n.style.transformStyle.len == 0) n.style.transformStyle = "flat";
         inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left" }) |name| {
             const is_inset = std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "right") or std.mem.eql(u8, name, "bottom") or std.mem.eql(u8, name, "left");
             const allow_negative = std.mem.startsWith(u8, name, "margin") or is_inset;
@@ -1293,23 +1317,50 @@ pub const Scene = struct {
     }
 
     pub fn localTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
-        _ = self;
-        const mat = transform_mod.parseTransformSized(item.node.style.transform, item.bounds.width, item.bounds.height) catch transform_mod.Matrix2D.identity;
-        const o = transform_mod.parseTransformOrigin(item.node.style.transformOrigin, item.bounds.width, item.bounds.height);
-        const x = item.bounds.x + o.x;
-        const y = item.bounds.y + o.y;
-        return transform_mod.Matrix2D.makeTranslate(x, y).multiply(mat).multiply(transform_mod.Matrix2D.makeTranslate(-x, -y));
+        return self.localTransform4x4(item).to2D();
     }
 
-    pub fn worldTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
-        const own = self.localTransform(item);
-        if (item.parent_id) |pid| if (self.find(pid)) |p| return self.worldTransform(p).multiply(own);
+    pub fn localTransform4x4(self: *const Scene, item: Item) transform_mod.Matrix4x4 {
+        _ = self;
+        const is_content = std.ascii.eqlIgnoreCase(item.node.style.transformBox, "content-box");
+        const ref_box = if (is_content) item.node.contentBox(item.bounds) else item.bounds;
+
+        const mat = transform_mod.parseTransformSized4x4(item.node.style.transform, ref_box.width, ref_box.height) catch transform_mod.Matrix4x4.identity;
+        const o = transform_mod.parseTransformOrigin3D(item.node.style.transformOrigin, ref_box.width, ref_box.height);
+        const x = ref_box.x + o.x;
+        const y = ref_box.y + o.y;
+        const z = o.z;
+
+        const t_origin = transform_mod.Matrix4x4.makeTranslate3D(x, y, z);
+        const t_inv_origin = transform_mod.Matrix4x4.makeTranslate3D(-x, -y, -z);
+        return t_origin.multiply(mat).multiply(t_inv_origin);
+    }
+
+    pub fn worldTransform4x4(self: *const Scene, item: Item) transform_mod.Matrix4x4 {
+        var own = self.localTransform4x4(item);
+        if (item.parent_id) |pid| if (self.find(pid)) |p| {
+            if (p.node.style.perspective) |persp| if (persp > 0) {
+                const po = transform_mod.parsePerspectiveOrigin(p.node.style.perspectiveOrigin, p.bounds.width, p.bounds.height);
+                const px = p.bounds.x + po.x;
+                const py = p.bounds.y + po.y;
+                const persp_mat = transform_mod.Matrix4x4.makeTranslate3D(px, py, 0)
+                    .multiply(transform_mod.Matrix4x4.makePerspective(persp))
+                    .multiply(transform_mod.Matrix4x4.makeTranslate3D(-px, -py, 0));
+                own = persp_mat.multiply(own);
+            };
+            return self.worldTransform4x4(p).multiply(own);
+        };
         return own;
     }
 
+    pub fn worldTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
+        return self.worldTransform4x4(item).to2D();
+    }
+
     pub fn localPoint(self: *const Scene, item: Item, x: f32, y: f32) ?transform_mod.Point {
-        const inv = self.worldTransform(item).inverse() orelse return null;
-        return inv.transformPoint(.{ .x = x, .y = y });
+        const inv = self.worldTransform4x4(item).inverse() orelse return null;
+        const p = inv.transformPoint3D(.{ .x = x, .y = y, .z = 0 });
+        return .{ .x = p.x, .y = p.y };
     }
 
     pub fn pointVisible(self: *const Scene, item: Item, x: f32, y: f32) bool {

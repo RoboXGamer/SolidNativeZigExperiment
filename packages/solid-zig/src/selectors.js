@@ -439,3 +439,5 @@ function walkTree(node, callback) {
     walkTree(child, callback);
   }
 }
+
+export { NamespaceRegistry, parseAnPlusB, matchesSelector, expandNesting, resolveNestedStyles } from "./selectors-structural.js";

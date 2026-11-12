@@ -208,6 +208,20 @@ pub fn outline(n: *const core.Node) ?Outline {
     const offset = if (n.style.outlineOffsetCss) |v| length(v, null, n.fontSize()) orelse n.style.outlineOffset else n.style.outlineOffset;
     return .{ .width = width, .offset = offset, .color = currentColor(n, n.style.outlineColor), .style = style };
 }
+pub const ColumnRule = struct { width: f32, color: Color, style: []const u8 };
+pub fn columnRule(n: *const core.Node) ?ColumnRule {
+    const style = n.style.columnRuleStyle;
+    if (std.mem.eql(u8, style, "none") or std.mem.eql(u8, style, "hidden") or style.len == 0) return null;
+    var supported = false;
+    inline for (.{ "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset" }) |name| supported = supported or std.mem.eql(u8, style, name);
+    if (!supported) return null;
+    var width: f32 = if (n.style.columnRuleWidth > 0) n.style.columnRuleWidth else 3;
+    if (n.style.columnRuleWidthCss) |value| {
+        width = if (std.mem.eql(u8, value, "thin")) 1 else if (std.mem.eql(u8, value, "medium")) 3 else if (std.mem.eql(u8, value, "thick")) 5 else length(value, null, n.fontSize()) orelse 3;
+    }
+    if (width <= 0) return null;
+    return .{ .width = width, .color = currentColor(n, n.style.columnRuleColor), .style = style };
+}
 fn expandedRadii(radius: EllipticalRadii, amount: f32, w: f32, h: f32) EllipticalRadii {
     var result = radius;
     for (0..4) |i| if (result.x[i] > 0 and result.y[i] > 0) {

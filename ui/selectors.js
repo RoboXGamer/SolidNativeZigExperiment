@@ -441,3 +441,5 @@ function walkTree(node, callback) {
 }
 
 export { NamespaceRegistry, parseAnPlusB, matchesSelector, expandNesting, resolveNestedStyles } from "./selectors-structural.js";
+
+export {checkValidity, specificity, splitSelectorList, parseComplexSelector, parseCompoundSelector, compileStyleSheet, applySelectorStyles} from "./selectors-user.js";

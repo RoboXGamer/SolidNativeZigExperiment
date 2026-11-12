@@ -88,6 +88,14 @@ export interface NativeStyle {
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
   textOverflow?: "clip" | "ellipsis";
   textAlignLast?: "auto" | "start" | "end" | "left" | "right" | "center" | "justify";
+  wordBreak?: "normal" | "break-all" | "keep-all" | string;
+  whiteSpaceCollapse?: "collapse" | "preserve" | "preserve-breaks" | "break-spaces" | string;
+  verticalAlign?: "baseline" | "sub" | "super" | "top" | "text-top" | "middle" | "bottom" | "text-bottom" | NativeLength;
+  willChange?: "auto" | "scroll-position" | "contents" | "transform" | "opacity" | string;
+  ":user-valid"?: NativeStyle;
+  ":user-invalid"?: NativeStyle;
+  ":where"?: Record<string, NativeStyle>;
+  "::cue"?: NativeStyle;
   visibility?: "visible" | "hidden" | "collapse";
   pointerEvents?: string;
   cursor?: string;
@@ -258,8 +266,19 @@ export namespace JSX {
     select: NativeProps;
     option: NativeProps;
     optgroup: NativeProps;
+    cue: NativeProps;
+    track: NativeProps;
   }
 }
+
+export function checkValidity(node: any): boolean;
+export function matches(node: any, selector: string): boolean;
+export function specificity(selector: string): [number, number, number];
+export function splitSelectorList(input: string): string[];
+export function parseComplexSelector(str: string): any[];
+export function parseCompoundSelector(str: string): any[];
+export function compileStyleSheet(rules: Array<{ selector: string; style: NativeStyle }>): any[];
+export function applySelectorStyles(node: any, rules: any[]): NativeStyle;
 
 export function dispatchClick(id: number): void;
 export function dispatchInput(id: number, value: string): void;

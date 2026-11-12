@@ -38,21 +38,21 @@ fn drawTextDecorations(sline: ui.text.ShapedLine, line_x: f32, line_y: f32, font
     var dec_color = rl.Color.white;
     if (style.textDecorationColor.len > 0) {
         dec_color = colorWithOpacity(style.textDecorationColor, .white, op);
-    } else if (std.ascii.indexOfIgnoreCase(line_type, "spelling-error") != null) {
+    } else if (std.ascii.findIgnoreCase(line_type, "spelling-error") != null) {
         dec_color = rl.Color.init(255, 50, 50, @intFromFloat(255 * op));
-    } else if (std.ascii.indexOfIgnoreCase(line_type, "grammar-error") != null) {
+    } else if (std.ascii.findIgnoreCase(line_type, "grammar-error") != null) {
         dec_color = rl.Color.init(46, 164, 79, @intFromFloat(255 * op));
     } else {
         dec_color = colorWithOpacity(style.color, .white, op);
     }
 
-    const has_underline = std.ascii.indexOfIgnoreCase(line_type, "underline") != null or
-        std.ascii.indexOfIgnoreCase(line_type, "spelling-error") != null or
-        std.ascii.indexOfIgnoreCase(line_type, "grammar-error") != null;
-    const has_overline = std.ascii.indexOfIgnoreCase(line_type, "overline") != null;
-    const has_linethrough = std.ascii.indexOfIgnoreCase(line_type, "line-through") != null;
+    const has_underline = std.ascii.findIgnoreCase(line_type, "underline") != null or
+        std.ascii.findIgnoreCase(line_type, "spelling-error") != null or
+        std.ascii.findIgnoreCase(line_type, "grammar-error") != null;
+    const has_overline = std.ascii.findIgnoreCase(line_type, "overline") != null;
+    const has_linethrough = std.ascii.findIgnoreCase(line_type, "line-through") != null;
 
-    const dec_style = if (std.ascii.indexOfIgnoreCase(line_type, "spelling-error") != null or std.ascii.indexOfIgnoreCase(line_type, "grammar-error") != null)
+    const dec_style = if (std.ascii.findIgnoreCase(line_type, "spelling-error") != null or std.ascii.findIgnoreCase(line_type, "grammar-error") != null)
         (if (std.mem.eql(u8, style.textDecorationStyle, "solid")) "wavy" else style.textDecorationStyle)
     else
         style.textDecorationStyle;
@@ -121,7 +121,7 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
         const lines = n.shapeText(scene.text, allocator, available) catch &.{};
         for (lines, 0..) |sline, line_idx| {
             const line_x = content.x + sline.offset_x;
-            const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
+            const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h + sline.offset_y;
 
             try ctx.text_cache.drawStyled(sline.text, line_x, line_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
             if (!std.mem.eql(u8, n.style.textDecorationLine, "none") and n.style.textDecorationLine.len > 0) {
@@ -129,36 +129,62 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
             }
         }
     }
+    const is_vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
     if (std.mem.eql(u8, n.type, "select")) {
         const display_text = if (n.text.len > 0) n.text else n.value;
         const content = n.contentBox(b);
         if (display_text.len > 0) {
             try ctx.text_cache.drawStyled(display_text, content.x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
         }
-        const arrow_x = b.x + b.width - 20;
-        if (arrow_x > content.x) {
-            try ctx.text_cache.drawStyled("v", arrow_x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .light_gray, op), text.typography);
+        if (is_vertical) {
+            const arrow_y = b.y + b.height - 20;
+            if (arrow_y > content.y) {
+                try ctx.text_cache.drawStyled("v", content.x, arrow_y, n.fontSize(), colorWithOpacity(n.style.color, .light_gray, op), text.typography);
+            }
+        } else {
+            const arrow_x = b.x + b.width - 20;
+            if (arrow_x > content.x) {
+                try ctx.text_cache.drawStyled("v", arrow_x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .light_gray, op), text.typography);
+            }
         }
     }
     if (std.mem.eql(u8, n.type, "input")) {
         const content = n.contentBox(b);
         var text_x = content.x;
-        const text_y = content.y;
+        var text_y = content.y;
         if (focused == n.id) {
             editor.clamp(n.value);
             const caret = text.width(n.value[0..editor.cursor], n.fontSize());
-            text_x -= @max(0, caret - @max(0, content.width - 4));
-            const selected = editor.selection();
-            const start = text.width(n.value[0..selected.start], n.fontSize());
-            const end = text.width(n.value[0..selected.end], n.fontSize());
-            if (selected.start != selected.end) {
-                rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size_int) }, .blue);
+            if (is_vertical) {
+                text_y -= @max(0, caret - @max(0, content.height - 4));
+                const selected = editor.selection();
+                const start = text.width(n.value[0..selected.start], n.fontSize());
+                const end = text.width(n.value[0..selected.end], n.fontSize());
+                if (selected.start != selected.end) {
+                    rl.drawRectangleRec(.{ .x = text_x, .y = text_y + start, .width = @floatFromInt(font_size_int), .height = end - start }, .blue);
+                } else {
+                    rl.drawLineEx(.{ .x = text_x, .y = text_y + caret }, .{ .x = text_x + @as(f32, @floatFromInt(font_size_int)), .y = text_y + caret }, 1, .white);
+                }
             } else {
-                rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
+                text_x -= @max(0, caret - @max(0, content.width - 4));
+                const selected = editor.selection();
+                const start = text.width(n.value[0..selected.start], n.fontSize());
+                const end = text.width(n.value[0..selected.end], n.fontSize());
+                if (selected.start != selected.end) {
+                    rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size_int) }, .blue);
+                } else {
+                    rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
+                }
             }
         }
         try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
-        if (focused == n.id) text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + text.width(n.value[0..editor.cursor], n.fontSize())), @intFromFloat(text_y + text.lineHeight(n.fontSize())));
+        if (focused == n.id) {
+            if (is_vertical) {
+                text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + @as(f32, @floatFromInt(font_size_int))), @intFromFloat(text_y + text.width(n.value[0..editor.cursor], n.fontSize())));
+            } else {
+                text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + text.width(n.value[0..editor.cursor], n.fontSize())), @intFromFloat(text_y + text.lineHeight(n.fontSize())));
+            }
+        }
     }
     // Scrollbar rendering
     if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {

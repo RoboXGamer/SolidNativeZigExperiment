@@ -37,6 +37,13 @@ pub const Context = struct {
     container_height: ?f32 = null,
     container_inline: ?f32 = null,
     container_block: ?f32 = null,
+    color_scheme: ColorScheme = .light,
+    contrast: Contrast = .no_preference,
+    reduced_motion: ReducedMotion = .no_preference,
+
+    pub const ColorScheme = enum { light, dark };
+    pub const Contrast = enum { no_preference, more, less, custom };
+    pub const ReducedMotion = enum { no_preference, reduce };
 };
 
 pub const AvailableSpace = union(enum) { definite: f32, min_content, max_content };

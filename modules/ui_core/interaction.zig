@@ -11,7 +11,29 @@ pub fn isVisible(n: *const core.Node) bool {
     return !std.mem.eql(u8, n.style.visibility, "hidden") and !std.mem.eql(u8, n.style.visibility, "collapse");
 }
 pub fn acceptsPointer(n: *const core.Node) bool {
-    return isVisible(n) and !std.mem.eql(u8, n.style.pointerEvents, "none");
+    const pe = n.style.pointerEvents;
+    if (std.ascii.eqlIgnoreCase(pe, "none")) return false;
+    const vis = isVisible(n);
+    if (std.ascii.eqlIgnoreCase(pe, "all")) return true;
+    if (std.ascii.eqlIgnoreCase(pe, "visible")) return vis;
+    if (std.ascii.eqlIgnoreCase(pe, "auto")) return vis;
+    if (std.ascii.eqlIgnoreCase(pe, "painted") or std.ascii.eqlIgnoreCase(pe, "visiblePainted")) {
+        const has_paint = (n.style.backgroundColor.len > 0 and !std.mem.eql(u8, n.style.backgroundColor, "transparent")) or
+            (n.style.borderColor.len > 0 and !std.mem.eql(u8, n.style.borderColor, "transparent") and n.style.borderWidth > 0);
+        if (std.ascii.eqlIgnoreCase(pe, "visiblePainted")) return vis and has_paint;
+        return has_paint;
+    }
+    if (std.ascii.eqlIgnoreCase(pe, "fill") or std.ascii.eqlIgnoreCase(pe, "visibleFill")) {
+        const has_fill = (n.style.backgroundColor.len > 0 and !std.mem.eql(u8, n.style.backgroundColor, "transparent"));
+        if (std.ascii.eqlIgnoreCase(pe, "visibleFill")) return vis and has_fill;
+        return has_fill;
+    }
+    if (std.ascii.eqlIgnoreCase(pe, "stroke") or std.ascii.eqlIgnoreCase(pe, "visibleStroke")) {
+        const has_stroke = (n.style.borderWidth > 0 and n.style.borderColor.len > 0 and !std.mem.eql(u8, n.style.borderColor, "transparent"));
+        if (std.ascii.eqlIgnoreCase(pe, "visibleStroke")) return vis and has_stroke;
+        return has_stroke;
+    }
+    return vis;
 }
 pub fn acceptsFocus(n: *const core.Node) bool {
     // pointer-events:none does not remove keyboard focusability.

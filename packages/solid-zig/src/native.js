@@ -87,8 +87,135 @@ function isLengthOrKeyword(val) {
   if (typeof val !== "string") return false;
   const s = val.trim();
   if (s === "auto" || s === "content" || s === "min-content" || s === "max-content" || s === "fit-content") return true;
-  if (/px|%|em|rem|vw|vh|vmin|vmax|calc\(|min\(|max\(|clamp\(/i.test(s)) return true;
+  if (/px|%|em|rem|vw|vh|vmin|vmax|q|cm|mm|in|pt|pc|calc\(|min\(|max\(|clamp\(/i.test(s)) return true;
   return isNaN(Number(s));
+}
+
+let systemPreferences = {
+  colorScheme: "light",
+  contrast: "no-preference",
+  reducedMotion: "no-preference",
+};
+
+export function getPreferences() {
+  return { ...systemPreferences };
+}
+
+export function setPreferences(prefs) {
+  systemPreferences = { ...systemPreferences, ...prefs };
+}
+
+export function matchMedia(query) {
+  const q = String(query).trim().toLowerCase();
+  const colorSchemeMatch = q.match(/prefers-color-scheme\s*:\s*(light|dark)/);
+  if (colorSchemeMatch) {
+    return { matches: systemPreferences.colorScheme === colorSchemeMatch[1], media: query };
+  }
+  const contrastMatch = q.match(/prefers-contrast\s*:\s*(no-preference|more|less|custom)/);
+  if (contrastMatch) {
+    return { matches: systemPreferences.contrast === contrastMatch[1], media: query };
+  }
+  const motionMatch = q.match(/prefers-reduced-motion\s*:\s*(no-preference|reduce)/);
+  if (motionMatch) {
+    return { matches: systemPreferences.reducedMotion === motionMatch[1], media: query };
+  }
+  return { matches: false, media: query };
+}
+
+export function isReadWrite(node) {
+  if (!node) return false;
+  if (node.props?.contentEditable === true || node.props?.contenteditable === "true" || node.props?.contenteditable === "") {
+    return true;
+  }
+  if (node.type === "input" || node.type === "textarea") {
+    return !node.props?.disabled && !node.props?.readOnly && !node.props?.readonly;
+  }
+  return false;
+}
+
+export function isReadOnly(node) {
+  return !isReadWrite(node);
+}
+
+const openPopovers = new Set();
+
+export function isPopoverOpen(node) {
+  if (!node) return false;
+  return openPopovers.has(node) || Boolean(node._popoverOpen) || Boolean(node.props?.open && node.props?.popover);
+}
+
+export function showPopover(node) {
+  if (!node || !node.props?.popover) return;
+  const kind = String(node.props.popover).toLowerCase();
+  if (kind !== "manual") {
+    for (const other of Array.from(openPopovers)) {
+      if (String(other.props?.popover).toLowerCase() !== "manual" && !isAncestor(other, node)) {
+        hidePopover(other);
+      }
+    }
+  }
+  openPopovers.add(node);
+  node._popoverOpen = true;
+}
+
+export function hidePopover(node) {
+  if (!node) return;
+  openPopovers.delete(node);
+  node._popoverOpen = false;
+}
+
+export function togglePopover(node, force) {
+  if (force === undefined) {
+    if (isPopoverOpen(node)) hidePopover(node);
+    else showPopover(node);
+  } else if (force) {
+    showPopover(node);
+  } else {
+    hidePopover(node);
+  }
+}
+
+export function closeAllAutoPopovers(exceptNode = null) {
+  for (const p of Array.from(openPopovers)) {
+    if (p !== exceptNode && String(p.props?.popover).toLowerCase() !== "manual" && !isAncestor(p, exceptNode)) {
+      hidePopover(p);
+    }
+  }
+}
+
+function isAncestor(parent, child) {
+  let cur = child?.parent;
+  while (cur) {
+    if (cur === parent) return true;
+    cur = cur.parent;
+  }
+  return false;
+}
+
+export function resolveQuotes(quotes = "auto", lang = "", depth = 0) {
+  if (quotes === "none") return null;
+  if (quotes === "auto" || !quotes) {
+    const l = String(lang).toLowerCase();
+    if (l.startsWith("fr")) {
+      return depth % 2 === 0 ? { open: "« ", close: " »" } : { open: "“", close: "”" };
+    } else if (l.startsWith("de")) {
+      return depth % 2 === 0 ? { open: "„", close: "“" } : { open: "‚", close: "‘" };
+    } else if (l.startsWith("ja") || l.startsWith("zh")) {
+      return depth % 2 === 0 ? { open: "「", close: "」" } : { open: "『", close: "』" };
+    } else {
+      return depth % 2 === 0 ? { open: "“", close: "”" } : { open: "‘", close: "’" };
+    }
+  }
+  const parts = quotes.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+  const cleanParts = parts.map(p => p.replace(/^["']|["']$/g, ""));
+  const pairs = [];
+  for (let i = 0; i < cleanParts.length; i += 2) {
+    if (i + 1 < cleanParts.length) {
+      pairs.push({ open: cleanParts[i], close: cleanParts[i + 1] });
+    }
+  }
+  if (pairs.length === 0) return { open: "“", close: "”" };
+  return pairs[Math.min(depth, pairs.length - 1)];
 }
 
 function flexValues(style) {
@@ -154,7 +281,7 @@ function flexValues(style) {
 // Inline object declarations are applied in insertion order. Logical and
 // physical declarations targeting the same side therefore obey last-declared
 // precedence; the mode and direction are computed for the whole style object.
-export function physicalStyle(style, inherited = {}) {
+export function physicalStyle(style, inherited = {}, node = null) {
   const mode = style.writingMode ?? inherited.writingMode ?? "horizontal-tb";
   const direction = style.direction ?? inherited.direction ?? "ltr";
   if (!["horizontal-tb", "vertical-rl", "vertical-lr"].includes(mode) || !["ltr", "rtl"].includes(direction)) throw Error("Unsupported writing mode or direction");
@@ -170,6 +297,31 @@ export function physicalStyle(style, inherited = {}) {
   const result = { writingMode: mode, direction };
   for (const [key, value] of Object.entries(style)) {
     if (value == null) continue;
+    if (key.startsWith("@media")) {
+      const match = key.replace(/^@media\s*/i, "");
+      if (matchMedia(match).matches && typeof value === "object" && value !== null) {
+        Object.assign(result, physicalStyle(value, { ...inherited, writingMode: mode, direction }, node));
+      }
+      continue;
+    }
+    if (key === ":read-only") {
+      if (node && isReadOnly(node) && typeof value === "object" && value !== null) {
+        Object.assign(result, physicalStyle(value, { ...inherited, writingMode: mode, direction }, node));
+      }
+      continue;
+    }
+    if (key === ":read-write") {
+      if (node && isReadWrite(node) && typeof value === "object" && value !== null) {
+        Object.assign(result, physicalStyle(value, { ...inherited, writingMode: mode, direction }, node));
+      }
+      continue;
+    }
+    if (key === ":popover-open") {
+      if (node && isPopoverOpen(node) && typeof value === "object" && value !== null) {
+        Object.assign(result, physicalStyle(value, { ...inherited, writingMode: mode, direction }, node));
+      }
+      continue;
+    }
     if (key === "flexFlow" && typeof value === "string") {
       const parts = splitSpacing(value.trim());
       for (const part of parts) {
@@ -277,8 +429,17 @@ function styleLength(value,{normal=false,negative=false}={}) {
   throw Error("Invalid style length: "+value);
 }
 
-export function snapshot(node, inherited = {}) {
-  const style = physicalStyle(node.props.style || {}, inherited);
+export function snapshot(node, inherited = {}, quoteDepth = 0) {
+  const style = physicalStyle(node.props.style || {}, inherited, node);
+  let nextQuoteDepth = quoteDepth;
+  let qText = node.text;
+  if (node.type === "q") {
+    nextQuoteDepth = quoteDepth + 1;
+    if (qText) {
+      const pair = resolveQuotes(style.quotes ?? inherited.quotes ?? "auto", node.props.lang ?? style.language ?? inherited.language ?? "", quoteDepth);
+      if (pair) qText = `${pair.open}${qText}${pair.close}`;
+    }
+  }
   if(typeof style.outline==="string") {
     let width,kind,color;
     for(const token of splitSpacing(style.outline)) {
@@ -367,6 +528,7 @@ export function snapshot(node, inherited = {}) {
     cursor: style.cursor ?? inherited.cursor ?? "auto",
     visibility: style.visibility ?? inherited.visibility ?? "visible",
     pointerEvents: style.pointerEvents ?? inherited.pointerEvents ?? "auto",
+    quotes: style.quotes ?? inherited.quotes ?? "auto",
     whiteSpace: style.whiteSpace ?? inherited.whiteSpace ?? "normal",
     textAlign: style.textAlign ?? inherited.textAlign ?? "left",
     lineHeight: style.lineHeight ?? inherited.lineHeight,
@@ -466,9 +628,13 @@ export function snapshot(node, inherited = {}) {
     id: node.id,
     type: node.type,
     text: node.type === "select" ? getSelectedLabel(node) :
-          node.type === "option" ? getOptionLabel(node) : node.text,
+          node.type === "option" ? getOptionLabel(node) :
+          node.type === "q" ? qText : node.text,
     clickable,
     focusable,
+    readOnly: isReadOnly(node),
+    readWrite: isReadWrite(node),
+    popoverOpen: isPopoverOpen(node),
     tabIndex,
     value: node.type === "input" ? String(node.props.value ?? "") :
            node.type === "select" ? getSelectValue(node) :
@@ -540,8 +706,10 @@ export function snapshot(node, inherited = {}) {
       outlineStyle:style.outlineStyle ?? "none",
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",
-      position: typeof style.position === "string" ? style.position.trim().toLowerCase() : "static",
-      zIndex: typeof style.zIndex === "number" ? Math.trunc(style.zIndex) : null,
+      quotes: style.quotes ?? inherited.quotes ?? "auto",
+      clipPath: typeof style.clipPath === "string" ? style.clipPath.trim() : "",
+      position: typeof style.position === "string" ? style.position.trim().toLowerCase() : (isPopoverOpen(node) ? "fixed" : "static"),
+      zIndex: typeof style.zIndex === "number" ? Math.trunc(style.zIndex) : (isPopoverOpen(node) ? 1000000 : null),
       gridTemplateColumnsCss: gridTemplateColumnsCss,
       gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),
       gridAutoFlow: typeof style.gridAutoFlow === "string" ? style.gridAutoFlow : "row",
@@ -572,7 +740,7 @@ export function snapshot(node, inherited = {}) {
       ...defaultSelectStyle,
       ...defaultOptionStyle,
     },
-    children: node.children.map(child => snapshot(child, textStyle)),
+    children: node.children.map(child => snapshot(child, textStyle, nextQuoteDepth)),
   };
 }
 
@@ -687,9 +855,27 @@ export function dispatchClick(id) {
   const target = findId(root, id);
   if (!target) {
     closeAllSelects();
+    closeAllAutoPopovers();
     return;
   }
   if (target.props.disabled) return;
+
+  const popoverTargetId = target.props?.popoverTarget ?? target.props?.popovertarget;
+  if (popoverTargetId) {
+    const targetPopover = findId(root, popoverTargetId);
+    if (targetPopover && targetPopover.props?.popover) {
+      const action = String(target.props?.popoverTargetAction ?? target.props?.popovertargetaction ?? "toggle").toLowerCase();
+      if (action === "show") {
+        showPopover(targetPopover);
+      } else if (action === "hide") {
+        hidePopover(targetPopover);
+      } else {
+        togglePopover(targetPopover);
+      }
+    }
+  }
+
+  closeAllAutoPopovers(target);
 
   if (target.type === "select") {
     closeAllSelects(target);
@@ -721,14 +907,21 @@ export function dispatchClick(id) {
   dispatch(target, "onClick", "click");
 }
 
+export function findById(id) {
+  return findId(root, id);
+}
+
 export function dispatchInput(id, value) {
   const target = findId(root, id);
-  if (!target || target.type !== "input" || target.props.disabled || target.props.readOnly) return;
+  if (!target || target.type !== "input" || target.props.disabled || isReadOnly(target)) return;
   target.props.value = value;
   dispatch(target, "onInput", "input", value);
 }
 
 export function dispatchKey(id, key) {
+  if (key === "Escape") {
+    closeAllAutoPopovers();
+  }
   const target = findId(root, id);
   if (!target) return;
   if (target.type === "select" && !target.props.disabled) {

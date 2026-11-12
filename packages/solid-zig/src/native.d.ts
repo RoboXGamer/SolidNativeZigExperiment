@@ -88,8 +88,10 @@ export interface NativeStyle {
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
   textOverflow?: "clip" | "ellipsis";
   textAlignLast?: "auto" | "start" | "end" | "left" | "right" | "center" | "justify";
+  quotes?: "auto" | "none" | string;
+  clipPath?: string;
   visibility?: "visible" | "hidden" | "collapse";
-  pointerEvents?: string;
+  pointerEvents?: "auto" | "none" | "visiblePainted" | "visibleFill" | "visibleStroke" | "visible" | "painted" | "fill" | "stroke" | "all" | string;
   cursor?: string;
   outline?: string;
   outlineStyle?: string;
@@ -138,6 +140,11 @@ export interface NativeStyle {
   gridTemplateRows?: string | Array<number | string>;
   gridAutoFlow?: "row" | "column" | "row dense" | "column dense" | string;
   gridTemplateAreas?: string;
+  ":read-only"?: NativeStyle;
+  ":read-write"?: NativeStyle;
+  ":popover-open"?: NativeStyle;
+  "::backdrop"?: NativeStyle;
+  [mediaOrSelector: `@media ${string}`]: NativeStyle | undefined;
   gridColumn?: string;
   gridRow?: string;
   gridArea?: string;
@@ -178,6 +185,13 @@ export interface NativeProps {
   value?: string | number;
   disabled?: boolean;
   readOnly?: boolean;
+  readonly?: boolean;
+  contentEditable?: boolean | "true" | "false";
+  contenteditable?: boolean | "true" | "false";
+  popover?: "auto" | "manual" | "hint" | boolean | string;
+  popoverTarget?: string;
+  popovertarget?: string;
+  popoverTargetAction?: "toggle" | "show" | "hide";
   tabIndex?: number;
   focusable?: boolean;
   selected?: boolean;
@@ -198,6 +212,7 @@ export namespace JSX {
     select: NativeProps;
     option: NativeProps;
     optgroup: NativeProps;
+    q: NativeProps;
   }
 }
 
@@ -205,3 +220,13 @@ export function dispatchClick(id: number): void;
 export function dispatchInput(id: number, value: string): void;
 export function dispatchKey(id: number, key: string): void;
 export function mountApp(component: Component): void;
+export function matchMedia(query: string): { matches: boolean; media: string };
+export function getPreferences(): { colorScheme: "light" | "dark"; contrast: string; reducedMotion: string };
+export function setPreferences(prefs: Partial<{ colorScheme: "light" | "dark"; contrast: string; reducedMotion: string }>): void;
+export function showPopover(node: any): void;
+export function hidePopover(node: any): void;
+export function togglePopover(node: any, force?: boolean): void;
+export function isPopoverOpen(node: any): boolean;
+export function isReadOnly(node: any): boolean;
+export function isReadWrite(node: any): boolean;
+export function resolveQuotes(quotes?: string, lang?: string, depth?: number): { open: string; close: string } | null;

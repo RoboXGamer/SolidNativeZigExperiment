@@ -85,7 +85,43 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    quotes: []const u8 = "auto",
 };
+
+pub const QuotePair = struct {
+    open: []const u8,
+    close: []const u8,
+};
+
+pub fn resolveQuotes(quotes: []const u8, lang: []const u8, depth: usize) ?QuotePair {
+    if (std.ascii.eqlIgnoreCase(quotes, "none")) return null;
+    if (std.ascii.eqlIgnoreCase(quotes, "auto") or quotes.len == 0) {
+        if (std.ascii.startsWithIgnoreCase(lang, "fr")) {
+            return if (depth % 2 == 0) QuotePair{ .open = "« ", .close = " »" } else QuotePair{ .open = "“", .close = "”" };
+        } else if (std.ascii.startsWithIgnoreCase(lang, "de")) {
+            return if (depth % 2 == 0) QuotePair{ .open = "„", .close = "“" } else QuotePair{ .open = "‚", .close = "‘" };
+        } else if (std.ascii.startsWithIgnoreCase(lang, "ja") or std.ascii.startsWithIgnoreCase(lang, "zh")) {
+            return if (depth % 2 == 0) QuotePair{ .open = "「", .close = "」" } else QuotePair{ .open = "『", .close = "』" };
+        } else {
+            return if (depth % 2 == 0) QuotePair{ .open = "“", .close = "”" } else QuotePair{ .open = "‘", .close = "’" };
+        }
+    }
+    var tokens = @import("css_syntax.zig").Tokens{ .input = quotes, .separators = " \t\r\n" };
+    var pairs: [8]QuotePair = undefined;
+    var count: usize = 0;
+    while (tokens.next()) |open_tok| {
+        const close_tok = tokens.next() orelse break;
+        if (count < pairs.len) {
+            const clean_open = std.mem.trim(u8, open_tok, "\"'");
+            const clean_close = std.mem.trim(u8, close_tok, "\"'");
+            pairs[count] = .{ .open = clean_open, .close = clean_close };
+            count += 1;
+        }
+    }
+    if (count == 0) return QuotePair{ .open = "“", .close = "”" };
+    const idx = if (depth < count) depth else count - 1;
+    return pairs[idx];
+}
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
 

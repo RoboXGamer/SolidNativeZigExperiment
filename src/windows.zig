@@ -110,6 +110,9 @@ fn pressed(key: rl.KeyboardKey) bool {
 }
 
 fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator: std.mem.Allocator) !void {
+    if (rl.isKeyPressed(.escape)) {
+        try runtime.key(focused orelse 0, "Escape");
+    }
     const item = scene.find(focused orelse return) orelse return;
     if (std.mem.eql(u8, item.node.type, "select")) {
         if (pressed(.up)) {
@@ -120,12 +123,11 @@ fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *
             try runtime.key(item.node.id, "Space");
         } else if (rl.isKeyPressed(.enter)) {
             try runtime.key(item.node.id, "Enter");
-        } else if (rl.isKeyPressed(.escape)) {
-            try runtime.key(item.node.id, "Escape");
         }
         return;
     }
     if (!std.mem.eql(u8, item.node.type, "input")) return;
+    const is_read_only = item.node.isReadOnly();
     const a = allocator;
     var value = item.node.value;
     editor.clamp(value);
@@ -144,34 +146,36 @@ fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *
         const selected = editor.selection();
         if (selected.start != selected.end) {
             rl.setClipboardText(try a.dupeSentinel(u8, value[selected.start..selected.end], 0));
-            if (rl.isKeyPressed(.x)) {
+            if (rl.isKeyPressed(.x) and !is_read_only) {
                 value = try editor.replace(a, value, "");
                 changed = true;
             }
         }
     }
-    if (control and rl.isKeyPressed(.v)) {
-        const pasted = rl.getClipboardText();
-        // A single-line input accepts pasted text up to its first line break.
-        const end = std.mem.indexOfAny(u8, pasted, "\r\n") orelse pasted.len;
-        value = try editor.replace(a, value, pasted[0..end]);
-        changed = true;
-    }
-    if (pressed(.backspace)) {
-        value = try editor.backspace(a, value);
-        changed = true;
-    }
-    if (pressed(.delete)) {
-        value = try editor.delete(a, value);
-        changed = true;
-    }
-    var codepoint = rl.getCharPressed();
-    while (codepoint > 0) : (codepoint = rl.getCharPressed()) {
-        if (control or codepoint < 32) continue;
-        var bytes: [4]u8 = undefined;
-        const len = std.unicode.utf8Encode(@intCast(codepoint), &bytes) catch continue;
-        value = try editor.replace(a, value, bytes[0..len]);
-        changed = true;
+    if (!is_read_only) {
+        if (control and rl.isKeyPressed(.v)) {
+            const pasted = rl.getClipboardText();
+            // A single-line input accepts pasted text up to its first line break.
+            const end = std.mem.indexOfAny(u8, pasted, "\r\n") orelse pasted.len;
+            value = try editor.replace(a, value, pasted[0..end]);
+            changed = true;
+        }
+        if (pressed(.backspace)) {
+            value = try editor.backspace(a, value);
+            changed = true;
+        }
+        if (pressed(.delete)) {
+            value = try editor.delete(a, value);
+            changed = true;
+        }
+        var codepoint = rl.getCharPressed();
+        while (codepoint > 0) : (codepoint = rl.getCharPressed()) {
+            if (control or codepoint < 32) continue;
+            var bytes: [4]u8 = undefined;
+            const len = std.unicode.utf8Encode(@intCast(codepoint), &bytes) catch continue;
+            value = try editor.replace(a, value, bytes[0..len]);
+            changed = true;
+        }
     }
     if (changed) try runtime.input(item.node.id, try a.dupeSentinel(u8, value, 0));
 }
@@ -184,8 +188,45 @@ fn synchronize(runtime: *bridge.Runtime, tree: *ui.Tree) !bool {
     return changed;
 }
 
+fn getEnvSlice(name: [*:0]const u8) ?[]const u8 {
+    if (getenv(name)) |ptr| {
+        return std.mem.span(ptr);
+    }
+    return null;
+}
+
+fn getSystemPreferences() ui.sizing.Context {
+    var ctx: ui.sizing.Context = .{};
+    if (getEnvSlice("PREFERS_COLOR_SCHEME")) |val| {
+        if (std.ascii.eqlIgnoreCase(val, "light")) {
+            ctx.color_scheme = .light;
+        } else if (std.ascii.eqlIgnoreCase(val, "dark")) {
+            ctx.color_scheme = .dark;
+        }
+    }
+    if (getEnvSlice("PREFERS_CONTRAST")) |val| {
+        if (std.ascii.eqlIgnoreCase(val, "more")) {
+            ctx.contrast = .more;
+        } else if (std.ascii.eqlIgnoreCase(val, "less")) {
+            ctx.contrast = .less;
+        } else if (std.ascii.eqlIgnoreCase(val, "custom")) {
+            ctx.contrast = .custom;
+        } else {
+            ctx.contrast = .no_preference;
+        }
+    }
+    if (getEnvSlice("PREFERS_REDUCED_MOTION")) |val| {
+        if (std.ascii.eqlIgnoreCase(val, "reduce")) {
+            ctx.reduced_motion = .reduce;
+        } else {
+            ctx.reduced_motion = .no_preference;
+        }
+    }
+    return ctx;
+}
+
 fn buildScene(tree: *ui.Tree) !ui.Scene {
-    return ui.Scene.fromTreeWithText(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = text_backend.measure, .position_fn = text_backend.position, .styled_measure_fn = text_backend.measureStyled, .styled_position_fn = text_backend.positionStyled });
+    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = text_backend.measure, .position_fn = text_backend.position, .styled_measure_fn = text_backend.measureStyled, .styled_position_fn = text_backend.positionStyled }, getSystemPreferences());
 }
 
 pub fn run() void {

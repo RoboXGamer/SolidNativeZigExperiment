@@ -178,6 +178,7 @@ pub fn computeBlockLayout(
             }
 
             if (!in_inline_run) {
+                const is_first_content = !has_in_flow_content;
                 if (!has_in_flow_content) {
                     if (!parent_can_collapse_top) {
                         cursor_y += margin_strut.resolve();
@@ -189,7 +190,7 @@ pub fn computeBlockLayout(
                 margin_strut = CollapsibleMarginSet.zero;
                 in_inline_run = true;
                 line_start = i;
-                line_x = 0;
+                line_x = if (is_first_content) (n.style.textIndent orelse 0) else 0;
                 line_h = 0;
             }
 

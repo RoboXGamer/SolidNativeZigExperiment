@@ -164,6 +164,12 @@ pub const Node = struct {
             .tab_size = self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
             .text_indent = self.style.textIndent orelse 0,
+            .text_orientation = self.style.textOrientation,
+            .text_wrap_mode = self.style.textWrapMode,
+            .text_wrap_style = self.style.textWrapStyle,
+            .text_underline_position = self.style.textUnderlinePosition,
+            .text_underline_offset = self.style.textUnderlineOffset orelse 0,
+            .text_stroke_width = self.style.textStrokeWidth,
         };
         return result;
     }
@@ -172,15 +178,31 @@ pub const Node = struct {
     pub fn shapeText(self: *const Node, base: Text, a: std.mem.Allocator, available: f32) ![]text_mod.ShapedLine {
         const text = self.textContext(base);
         const lines = try text.shapeLines(a, self.text, self.fontSize(), available, self.style.whiteSpace);
+        const has_ellipsis = std.mem.indexOf(u8, self.style.textOverflow, "ellipsis") != null;
+        const rtl = std.mem.eql(u8, self.style.direction, "rtl");
+        var overflow_tokens = std.mem.tokenizeAny(u8, self.style.textOverflow, " \t");
+        const tok1 = overflow_tokens.next() orelse "clip";
+        const tok2 = overflow_tokens.next() orelse tok1;
+        const end_ellipsis = if (overflow_tokens.index != null) (if (rtl) std.mem.eql(u8, tok1, "ellipsis") else std.mem.eql(u8, tok2, "ellipsis")) else has_ellipsis;
+        const start_ellipsis = if (overflow_tokens.index != null) (if (rtl) std.mem.eql(u8, tok2, "ellipsis") else std.mem.eql(u8, tok1, "ellipsis")) else false;
+
         for (lines, 0..) |*line, i| {
             const capacity = @max(0, available - line.indent);
-            if (self.clipsX() and std.mem.eql(u8, self.style.textOverflow, "ellipsis") and (std.mem.eql(u8, self.style.whiteSpace, "nowrap") or std.mem.eql(u8, self.style.whiteSpace, "pre"))) {
-                line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
-                line.width = text.width(line.text, self.fontSize());
+            if (self.clipsX() and (std.mem.eql(u8, self.style.whiteSpace, "nowrap") or std.mem.eql(u8, self.style.whiteSpace, "pre") or std.mem.eql(u8, self.style.textWrapMode, "nowrap"))) {
+                if (start_ellipsis and end_ellipsis) {
+                    line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
+                    line.text = try text.ellipsizeStart(a, line.text, self.fontSize(), capacity);
+                    line.width = text.width(line.text, self.fontSize());
+                } else if (start_ellipsis) {
+                    line.text = try text.ellipsizeStart(a, line.text, self.fontSize(), capacity);
+                    line.width = text.width(line.text, self.fontSize());
+                } else if (end_ellipsis) {
+                    line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
+                    line.width = text.width(line.text, self.fontSize());
+                }
             }
             const alignment = if (i + 1 == lines.len and !std.mem.eql(u8, self.style.textAlignLast, "auto")) self.style.textAlignLast else self.style.textAlign;
             const free = @max(0, capacity - line.width);
-            const rtl = std.mem.eql(u8, self.style.direction, "rtl");
             line.offset_x = line.indent + if (std.mem.eql(u8, alignment, "center")) free / 2 else if (std.mem.eql(u8, alignment, "right") or (std.mem.eql(u8, alignment, "end") and !rtl) or (std.mem.eql(u8, alignment, "start") and rtl)) free else @as(f32, 0);
         }
         return lines;
@@ -396,10 +418,56 @@ pub const Scene = struct {
             }
         };
         if (!std.math.isFinite(n.style.tabSize) or n.style.tabSize < 0) return error.InvalidLength;
-        inline for (.{ "textTransform", "textOverflow", "textAlignLast" }) |field| {
+        if (n.style.textStrokeWidthCss) |css| {
+            var ctx = context;
+            ctx.font_size = n.fontSize();
+            n.style.textStrokeWidth = switch (try sizing.resolve(css, ctx)) {
+                .length => |v| @max(0, v),
+                else => return error.InvalidLength,
+            };
+            n.style.textStrokeWidthCss = null;
+        }
+        if (n.style.textUnderlineOffsetCss) |css| {
+            if (std.ascii.eqlIgnoreCase(css, "auto")) {
+                n.style.textUnderlineOffset = null;
+            } else {
+                var ctx = context;
+                ctx.font_size = n.fontSize();
+                ctx.percentage = n.fontSize();
+                n.style.textUnderlineOffset = switch (try sizing.resolve(css, ctx)) {
+                    .length => |v| v,
+                    else => return error.InvalidLength,
+                };
+            }
+            n.style.textUnderlineOffsetCss = null;
+        }
+        if (n.style.textDecorationThicknessCss) |css| {
+            if (std.ascii.eqlIgnoreCase(css, "auto") or std.ascii.eqlIgnoreCase(css, "from-font")) {
+                n.style.textDecorationThickness = null;
+            } else {
+                var ctx = context;
+                ctx.font_size = n.fontSize();
+                ctx.percentage = n.fontSize();
+                n.style.textDecorationThickness = switch (try sizing.resolve(css, ctx)) {
+                    .length => |v| @max(0, v),
+                    else => return error.InvalidLength,
+                };
+            }
+            n.style.textDecorationThicknessCss = null;
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.textOrientation, "mixed")) n.style.textOrientation = "mixed" else if (std.ascii.eqlIgnoreCase(n.style.textOrientation, "upright")) n.style.textOrientation = "upright" else if (std.ascii.eqlIgnoreCase(n.style.textOrientation, "sideways")) n.style.textOrientation = "sideways" else return error.InvalidTypography;
+        if (std.ascii.eqlIgnoreCase(n.style.textWrapMode, "wrap")) n.style.textWrapMode = "wrap" else if (std.ascii.eqlIgnoreCase(n.style.textWrapMode, "nowrap")) n.style.textWrapMode = "nowrap" else return error.InvalidTypography;
+        if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "auto")) n.style.textWrapStyle = "auto" else if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "balance")) n.style.textWrapStyle = "balance" else if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "stable")) n.style.textWrapStyle = "stable" else if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "pretty")) n.style.textWrapStyle = "pretty" else return error.InvalidTypography;
+        {
+            var it = std.mem.tokenizeAny(u8, n.style.textOverflow, " \t");
+            while (it.next()) |tok| {
+                if (!std.ascii.eqlIgnoreCase(tok, "clip") and !std.ascii.eqlIgnoreCase(tok, "ellipsis")) return error.InvalidTypography;
+            }
+        }
+        inline for (.{ "textTransform", "textAlignLast" }) |field| {
             var valid = false;
-            inline for (.{ "none", "uppercase", "lowercase", "capitalize", "full-width", "clip", "ellipsis", "auto", "left", "right", "center", "start", "end", "justify" }) |value| {
-                const allowed = if (comptime std.mem.eql(u8, field, "textTransform")) std.mem.eql(u8, value, "none") or std.mem.eql(u8, value, "uppercase") or std.mem.eql(u8, value, "lowercase") or std.mem.eql(u8, value, "capitalize") or std.mem.eql(u8, value, "full-width") else if (comptime std.mem.eql(u8, field, "textOverflow")) std.mem.eql(u8, value, "clip") or std.mem.eql(u8, value, "ellipsis") else std.mem.eql(u8, value, "auto") or std.mem.eql(u8, value, "left") or std.mem.eql(u8, value, "right") or std.mem.eql(u8, value, "center") or std.mem.eql(u8, value, "start") or std.mem.eql(u8, value, "end") or std.mem.eql(u8, value, "justify");
+            inline for (.{ "none", "uppercase", "lowercase", "capitalize", "full-width", "auto", "left", "right", "center", "start", "end", "justify" }) |value| {
+                const allowed = if (comptime std.mem.eql(u8, field, "textTransform")) std.mem.eql(u8, value, "none") or std.mem.eql(u8, value, "uppercase") or std.mem.eql(u8, value, "lowercase") or std.mem.eql(u8, value, "capitalize") or std.mem.eql(u8, value, "full-width") else std.mem.eql(u8, value, "auto") or std.mem.eql(u8, value, "left") or std.mem.eql(u8, value, "right") or std.mem.eql(u8, value, "center") or std.mem.eql(u8, value, "start") or std.mem.eql(u8, value, "end") or std.mem.eql(u8, value, "justify");
                 if (allowed and std.ascii.eqlIgnoreCase(@field(n.style, field), value)) {
                     @field(n.style, field) = value;
                     valid = true;
@@ -520,12 +588,15 @@ pub const Scene = struct {
     }
     fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) void {
         if (child.style.fontSize == 0 and child.style.fontSizeCss == null) child.style.fontSize = parent.fontSize();
-        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent" }, 0..) |field, bit| {
+        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "textOrientation", "textShadow", "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset", "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor", "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle" }, 0..) |field, bit| {
             const defaults: Style = .{};
             const at_default = if (comptime @TypeOf(@field(child.style, field)) == []const u8) std.mem.eql(u8, @field(child.style, field), @field(defaults, field)) else @field(child.style, field) == @field(defaults, field);
             if (child.style.typographySpecified & (@as(u32, 1) << bit) == 0 and at_default) {
                 @field(child.style, field) = @field(parent.style, field);
                 if (comptime std.mem.eql(u8, field, "tabSize")) child.style.tabSizeCss = parent.style.tabSizeCss;
+                if (comptime std.mem.eql(u8, field, "textStrokeWidth")) child.style.textStrokeWidthCss = parent.style.textStrokeWidthCss;
+                if (comptime std.mem.eql(u8, field, "textUnderlineOffset")) child.style.textUnderlineOffsetCss = parent.style.textUnderlineOffsetCss;
+                if (comptime std.mem.eql(u8, field, "textDecorationThickness")) child.style.textDecorationThicknessCss = parent.style.textDecorationThicknessCss;
             }
         }
         // Relative weight keywords resolve against the parent's computed weight.
@@ -536,7 +607,7 @@ pub const Scene = struct {
             @field(child.style, field) = @field(parent.style, field);
         };
         if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (parent.style.color.len > 0) parent.style.color else "#ffffff";
-        inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow" }) |field| {
+        inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow", "textShadow", "textFillColor", "textStrokeColor", "textDecorationColor" }) |field| {
             @field(child.style, field) = self.colorTokens(@field(child.style, field), child.style.color) catch @field(child.style, field);
         }
         if (child.style.borderColor.len == 0) child.style.borderColor = child.style.color;
@@ -550,8 +621,8 @@ pub const Scene = struct {
             const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
             const inline_size: ?f32 = if (vertical) height else width;
             self.inheritComputedStyle(child, n);
-            if (std.mem.eql(u8, child.type, "text") and std.mem.eql(u8, n.style.textOverflow, "ellipsis") and n.clipsX()) {
-                child.style.textOverflow = "ellipsis";
+            if (std.mem.eql(u8, child.type, "text") and std.mem.indexOf(u8, n.style.textOverflow, "ellipsis") != null and n.clipsX()) {
+                child.style.textOverflow = n.style.textOverflow;
                 child.style.overflowX = "clip";
             }
             var child_context = self.length_context;

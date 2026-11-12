@@ -244,6 +244,55 @@ export function physicalStyle(style, inherited = {}) {
       result[pair[1] + logical[pair[2] + "End"] + (pair[3] ?? "")] = parts[1] ?? parts[0];
       continue;
     }
+    if ((key === "textWrap" || key === "whiteSpaceCollapse") && typeof value === "string") {
+      const parts = splitSpacing(value.trim());
+      for (const part of parts) {
+        if (["wrap", "nowrap"].includes(part)) {
+          result.textWrapMode = part;
+        } else if (["auto", "balance", "stable", "pretty"].includes(part)) {
+          result.textWrapStyle = part;
+        }
+      }
+      result.textWrap = value;
+      continue;
+    }
+    if ((key === "webkitTextStroke" || key === "-webkit-text-stroke" || key === "textStroke") && typeof value === "string") {
+      const parts = splitSpacing(value.trim());
+      for (const part of parts) {
+        if (["thin", "medium", "thick"].includes(part) || /^[+\-.\d]/.test(part) || /^(calc|min|max|clamp)\(/i.test(part)) {
+          result.textStrokeWidth = part;
+        } else {
+          result.textStrokeColor = part;
+        }
+      }
+      continue;
+    }
+    if (key === "webkitTextStrokeColor" || key === "-webkit-text-stroke-color") {
+      result.textStrokeColor = value;
+      continue;
+    }
+    if (key === "webkitTextStrokeWidth" || key === "-webkit-text-stroke-width") {
+      result.textStrokeWidth = value;
+      continue;
+    }
+    if (key === "webkitTextFillColor" || key === "-webkit-text-fill-color") {
+      result.textFillColor = value;
+      continue;
+    }
+    if (key === "textDecoration" && typeof value === "string") {
+      const parts = splitSpacing(value.trim());
+      for (const part of parts) {
+        if (["none", "underline", "overline", "line-through"].includes(part)) {
+          result.textDecorationLine = part;
+        } else if (["auto", "from-font"].includes(part) || /^[+\-.\d]/.test(part) || /^(calc|min|max|clamp)\(/i.test(part)) {
+          result.textDecorationThickness = part;
+        } else if (!["solid", "double", "dotted", "dashed", "wavy"].includes(part)) {
+          result.textDecorationColor = part;
+        }
+      }
+      result.textDecoration = value;
+      continue;
+    }
     result[key] = value;
   }
   return result;
@@ -288,13 +337,23 @@ export function snapshot(node, inherited = {}) {
     }
     style.outlineWidth??=width??"medium"; style.outlineStyle??=kind??"none"; style.outlineColor??=color??"currentColor";
   }
-  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent"]) | (node.props.lang != null ? 1 << 3 : 0);
-  const interactionSpecified=authoredMask(style,["visibility","pointerEvents","cursor"]);
-  const letterSpacing=styleLength(style.letterSpacing,{normal:true,negative:true});
-  const wordSpacing=styleLength(style.wordSpacing,{normal:true,negative:true});
-  const textIndent=styleLength(style.textIndent,{negative:true});
-  const outlineWidth=styleLength(style.outlineWidth);
-  const outlineOffset=styleLength(style.outlineOffset,{negative:true});
+  const typographyNames = [
+    "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing",
+    "tabSize", "textTransform", "textAlignLast", "textIndent", "textOrientation", "textShadow",
+    "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset",
+    "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor",
+    "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle"
+  ];
+  const typographySpecified = authoredMask(style, typographyNames) | (node.props.lang != null ? 1 << 3 : 0);
+  const interactionSpecified = authoredMask(style, ["visibility", "pointerEvents", "cursor"]);
+  const letterSpacing = styleLength(style.letterSpacing, { normal: true, negative: true });
+  const wordSpacing = styleLength(style.wordSpacing, { normal: true, negative: true });
+  const textIndent = styleLength(style.textIndent, { negative: true });
+  const textStrokeWidth = styleLength(style.textStrokeWidth);
+  const textUnderlineOffset = styleLength(style.textUnderlineOffset, { negative: true });
+  const textDecorationThickness = styleLength(style.textDecorationThickness);
+  const outlineWidth = styleLength(style.outlineWidth);
+  const outlineOffset = styleLength(style.outlineOffset, { negative: true });
   const opacity=opacityValue(style.opacity);
   const isolation=style.isolation == null ? "auto" : String(style.isolation).trim().toLowerCase();
   if(!["auto","isolate"].includes(isolation)) throw Error("Invalid isolation: "+style.isolation);
@@ -364,6 +423,17 @@ export function snapshot(node, inherited = {}) {
     language: node.props.lang ?? style.language ?? inherited.language ?? "",
     textTransform: style.textTransform ?? inherited.textTransform ?? "none",
     textAlignLast: style.textAlignLast ?? inherited.textAlignLast ?? "auto",
+    textOrientation: style.textOrientation ?? inherited.textOrientation ?? "mixed",
+    textShadow: typeof style.textShadow === "string" ? style.textShadow : (inherited.textShadow || ""),
+    textFillColor: typeof style.textFillColor === "string" ? style.textFillColor : (inherited.textFillColor || ""),
+    textStrokeColor: typeof style.textStrokeColor === "string" ? style.textStrokeColor : (inherited.textStrokeColor || ""),
+    textUnderlinePosition: style.textUnderlinePosition ?? inherited.textUnderlinePosition ?? "auto",
+    textDecoration: typeof style.textDecoration === "string" ? style.textDecoration : (inherited.textDecoration || "none"),
+    textDecorationLine: typeof style.textDecorationLine === "string" ? style.textDecorationLine : (inherited.textDecorationLine || "none"),
+    textDecorationColor: typeof style.textDecorationColor === "string" ? style.textDecorationColor : (inherited.textDecorationColor || ""),
+    textWrap: style.textWrap ?? inherited.textWrap ?? "wrap",
+    textWrapMode: style.textWrapMode ?? inherited.textWrapMode ?? "wrap",
+    textWrapStyle: style.textWrapStyle ?? inherited.textWrapStyle ?? "auto",
     cursor: style.cursor ?? inherited.cursor ?? "auto",
     visibility: style.visibility ?? inherited.visibility ?? "visible",
     pointerEvents: style.pointerEvents ?? inherited.pointerEvents ?? "auto",
@@ -512,6 +582,9 @@ export function snapshot(node, inherited = {}) {
       letterSpacing:letterSpacing.number, letterSpacingCss:letterSpacing.css,
       wordSpacing:wordSpacing.number, wordSpacingCss:wordSpacing.css,
       textIndent:textIndent.number, textIndentCss:textIndent.css,
+      textStrokeWidth:textStrokeWidth.number ?? 0, textStrokeWidthCss:textStrokeWidth.css,
+      textUnderlineOffset:textUnderlineOffset.number, textUnderlineOffsetCss:textUnderlineOffset.css,
+      textDecorationThickness:textDecorationThickness.number, textDecorationThicknessCss:textDecorationThickness.css,
       tabSize:typeof style.tabSize==="number" ? style.tabSize : 8,
       tabSizeCss:typeof style.tabSize==="string" ? style.tabSize : null,
       textOverflow:style.textOverflow ?? "clip",

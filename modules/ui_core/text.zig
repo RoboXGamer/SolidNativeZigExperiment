@@ -85,6 +85,12 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    text_orientation: []const u8 = "mixed",
+    text_wrap_mode: []const u8 = "wrap",
+    text_wrap_style: []const u8 = "auto",
+    text_underline_position: []const u8 = "auto",
+    text_underline_offset: f32 = 0,
+    text_stroke_width: f32 = 0,
 };
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
@@ -182,6 +188,29 @@ pub const Text = struct {
         return result.toOwnedSlice(a);
     }
 
+    /// Returns an arena-owned start-ellipsized run (e.g. "…tail"); authoring text is untouched.
+    pub fn ellipsizeStart(self: Text, a: std.mem.Allocator, content: []const u8, font_size: f32, available: f32) ![]const u8 {
+        if (self.width(content, font_size) <= available) return content;
+        const ellipsis = "\xe2\x80\xa6";
+        if (self.width(ellipsis, font_size) > available) return "";
+        var result: std.ArrayList(u8) = .empty;
+        errdefer result.deinit(a);
+        const edit = @import("text_edit.zig");
+        var start: usize = content.len;
+        while (start > 0) {
+            const prev = edit.prevGrapheme(content, start);
+            result.clearRetainingCapacity();
+            try result.appendSlice(a, ellipsis);
+            try result.appendSlice(a, content[prev..content.len]);
+            if (self.width(result.items, font_size) > available) break;
+            start = prev;
+        }
+        result.clearRetainingCapacity();
+        try result.appendSlice(a, ellipsis);
+        try result.appendSlice(a, content[start..content.len]);
+        return result.toOwnedSlice(a);
+    }
+
     pub fn width(self: Text, content: []const u8, font_size: f32) f32 {
         return self.measure(content, font_size).width;
     }
@@ -252,50 +281,169 @@ pub const Text = struct {
         for (lines) |line| result.widest = @max(result.widest, line.width + line.indent);
         return result;
     }
-    /// Lines borrow author text. Only overflow presentation allocates new text.
-    /// Measurements use complete candidate runs so shaping and tabs match paint.
+
+    fn shapeHardLine(self: Text, allocator: std.mem.Allocator, hard_line: []const u8, font_size: f32, target_width: f32, preserve: bool, indent: f32) ![]ShapedLine {
+        var lines: std.ArrayList(ShapedLine) = .empty;
+        errdefer lines.deinit(allocator);
+        const line_h = self.lineHeight(font_size);
+        const asc = self.ascent(font_size);
+        var start: usize = 0;
+        while (start < hard_line.len) {
+            if (!preserve) while (start < hard_line.len and (hard_line[start] == ' ' or hard_line[start] == '\t')) : (start += 1) {};
+            if (start == hard_line.len) break;
+            const cur_indent = if (lines.items.len == 0) indent else 0;
+            const capacity = @max(0, target_width - cur_indent);
+            var end = start;
+            var accepted = start;
+            while (end < hard_line.len) {
+                while (end < hard_line.len and hard_line[end] != ' ' and hard_line[end] != '\t') : (end += 1) {}
+                const word_end = end;
+                while (end < hard_line.len and (hard_line[end] == ' ' or hard_line[end] == '\t')) : (end += 1) {}
+                const candidate_end = if (preserve) end else word_end;
+                if (accepted > start and self.width(hard_line[start..candidate_end], font_size) > capacity) break;
+                accepted = candidate_end;
+                if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
+            }
+            if (accepted == start) accepted = end;
+            const slice = hard_line[start..accepted];
+            try lines.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = cur_indent });
+            start = accepted;
+        }
+        return lines.toOwnedSlice(allocator);
+    }
+
+    /// Lines borrow author text. Only overflow presentation allocates new text.\n    /// Measurements use complete candidate runs so shaping and tabs match paint.
     pub fn shapeLines(self: Text, allocator: std.mem.Allocator, content: []const u8, font_size: f32, available: f32, white_space: []const u8) ![]ShapedLine {
         var list: std.ArrayList(ShapedLine) = .empty;
         errdefer list.deinit(allocator);
         if (content.len == 0) return list.toOwnedSlice(allocator);
         const preserve = std.mem.eql(u8, white_space, "pre") or std.mem.eql(u8, white_space, "pre-wrap") or std.mem.eql(u8, white_space, "break-spaces");
-        const no_wrap = std.mem.eql(u8, white_space, "nowrap") or std.mem.eql(u8, white_space, "pre") or available <= 0;
+        const no_wrap = std.mem.eql(u8, white_space, "nowrap") or std.mem.eql(u8, white_space, "pre") or std.mem.eql(u8, self.typography.text_wrap_mode, "nowrap") or available <= 0;
         const line_h = self.lineHeight(font_size);
         const asc = self.ascent(font_size);
         var hard_lines = std.mem.splitScalar(u8, content, '\n');
         while (hard_lines.next()) |raw| {
             const hard_line = trimCarriageReturn(raw);
+            const cur_indent: f32 = if (list.items.len == 0) self.typography.text_indent else 0;
             if (no_wrap or hard_line.len == 0) {
-                try list.append(allocator, .{ .text = hard_line, .width = self.width(hard_line, font_size), .height = line_h, .ascent = asc, .indent = if (list.items.len == 0) self.typography.text_indent else 0 });
+                try list.append(allocator, .{ .text = hard_line, .width = self.width(hard_line, font_size), .height = line_h, .ascent = asc, .indent = cur_indent });
                 continue;
             }
-            var start: usize = 0;
-            while (start < hard_line.len) {
-                if (!preserve) while (start < hard_line.len and (hard_line[start] == ' ' or hard_line[start] == '\t')) : (start += 1) {};
-                if (start == hard_line.len) break;
-                const indent: f32 = if (list.items.len == 0) self.typography.text_indent else 0;
-                const capacity = @max(0, available - indent);
-                var end = start;
-                var accepted = start;
-                while (end < hard_line.len) {
-                    // A break opportunity follows each whitespace sequence.
-                    while (end < hard_line.len and hard_line[end] != ' ' and hard_line[end] != '\t') : (end += 1) {}
-                    const word_end = end;
-                    while (end < hard_line.len and (hard_line[end] == ' ' or hard_line[end] == '\t')) : (end += 1) {}
-                    const candidate_end = if (preserve) end else word_end;
-                    if (accepted > start and self.width(hard_line[start..candidate_end], font_size) > capacity) break;
-                    accepted = candidate_end;
-                    if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
+            if (std.mem.eql(u8, self.typography.text_wrap_style, "balance") and available > 0) {
+                const normal_lines = try self.shapeHardLine(allocator, hard_line, font_size, available, preserve, cur_indent);
+                if (normal_lines.len > 1 and normal_lines.len <= 10) {
+                    var low = self.minContentWidth(hard_line, font_size);
+                    var high = available;
+                    var iter: usize = 0;
+                    while (iter < 10 and high - low > 1.0) : (iter += 1) {
+                        const mid = (low + high) * 0.5;
+                        const trial = try self.shapeHardLine(allocator, hard_line, font_size, mid, preserve, cur_indent);
+                        if (trial.len <= normal_lines.len) {
+                            high = mid;
+                        } else {
+                            low = mid;
+                        }
+                        allocator.free(trial);
+                    }
+                    allocator.free(normal_lines);
+                    const balanced = try self.shapeHardLine(allocator, hard_line, font_size, high, preserve, cur_indent);
+                    for (balanced) |bline| try list.append(allocator, bline);
+                    allocator.free(balanced);
+                    continue;
+                } else {
+                    for (normal_lines) |nline| try list.append(allocator, nline);
+                    allocator.free(normal_lines);
+                    continue;
                 }
-                if (accepted == start) accepted = end;
-                const slice = hard_line[start..accepted];
-                try list.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = indent });
-                start = accepted;
             }
+            const shaped = try self.shapeHardLine(allocator, hard_line, font_size, available, preserve, cur_indent);
+            for (shaped) |sline| try list.append(allocator, sline);
+            allocator.free(shaped);
         }
         return list.toOwnedSlice(allocator);
     }
 };
+
+pub fn applyTextTransform(a: std.mem.Allocator, content: []const u8, transform: []const u8, language: []const u8) ![]const u8 {
+    if (std.mem.eql(u8, transform, "none") or content.len == 0) return content;
+    var result: std.ArrayList(u8) = .empty;
+    errdefer result.deinit(a);
+    const is_tr_az = std.ascii.startsWithIgnoreCase(language, "tr") or std.ascii.startsWithIgnoreCase(language, "az");
+
+    if (std.mem.eql(u8, transform, "uppercase")) {
+        var i: usize = 0;
+        while (i < content.len) {
+            if (i + 1 < content.len and content[i] == 0xc3 and content[i + 1] == 0x9f) {
+                try result.appendSlice(a, "SS");
+                i += 2;
+                continue;
+            }
+            if (is_tr_az and content[i] == 'i') {
+                try result.appendSlice(a, "\xc4\xb0");
+                i += 1;
+                continue;
+            }
+            if (content[i] >= 'a' and content[i] <= 'z') {
+                try result.append(a, content[i] - 32);
+                i += 1;
+            } else {
+                try result.append(a, content[i]);
+                i += 1;
+            }
+        }
+        return result.toOwnedSlice(a);
+    } else if (std.mem.eql(u8, transform, "lowercase")) {
+        var i: usize = 0;
+        while (i < content.len) {
+            if (is_tr_az and content[i] == 'I') {
+                try result.appendSlice(a, "\xc4\xb1");
+                i += 1;
+                continue;
+            }
+            if (i + 1 < content.len and content[i] == 0xce and content[i + 1] == 0xa3) {
+                var is_word_end = (i + 2 == content.len);
+                if (i + 2 < content.len) {
+                    const next = content[i + 2];
+                    if (next == ' ' or next == '\t' or next == '\r' or next == '\n' or next == '.' or next == ',' or next == ';' or next == '!' or next == '?') {
+                        is_word_end = true;
+                    }
+                }
+                if (is_word_end) {
+                    try result.appendSlice(a, "\xcf\x82");
+                } else {
+                    try result.appendSlice(a, "\xcf\x83");
+                }
+                i += 2;
+                continue;
+            }
+            if (content[i] >= 'A' and content[i] <= 'Z') {
+                try result.append(a, content[i] + 32);
+                i += 1;
+            } else {
+                try result.append(a, content[i]);
+                i += 1;
+            }
+        }
+        return result.toOwnedSlice(a);
+    } else if (std.mem.eql(u8, transform, "capitalize")) {
+        var initial = true;
+        for (content) |c| {
+            if (initial and c >= 'a' and c <= 'z') {
+                try result.append(a, c - 32);
+                initial = false;
+            } else {
+                try result.append(a, c);
+                if (c == ' ' or c == '\t' or c == '\r' or c == '\n') {
+                    initial = true;
+                } else if ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9')) {
+                    initial = false;
+                }
+            }
+        }
+        return result.toOwnedSlice(a);
+    }
+    return content;
+}
 
 pub fn estimate(content: []const u8, font_size: f32) Metrics {
     var count: usize = 0;

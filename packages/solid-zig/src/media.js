@@ -77,6 +77,8 @@ export function evaluateMediaQuery(queryString, env = {}) {
     q = q.slice(1, -1).trim();
   }
 
+  const overflow = q.match(/^overflow-(block|inline)(?:\s*:\s*(\w+))?$/i);
+  if (overflow) { const actual = env[overflow[1].toLowerCase() === "block" ? "overflowBlock" : "overflowInline"] ?? "scroll"; const result = overflow[2] ? actual === overflow[2].toLowerCase() : actual !== "none"; return negated ? !result : result; }
   const scripting = env.scripting || globalScriptingState;
 
   if (/^update(?:\s*:|$)/i.test(q)) { const value = q.includes(":") ? q.slice(q.indexOf(":") + 1).trim().toLowerCase() : null; const actual = env.update || "fast"; const result = value ? value === actual : actual !== "none"; return negated ? !result : result; }

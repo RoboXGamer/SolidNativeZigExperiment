@@ -81,7 +81,7 @@ function parseCompound(str) {
   }
 
   if (s.includes(":root")) { result.isRoot = true; s = s.replace(/:root/g, ""); }
-  for (const pseudo of ["read-only", "read-write", "popover-open"]) { if (s.includes(":"+pseudo)) { (result.inputPseudos ??= []).push(pseudo); s = s.replace(":"+pseudo, ""); } }
+  for (const pseudo of ["read-only", "read-write", "popover-open", "placeholder-shown"]) { if (s.includes(":"+pseudo)) { (result.inputPseudos ??= []).push(pseudo); s = s.replace(":"+pseudo, ""); } }
   // :scope
   if (s.includes(":scope")) {
     result.isScope = true;
@@ -277,7 +277,7 @@ export function getNodeAttr(node, name) {
 export function matchCompound(node, compound, scopeNode = null) {
   if (compound.isRoot && node.type !== "root" && node.parent != null) return false;
   if (!node) return false;
-  for (const pseudo of compound.inputPseudos || []) { const writable = !node.props?.disabled && !node.props?.readOnly && !node.props?.readonly && (["input","textarea"].includes(node.type) || node.props?.contentEditable === true); if (pseudo === "read-only" && writable || pseudo === "read-write" && !writable || pseudo === "popover-open" && !node._popoverOpen) return false; }
+  for (const pseudo of compound.inputPseudos || []) { if (pseudo === "placeholder-shown" && !(["input","textarea"].includes(node.type) && String(node.props?.placeholder ?? "").length > 0 && String(node.props?.value ?? "").length === 0)) return false; const writable = !node.props?.disabled && !node.props?.readOnly && !node.props?.readonly && (["input","textarea"].includes(node.type) || node.props?.contentEditable === true); if (pseudo === "read-only" && writable || pseudo === "read-write" && !writable || pseudo === "popover-open" && !node._popoverOpen) return false; }
 
   // :scope
   if (compound.isScope) {

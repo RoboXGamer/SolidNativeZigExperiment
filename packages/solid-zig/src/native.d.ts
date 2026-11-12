@@ -300,6 +300,25 @@ export interface NativeStyle {
   clear?: "none" | "left" | "right" | "both";
   startingStyle?: NativeStyle;
   "@starting-style"?: NativeStyle;
+  overflowWrap?: "normal" | "break-word" | "anywhere" | string;
+  wordWrap?: "normal" | "break-word" | "anywhere" | string;
+  paintOrder?: "normal" | "fill" | "stroke" | "markers" | string;
+  offsetPath?: string;
+  offsetDistance?: NativeLength;
+  offsetRotate?: string;
+  page?: string;
+  breakBefore?: "auto" | "avoid" | "avoid-page" | "page" | "left" | "right" | "recto" | "verso" | "column" | "avoid-column" | string;
+  breakAfter?: "auto" | "avoid" | "avoid-page" | "page" | "left" | "right" | "recto" | "verso" | "column" | "avoid-column" | string;
+  breakInside?: "auto" | "avoid" | "avoid-page" | "avoid-column" | string;
+  pageBreakBefore?: string;
+  pageBreakAfter?: string;
+  pageBreakInside?: string;
+  placeholderColor?: string;
+  placeholderOpacity?: number;
+  ":placeholder-shown"?: NativeStyle;
+  "::placeholder"?: NativeStyle;
+  placeholderStyle?: NativeStyle;
+  placeholderShownStyle?: NativeStyle;
 }
 
 export interface NativeNode {
@@ -332,6 +351,9 @@ export interface NativeProps {
   "_active"?: NativeStyle;
   "_focus"?: NativeStyle;
   value?: string | number;
+  placeholder?: string;
+  placeholderStyle?: NativeStyle;
+  placeholderShownStyle?: NativeStyle;
   disabled?: boolean;
   readOnly?: boolean;
   readonly?: boolean;
@@ -367,6 +389,7 @@ export namespace JSX {
     text: NativeProps;
     button: NativeProps;
     input: NativeProps;
+    textarea: NativeProps;
     grid: NativeProps;
     select: NativeProps;
     option: NativeProps;
@@ -457,3 +480,7 @@ export function isPopoverOpen(node: any): boolean;
 export function isReadOnly(node: any): boolean;
 export function isReadWrite(node: any): boolean;
 export function resolveQuotes(quotes?: string, lang?: string, depth?: number): { open: string; close: string } | null;
+export function isPlaceholderShown(node: any): boolean;
+export function pageSetup(input?: any): any;
+export function paginate(nodes?: any[], setup?: any): any[];
+export function parsePathShape(pathStr: string): any;

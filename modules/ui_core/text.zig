@@ -126,6 +126,8 @@ pub const Typography = struct {
     text_combine_upright: []const u8 = "none",
     ruby_align: []const u8 = "space-around",
     quotes: []const u8 = "auto",
+    overflow_wrap: []const u8 = "normal",
+    paint_order: []const u8 = "normal",
 };
 
 pub fn emphasisMark(style_str: []const u8) []const u8 {
@@ -449,8 +451,9 @@ pub const Text = struct {
     }
 
     /// Widest unbreakable word, i.e. the min-content width of the run.
+    /// If overflow-wrap: anywhere, soft wrap opportunities are introduced between every character/grapheme.
     pub fn minContentWidth(self: Text, content: []const u8, font_size: f32) f32 {
-        if (std.mem.eql(u8, self.typography.word_break, "break-all")) {
+        if (std.mem.eql(u8, self.typography.word_break, "break-all") or std.mem.eql(u8, self.typography.overflow_wrap, "anywhere")) {
             var widest: f32 = 0;
             const edit = @import("text_edit.zig");
             var offset: usize = 0;
@@ -509,8 +512,8 @@ pub const Text = struct {
                 accepted = candidate_end;
                 if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
             }
-            if (accepted == start) {
-                if (std.mem.eql(u8, self.typography.word_break, "break-all") and capacity > 0) {
+            if (accepted == start or (accepted > start and self.width(hard_line[start..accepted], font_size) > capacity)) {
+                if ((std.mem.eql(u8, self.typography.word_break, "break-all") or std.mem.eql(u8, self.typography.overflow_wrap, "anywhere") or std.mem.eql(u8, self.typography.overflow_wrap, "break-word")) and capacity > 0) {
                     const edit = @import("text_edit.zig");
                     var g_end = start;
                     var g_accepted = start;

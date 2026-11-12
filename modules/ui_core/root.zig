@@ -40,6 +40,9 @@ pub const transitions = @import("transitions.zig");
 pub const media = @import("media.zig");
 pub const css_scope = @import("css_scope.zig");
 pub const view_transitions = @import("view_transitions.zig");
+pub const path_shape = @import("path_shape.zig");
+pub const page = @import("page.zig");
+pub const media_query = @import("media_query.zig");
 
 test {
     std.testing.refAllDecls(@import("tests.zig"));

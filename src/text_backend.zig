@@ -97,7 +97,7 @@ pub const Cache = struct {
         var hash = std.hash.Wyhash.init(0);
         hash.update(text);
         hash.update(std.mem.asBytes(&size));
-        inline for (.{ "font_family", "font_style", "language", "text_transform", "text_orientation" }) |field| {
+        inline for (.{ "font_family", "font_style", "language", "text_transform", "text_orientation", "overflow_wrap", "paint_order" }) |field| {
             const value = @field(typography, field);
             const length = value.len;
             hash.update(std.mem.asBytes(&length));

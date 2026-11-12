@@ -300,7 +300,12 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
             colorWithOpacity(n.style.textFillColor, .white, op)
         else
             colorWithOpacity(n.style.color, .white, op);
-        try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), input_color, text.typography);
+        if (n.isPlaceholderShown()) {
+            const ph_color = if (n.style.placeholderColor.len > 0) n.style.placeholderColor else "#888888";
+            try ctx.text_cache.drawStyled(n.placeholder, text_x, text_y, n.fontSize(), colorWithOpacity(ph_color, .gray, op * n.style.placeholderOpacity), text.typography);
+        } else {
+            try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), input_color, text.typography);
+        }
         if (focused == n.id) {
             if (is_vertical) {
                 text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + @as(f32, @floatFromInt(font_size_int))), @intFromFloat(text_y + text.width(n.value[0..editor.cursor], n.fontSize())));

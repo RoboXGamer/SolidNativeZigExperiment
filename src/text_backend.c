@@ -1,3 +1,4 @@
+#include <wchar.h>
 // Windows text shaping and font fallback through Uniscribe, shared by measure
 // and paint. The UTF-8 boundary is length-aware, including embedded NULs.
 #define WIN32_LEAN_AND_MEAN

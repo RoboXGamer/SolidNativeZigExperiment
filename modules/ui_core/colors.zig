@@ -138,7 +138,7 @@ fn linearize(v: f64) f64 {
 }
 
 fn encode(v: f64) f64 {
-    return if (@abs(v) <= 0.0031308) 12.92 * v else 1.055 * signedPow(v, 1 / 2.4) - std.math.copysign(@as(f64, 0.055), v);
+    return if (@abs(v) <= 0.0031308) 12.92 * v else 1.055 * signedPow(v, 1.0 / 2.4) - std.math.copysign(@as(f64, 0.055), v);
 }
 
 fn encoded(v: Vec) Vec {
@@ -225,7 +225,7 @@ fn explicitSpace(space: []const u8, input: Vec) ?Vec {
     } else if (eq(space, "rec2020")) {
         const a: f64 = 1.09929682680944;
         const b: f64 = 0.018053968510807;
-        for (&v) |*c| c.* = if (@abs(c.*) < b * 4.5) c.* / 4.5 else std.math.copysign(std.math.pow(f64, (@abs(c.*) + a - 1) / a, 1 / 0.45), c.*);
+        for (&v) |*c| c.* = if (@abs(c.*) < b * 4.5) c.* / 4.5 else std.math.copysign(std.math.pow(f64, (@abs(c.*) + a - 1) / a, 1.0 / 0.45), c.*);
         matrix = .{
             .{ 0.6369580483012914, 0.14461690358620832, 0.1688809751641721 },
             .{ 0.2627002120112671, 0.6779980715188708, 0.05930171646986196 },

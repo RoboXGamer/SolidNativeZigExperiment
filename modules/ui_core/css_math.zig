@@ -25,10 +25,10 @@ pub fn round(a: f32, interval: f32, strategy: RoundStrategy) f32 {
     // f64 keeps the neighboring multiples finite for finite f32 inputs.
     const value: f64 = a;
     const step: f64 = b;
-    const remainder = @rem(value, step);
-    if (remainder == 0) return a;
-    const lower = if (a < 0) value - remainder - step else value - remainder;
-    const upper = if (a < 0) value - remainder else value - remainder + step;
+    const step_remainder = @rem(value, step);
+    if (step_remainder == 0) return a;
+    const lower = if (a < 0) value - step_remainder - step else value - step_remainder;
+    const upper = if (a < 0) value - step_remainder else value - step_remainder + step;
     const result = switch (strategy) {
         .nearest => if (value - lower < upper - value) lower else upper,
         .up => upper,

@@ -221,7 +221,7 @@ fn expandedBox(box: core.Rect, amount: f32) core.Rect {
 }
 fn quarterLength(rx: f32, ry: f32) f32 {
     if (rx <= 0 or ry <= 0) return 0;
-    return std.math.pi / 4 * (3 * (rx + ry) - @sqrt((3 * rx + ry) * (rx + 3 * ry)));
+    return std.math.pi / 4.0 * (3 * (rx + ry) - @sqrt((3 * rx + ry) * (rx + 3 * ry)));
 }
 const PerimeterPoint = struct { along: f32, across: f32 };
 // Corner arc distances use the ellipse angle and quarter circumference. This
@@ -246,7 +246,7 @@ fn perimeterPoint(box: core.Rect, radius: EllipticalRadii, x: f32, y: f32) Perim
         if (rx[i] > 0 and ry[i] > 0 and dx < rx[i] and dy < ry[i]) {
             const ex = (rx[i] - dx) / rx[i];
             const ey = (ry[i] - dy) / ry[i];
-            const angle = std.math.atan2(ey, ex) / (std.math.pi / 2);
+            const angle = std.math.atan2(ey, ex) / (std.math.pi / 2.0);
             const fraction = if (i == 1 or i == 3) 1 - angle else angle;
             return .{ .along = starts[i] + arc[i] * fraction, .across = (@sqrt(ex * ex + ey * ey) - 1) * @min(rx[i], ry[i]) };
         }

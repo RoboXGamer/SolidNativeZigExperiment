@@ -507,7 +507,7 @@ pub const Scene = struct {
                     n.style.textDecorationStyle = token;
                 } else if (std.ascii.eqlIgnoreCase(token, "auto") or std.ascii.eqlIgnoreCase(token, "from-font")) {
                     n.style.textDecorationThickness = null;
-                } else if (std.fmt.parseFloat(f32, token)) |val| {
+                } else if (std.fmt.parseFloat(f32, token) catch null) |val| {
                     if (val >= 0) n.style.textDecorationThickness = val;
                 } else {
                     var ctx = context;

@@ -30,6 +30,7 @@ pub const layout_flex = @import("layout_flex.zig");
 pub const layout_grid = @import("layout_grid.zig");
 pub const layout_multicol = @import("layout_multicol.zig");
 pub const selectors = @import("selectors.zig");
+pub const layout_table = @import("layout_table.zig");
 pub const transform = @import("transform.zig");
 pub const gradient = @import("gradient.zig");
 pub const paint = @import("paint.zig");

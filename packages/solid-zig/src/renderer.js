@@ -64,3 +64,12 @@ const renderer = createRenderer({
 
 export const { render, effect, memo, createComponent, createElement, createTextNode, insertNode, insert, spread, setProp, mergeProps, applyRef, ref } = renderer;
 export { matches, querySelector, querySelectorAll, closest };
+
+let currentTargetId = "";
+let currentTargetText = "";
+export function setTarget(id) { currentTargetId = id ? String(id).replace(/^#/, "") : ""; }
+export function setTargetText(text) { currentTargetText = text || ""; }
+export function getTarget() { return currentTargetId; }
+export function getTargetText() { return currentTargetText; }
+
+

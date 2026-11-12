@@ -460,3 +460,15 @@ pub fn adjustPrintColor(color: Color, mode: []const u8) Color {
     return c;
 }
 
+/// Resolves flood-color with flood-opacity and currentColor semantics (Issue #239).
+pub fn floodColor(n: *const core.Node) Color {
+    var c = currentColor(n, if (n.style.floodColor.len > 0) n.style.floodColor else "black");
+    const op = std.math.clamp(n.style.floodOpacity, 0, 1);
+    c[3] = @intFromFloat(@as(f32, @floatFromInt(c[3])) * op);
+    return c;
+}
+
+/// Resolves lighting-color with currentColor semantics (Issue #239).
+pub fn lightingColor(n: *const core.Node) Color {
+    return currentColor(n, if (n.style.lightingColor.len > 0) n.style.lightingColor else "white");
+}

@@ -1,4 +1,4 @@
-import * as solid from "solid-js";
+﻿import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import { createModuleHost } from "./module-runtime.js";
@@ -95,6 +95,11 @@ function displayOf(node, style) {
   }
   if (node.type === "text") return "block";
   if (node.type === "grid") return "grid";
+  if (node.type === "table") return "table";
+  if (node.type === "caption") return "table-caption";
+  if (["thead", "tbody", "tfoot"].includes(node.type)) return "table-row-group";
+  if (node.type === "tr") return "table-row";
+  if (["td", "th"].includes(node.type)) return "table-cell";
   if (node.type === "option" && node.parent?.type === "select") {
     return node.parent._open ? "flex" : "none";
   }
@@ -656,6 +661,73 @@ export function snapshot(node, inherited = {}) {
   }
   const style = physicalStyle(resolveNestedStyles(node, effectivePropsStyle), inherited);
 
+  const activeTarget = renderer.getTarget ? renderer.getTarget() : "";
+  const isTarget = Boolean(node.props.target || (node.props.id && String(node.props.id) === activeTarget));
+  if (isTarget && style[":target"]) {
+    Object.assign(style, style[":target"]);
+  }
+  const activeTargetText = renderer.getTargetText ? renderer.getTargetText() : "";
+  const isTargetText = Boolean(node.props.targetText || (node.type === "text" && activeTargetText && node.text.includes(activeTargetText)));
+  if (isTargetText && style["::target-text"]) {
+    Object.assign(style, style["::target-text"]);
+  }
+
+  if (typeof style.textDecoration === "string") {
+    const parts = splitSpacing(style.textDecoration.trim());
+    const line = [];
+    let decorStyle, decorColor, decorThickness;
+    for (const token of parts) {
+      if (["none", "underline", "overline", "line-through"].includes(token)) {
+        line.push(token);
+      } else if (["solid", "double", "dotted", "dashed", "wavy"].includes(token)) {
+        decorStyle = token;
+      } else if (token === "auto" || token === "from-font" || /^[+\-]?\d+(?:\.\d+)?(?:px|%|em|rem)?$/i.test(token)) {
+        decorThickness = token;
+      } else {
+        decorColor = token;
+      }
+    }
+    if (line.length > 0) style.textDecorationLine ??= line.join(" ");
+    if (decorStyle) style.textDecorationStyle ??= decorStyle;
+    if (decorColor) style.textDecorationColor ??= decorColor;
+    if (decorThickness != null) style.textDecorationThickness ??= decorThickness;
+  }
+
+  if (typeof style.textEmphasis === "string") {
+    const parts = splitSpacing(style.textEmphasis.trim());
+    const emphStyle = [];
+    let emphColor;
+    for (const token of parts) {
+      if (["none", "circle", "dot", "double-circle", "triangle", "sesame", "filled", "open"].includes(token) || /^['"].*['"]$/.test(token)) {
+        emphStyle.push(token);
+      } else {
+        emphColor = token;
+      }
+    }
+    if (emphStyle.length > 0) style.textEmphasisStyle ??= emphStyle.join(" ");
+    if (emphColor) style.textEmphasisColor ??= emphColor;
+  }
+
+  let borderSpacingX = 0, borderSpacingY = 0, borderSpacingCss = null;
+  if (style.borderSpacing != null) {
+    if (typeof style.borderSpacing === "number") {
+      borderSpacingX = style.borderSpacing;
+      borderSpacingY = style.borderSpacing;
+    } else if (typeof style.borderSpacing === "string") {
+      const parts = splitSpacing(style.borderSpacing.trim());
+      if (parts.length === 1) {
+        const v = parseFloat(parts[0]) || 0;
+        borderSpacingX = v; borderSpacingY = v;
+      } else if (parts.length >= 2) {
+        borderSpacingX = parseFloat(parts[0]) || 0;
+        borderSpacingY = parseFloat(parts[1]) || 0;
+      }
+      borderSpacingCss = style.borderSpacing.trim();
+    }
+  }
+
+  const floodOp = style.floodOpacity != null ? opacityValue(style.floodOpacity) : { number: 1, css: null };
+
 
   if(typeof style.outline==="string") {
     let width,kind,color;
@@ -1094,6 +1166,30 @@ export function snapshot(node, inherited = {}) {
       perspectiveCss: typeof style.perspective === "string" ? style.perspective : (typeof style.perspective === "number" ? String(style.perspective) + "px" : null),
       perspectiveOrigin: typeof style.perspectiveOrigin === "string" ? style.perspectiveOrigin : "50% 50%",
       touchAction: typeof style.touchAction === "string" ? style.touchAction : "auto",
+
+
+      textDecorationSkipInk: style.textDecorationSkipInk ?? inherited.textDecorationSkipInk ?? "auto",
+      textEmphasisStyle: style.textEmphasisStyle ?? inherited.textEmphasisStyle ?? "none",
+      textEmphasisColor: style.textEmphasisColor ?? inherited.textEmphasisColor ?? "",
+      textEmphasisPosition: style.textEmphasisPosition ?? inherited.textEmphasisPosition ?? "over right",
+      textCombineUpright: style.textCombineUpright ?? inherited.textCombineUpright ?? "none",
+      borderCollapse: style.borderCollapse ?? inherited.borderCollapse ?? "separate",
+      borderSpacing: borderSpacingX,
+      borderSpacingX,
+      borderSpacingY,
+      borderSpacingCss,
+      captionSide: style.captionSide ?? inherited.captionSide ?? "top",
+      emptyCells: style.emptyCells ?? inherited.emptyCells ?? "show",
+      tableLayout: style.tableLayout ?? inherited.tableLayout ?? "auto",
+      colorInterpolationFilters: style.colorInterpolationFilters ?? inherited.colorInterpolationFilters ?? "auto",
+      floodColor: style.floodColor ?? inherited.floodColor ?? "",
+      floodOpacity: floodOp.number,
+      floodOpacityCss: floodOp.css,
+      lightingColor: style.lightingColor ?? inherited.lightingColor ?? "",
+      isTarget,
+      isTargetText,
+      targetTextColor: style.targetTextColor ?? "",
+      targetTextBackgroundColor: style.targetTextBackgroundColor ?? "",
       ...textStyle,
       lineHeight,
       lineHeightCss,
@@ -1599,3 +1695,5 @@ export {
   expandNesting,
   resolveNestedStyles,
 };
+export { setTarget, setTargetText, getTarget, getTargetText } from "./renderer.js";
+

@@ -313,12 +313,59 @@ pub fn parseColor(input: []const u8) ?[4]u8 {
         }) orelse return null, alpha);
     }
     // Keyword matching is ASCII case-insensitive, without heap allocation.
-    if (s.len > 20) return null;
-    var lowercase: [20]u8 = undefined;
+    if (s.len > 32) return null;
+    var lowercase: [32]u8 = undefined;
     for (s, 0..) |c, i| lowercase[i] = std.ascii.toLower(c);
-    const value = named_colors.get(lowercase[0..s.len]) orelse return null;
+    const value = named_colors.get(lowercase[0..s.len]) orelse system_colors.get(lowercase[0..s.len]) orelse return null;
     return .{ @intCast(value >> 16), @intCast((value >> 8) & 255), @intCast(value & 255), 255 };
 }
+
+/// CSS Color 4 and CSS 2 system colors.
+const system_colors = std.StaticStringMap(u32).initComptime(.{
+    // CSS Color 4 system colors
+    .{ "accentcolor", 0x0078d4 },
+    .{ "accentcolortext", 0xffffff },
+    .{ "activetext", 0xff0000 },
+    .{ "buttonborder", 0x767676 },
+    .{ "buttonface", 0xf0f0f0 },
+    .{ "buttontext", 0x000000 },
+    .{ "canvas", 0xffffff },
+    .{ "canvastext", 0x000000 },
+    .{ "field", 0xffffff },
+    .{ "fieldtext", 0x000000 },
+    .{ "graytext", 0x6d6d6d },
+    .{ "highlight", 0x3399ff },
+    .{ "highlighttext", 0xffffff },
+    .{ "linktext", 0x0000ee },
+    .{ "mark", 0xffff00 },
+    .{ "marktext", 0x000000 },
+    .{ "selecteditem", 0x3399ff },
+    .{ "selecteditemtext", 0xffffff },
+    .{ "visitedtext", 0x551a8b },
+    // Historical CSS system colors
+    .{ "activecaption", 0x99b4d1 },
+    .{ "appworkspace", 0xababab },
+    .{ "background", 0x000000 },
+    .{ "buttonhighlight", 0xffffff },
+    .{ "buttonshadow", 0xa0a0a0 },
+    .{ "captiontext", 0x000000 },
+    .{ "inactiveborder", 0xf4f7fc },
+    .{ "inactivecaption", 0xbfcddb },
+    .{ "inactivecaptiontext", 0x434e54 },
+    .{ "infobackground", 0xffffe1 },
+    .{ "infotext", 0x000000 },
+    .{ "menu", 0xf0f0f0 },
+    .{ "menutext", 0x000000 },
+    .{ "scrollbar", 0xc8c8c8 },
+    .{ "threeddarkshadow", 0x696969 },
+    .{ "threedface", 0xf0f0f0 },
+    .{ "threedhighlight", 0xffffff },
+    .{ "threedlightshadow", 0xe3e3e3 },
+    .{ "threedshadow", 0xa0a0a0 },
+    .{ "window", 0xffffff },
+    .{ "windowframe", 0x646464 },
+    .{ "windowtext", 0x000000 },
+});
 
 // Named-color data: https://github.com/colorjs/color-name
 // The MIT License (MIT)

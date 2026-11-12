@@ -2,6 +2,17 @@ import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import { createModuleHost } from "./module-runtime.js";
+export {
+  checkValidity,
+  matches,
+  specificity,
+  splitSelectorList,
+  parseComplexSelector,
+  parseCompoundSelector,
+  compileStyleSheet,
+  applySelectorStyles
+} from "./selectors.js";
+import { checkValidity } from "./selectors.js";
 
 let root = renderer.node("root");
 let dispose;
@@ -278,7 +289,16 @@ function styleLength(value,{normal=false,negative=false}={}) {
 }
 
 export function snapshot(node, inherited = {}) {
-  const style = physicalStyle(node.props.style || {}, inherited);
+  let effectivePropsStyle = { ...(node.props.style || {}) };
+  if (node._userInteracted) {
+    const valid = checkValidity(node);
+    if (valid && effectivePropsStyle[":user-valid"]) {
+      Object.assign(effectivePropsStyle, effectivePropsStyle[":user-valid"]);
+    } else if (!valid && effectivePropsStyle[":user-invalid"]) {
+      Object.assign(effectivePropsStyle, effectivePropsStyle[":user-invalid"]);
+    }
+  }
+  const style = physicalStyle(effectivePropsStyle, inherited);
   if(typeof style.outline==="string") {
     let width,kind,color;
     for(const token of splitSpacing(style.outline)) {
@@ -288,8 +308,8 @@ export function snapshot(node, inherited = {}) {
     }
     style.outlineWidth??=width??"medium"; style.outlineStyle??=kind??"none"; style.outlineColor??=color??"currentColor";
   }
-  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent"]) | (node.props.lang != null ? 1 << 3 : 0);
-  const interactionSpecified=authoredMask(style,["visibility","pointerEvents","cursor"]);
+  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent","wordBreak","whiteSpaceCollapse","verticalAlign"]) | (node.props.lang != null ? 1 << 3 : 0);
+  const interactionSpecified=authoredMask(style,["visibility","pointerEvents","cursor","willChange"]);
   const letterSpacing=styleLength(style.letterSpacing,{normal:true,negative:true});
   const wordSpacing=styleLength(style.wordSpacing,{normal:true,negative:true});
   const textIndent=styleLength(style.textIndent,{negative:true});
@@ -353,6 +373,31 @@ export function snapshot(node, inherited = {}) {
   const colGapParsed = parseGap(style.columnGap);
   if (style.aspectRatio != null && (typeof style.aspectRatio !== "number" || !Number.isFinite(style.aspectRatio) || style.aspectRatio <= 0)) throw Error(`Invalid aspect ratio: ${style.aspectRatio}`);
   if (style.fontSize != null && !(typeof style.fontSize === "string" && style.fontSize.trim()) && (typeof style.fontSize !== "number" || !Number.isFinite(style.fontSize) || style.fontSize <= 0)) throw Error(`Invalid font size: ${style.fontSize}`);
+  const willChange = style.willChange == null ? "auto" : String(style.willChange).trim();
+  const wordBreak = style.wordBreak ?? inherited.wordBreak ?? "normal";
+  let whiteSpaceCollapse = style.whiteSpaceCollapse ?? inherited.whiteSpaceCollapse;
+  if (!whiteSpaceCollapse) {
+    if (style.whiteSpace === "pre" || style.whiteSpace === "pre-wrap") whiteSpaceCollapse = "preserve";
+    else if (style.whiteSpace === "pre-line") whiteSpaceCollapse = "preserve-breaks";
+    else if (style.whiteSpace === "break-spaces") whiteSpaceCollapse = "break-spaces";
+    else whiteSpaceCollapse = "collapse";
+  }
+  let verticalAlign = "baseline";
+  let verticalAlignCss = null;
+  let verticalAlignOffset = null;
+  if (style.verticalAlign != null) {
+    if (typeof style.verticalAlign === "number") {
+      verticalAlignOffset = style.verticalAlign;
+      verticalAlign = "offset";
+    } else if (typeof style.verticalAlign === "string") {
+      const vTrim = style.verticalAlign.trim();
+      if (["baseline", "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom"].includes(vTrim)) {
+        verticalAlign = vTrim;
+      } else {
+        verticalAlignCss = vTrim;
+      }
+    }
+  }
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
@@ -364,6 +409,11 @@ export function snapshot(node, inherited = {}) {
     language: node.props.lang ?? style.language ?? inherited.language ?? "",
     textTransform: style.textTransform ?? inherited.textTransform ?? "none",
     textAlignLast: style.textAlignLast ?? inherited.textAlignLast ?? "auto",
+    wordBreak,
+    whiteSpaceCollapse,
+    verticalAlign,
+    verticalAlignCss,
+    verticalAlignOffset,
     cursor: style.cursor ?? inherited.cursor ?? "auto",
     visibility: style.visibility ?? inherited.visibility ?? "visible",
     pointerEvents: style.pointerEvents ?? inherited.pointerEvents ?? "auto",
@@ -559,6 +609,7 @@ export function snapshot(node, inherited = {}) {
       opacity: opacity.number,
       opacityCss: opacity.css,
       isolation,
+      willChange,
       transform: typeof style.transform === "string" ? style.transform : "",
       transformOrigin: typeof style.transformOrigin === "string" ? style.transformOrigin : "50% 50%",
       transition: typeof style.transition === "string" ? style.transition : "",
@@ -677,6 +728,7 @@ export function dispatch(target, name, type, value) {
 }
 
 export function dispatchSelectChange(selectNode, newValue) {
+  selectNode._userInteracted = true;
   selectNode.props.value = newValue;
   selectNode._value = newValue;
   dispatch(selectNode, "onInput", "input", newValue);
@@ -690,6 +742,7 @@ export function dispatchClick(id) {
     return;
   }
   if (target.props.disabled) return;
+  target._userInteracted = true;
 
   if (target.type === "select") {
     closeAllSelects(target);
@@ -709,6 +762,7 @@ export function dispatchClick(id) {
       selectNode = selectNode.parent;
     }
     if (selectNode && !selectNode.props.disabled) {
+      selectNode._userInteracted = true;
       const newValue = getOptionValue(target);
       selectNode._open = false;
       dispatch(target, "onClick", "click");
@@ -724,6 +778,7 @@ export function dispatchClick(id) {
 export function dispatchInput(id, value) {
   const target = findId(root, id);
   if (!target || target.type !== "input" || target.props.disabled || target.props.readOnly) return;
+  target._userInteracted = true;
   target.props.value = value;
   dispatch(target, "onInput", "input", value);
 }

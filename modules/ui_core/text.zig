@@ -12,10 +12,26 @@ const std = @import("std");
 
 /// CSS collapsing for the scene projection. The authoring tree keeps its text.
 pub fn collapseWhitespace(a: std.mem.Allocator, input: []const u8) ![]const u8 {
+    return collapseWhitespaceMode(a, input, "collapse");
+}
+
+pub fn collapseWhitespaceMode(a: std.mem.Allocator, input: []const u8, mode: []const u8) ![]const u8 {
+    if (std.mem.eql(u8, mode, "preserve") or std.mem.eql(u8, mode, "break-spaces")) return input;
+    const preserve_breaks = std.mem.eql(u8, mode, "preserve-breaks");
     const result = try a.alloc(u8, input.len);
     var length: usize = 0;
     var pending = false;
     for (input) |c| {
+        if (preserve_breaks and (c == '\n' or c == '\r')) {
+            if (pending) {
+                result[length] = ' ';
+                length += 1;
+                pending = false;
+            }
+            result[length] = c;
+            length += 1;
+            continue;
+        }
         if (c == ' ' or c == '\t' or c == '\r' or c == '\n' or c == 0x0c) {
             pending = length > 0;
             continue;
@@ -85,6 +101,10 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    word_break: []const u8 = "normal",
+    white_space_collapse: []const u8 = "collapse",
+    vertical_align: []const u8 = "baseline",
+    vertical_align_offset: f32 = 0,
 };
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
@@ -97,6 +117,7 @@ pub const ShapedLine = struct {
     /// First-line indentation, relative to the line's content box.
     indent: f32 = 0,
     offset_x: f32 = 0,
+    offset_y: f32 = 0,
 };
 
 pub const Wrap = struct {
@@ -231,6 +252,21 @@ pub const Text = struct {
 
     /// Widest unbreakable word, i.e. the min-content width of the run.
     pub fn minContentWidth(self: Text, content: []const u8, font_size: f32) f32 {
+        if (std.mem.eql(u8, self.typography.word_break, "break-all")) {
+            var widest: f32 = 0;
+            const edit = @import("text_edit.zig");
+            var offset: usize = 0;
+            while (offset < content.len) {
+                const next = edit.nextGrapheme(content, offset);
+                const cluster = content[offset..next];
+                if (cluster.len > 0 and cluster[0] != ' ' and cluster[0] != '\t' and cluster[0] != '\r' and cluster[0] != '\n') {
+                    const w = self.width(cluster, font_size);
+                    if (w > widest) widest = w;
+                }
+                offset = next;
+            }
+            return widest;
+        }
         var widest: f32 = 0;
         var it = std.mem.tokenizeAny(u8, content, " \t\r\n");
         while (it.next()) |word| {
@@ -258,15 +294,17 @@ pub const Text = struct {
         var list: std.ArrayList(ShapedLine) = .empty;
         errdefer list.deinit(allocator);
         if (content.len == 0) return list.toOwnedSlice(allocator);
-        const preserve = std.mem.eql(u8, white_space, "pre") or std.mem.eql(u8, white_space, "pre-wrap") or std.mem.eql(u8, white_space, "break-spaces");
-        const no_wrap = std.mem.eql(u8, white_space, "nowrap") or std.mem.eql(u8, white_space, "pre") or available <= 0;
+        const collapse_mode = self.typography.white_space_collapse;
+        const preserve = std.mem.eql(u8, white_space, "pre") or std.mem.eql(u8, white_space, "pre-wrap") or std.mem.eql(u8, white_space, "break-spaces") or std.mem.eql(u8, collapse_mode, "preserve") or std.mem.eql(u8, collapse_mode, "break-spaces");
+        const no_wrap = std.mem.eql(u8, white_space, "nowrap") or (std.mem.eql(u8, white_space, "pre") and !std.mem.eql(u8, collapse_mode, "break-spaces")) or available <= 0;
+        const break_all = std.mem.eql(u8, self.typography.word_break, "break-all");
         const line_h = self.lineHeight(font_size);
         const asc = self.ascent(font_size);
         var hard_lines = std.mem.splitScalar(u8, content, '\n');
         while (hard_lines.next()) |raw| {
             const hard_line = trimCarriageReturn(raw);
             if (no_wrap or hard_line.len == 0) {
-                try list.append(allocator, .{ .text = hard_line, .width = self.width(hard_line, font_size), .height = line_h, .ascent = asc, .indent = if (list.items.len == 0) self.typography.text_indent else 0 });
+                try list.append(allocator, .{ .text = hard_line, .width = self.width(hard_line, font_size), .height = line_h, .ascent = asc, .indent = if (list.items.len == 0) self.typography.text_indent else 0, .offset_y = self.typography.vertical_align_offset });
                 continue;
             }
             var start: usize = 0;
@@ -287,9 +325,24 @@ pub const Text = struct {
                     accepted = candidate_end;
                     if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
                 }
-                if (accepted == start) accepted = end;
+                if (accepted == start) {
+                    if (break_all and capacity > 0) {
+                        const edit = @import("text_edit.zig");
+                        var g_end = start;
+                        var g_accepted = start;
+                        while (g_end < hard_line.len and hard_line[g_end] != ' ' and hard_line[g_end] != '\t') {
+                            const next = edit.nextGrapheme(hard_line, g_end);
+                            if (g_accepted > start and self.width(hard_line[start..next], font_size) > capacity) break;
+                            g_accepted = next;
+                            g_end = next;
+                        }
+                        accepted = if (g_accepted > start) g_accepted else edit.nextGrapheme(hard_line, start);
+                    } else {
+                        accepted = end;
+                    }
+                }
                 const slice = hard_line[start..accepted];
-                try list.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = indent });
+                try list.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = indent, .offset_y = self.typography.vertical_align_offset });
                 start = accepted;
             }
         }

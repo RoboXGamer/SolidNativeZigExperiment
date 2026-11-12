@@ -164,6 +164,10 @@ pub const Node = struct {
             .tab_size = self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
             .text_indent = self.style.textIndent orelse 0,
+            .word_break = self.style.wordBreak,
+            .white_space_collapse = self.style.whiteSpaceCollapse,
+            .vertical_align = self.style.verticalAlign,
+            .vertical_align_offset = self.style.verticalAlignOffset orelse 0,
         };
         return result;
     }
@@ -177,6 +181,21 @@ pub const Node = struct {
             if (self.clipsX() and std.mem.eql(u8, self.style.textOverflow, "ellipsis") and (std.mem.eql(u8, self.style.whiteSpace, "nowrap") or std.mem.eql(u8, self.style.whiteSpace, "pre"))) {
                 line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
                 line.width = text.width(line.text, self.fontSize());
+            }
+            if (self.style.verticalAlignOffset == null) {
+                const font_sz = self.fontSize();
+                const line_h = text.lineHeight(font_sz);
+                if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "sub")) {
+                    line.offset_y = font_sz * 0.25;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "super")) {
+                    line.offset_y = -font_sz * 0.35;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "middle")) {
+                    line.offset_y = (line_h - font_sz) * 0.5;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "top") or std.ascii.eqlIgnoreCase(self.style.verticalAlign, "text-top")) {
+                    line.offset_y = -(line_h - font_sz) * 0.5;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "bottom") or std.ascii.eqlIgnoreCase(self.style.verticalAlign, "text-bottom")) {
+                    line.offset_y = (line_h - font_sz) * 0.5;
+                }
             }
             const alignment = if (i + 1 == lines.len and !std.mem.eql(u8, self.style.textAlignLast, "auto")) self.style.textAlignLast else self.style.textAlign;
             const free = @max(0, capacity - line.width);
@@ -407,6 +426,71 @@ pub const Scene = struct {
             }
             if (!valid) return error.InvalidTypography;
         }
+        var valid_wb = false;
+        inline for (.{ "normal", "break-all", "keep-all" }) |wb| if (std.ascii.eqlIgnoreCase(n.style.wordBreak, wb)) {
+            n.style.wordBreak = wb;
+            valid_wb = true;
+        };
+        if (!valid_wb) return error.InvalidTypography;
+        var valid_wsc = false;
+        inline for (.{ "collapse", "preserve", "preserve-breaks", "break-spaces" }) |wsc| if (std.ascii.eqlIgnoreCase(n.style.whiteSpaceCollapse, wsc)) {
+            n.style.whiteSpaceCollapse = wsc;
+            valid_wsc = true;
+        };
+        if (!valid_wsc) return error.InvalidTypography;
+        if (n.style.verticalAlignCss) |css| {
+            var ctx = context;
+            ctx.font_size = n.fontSize();
+            ctx.percentage = if (n.style.lineHeight) |lh| (if (lh > 0) lh else n.fontSize() * 1.2) else (n.fontSize() * 1.2);
+            n.style.verticalAlignOffset = switch (try sizing.resolve(css, ctx)) {
+                .length => |v| v,
+                else => return error.InvalidLength,
+            };
+            n.style.verticalAlignCss = null;
+        } else {
+            var valid_va = false;
+            inline for (.{ "baseline", "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom" }) |va| if (std.ascii.eqlIgnoreCase(n.style.verticalAlign, va)) {
+                n.style.verticalAlign = va;
+                valid_va = true;
+            };
+            if (!valid_va) return error.InvalidTypography;
+        }
+        var valid_vis = false;
+        inline for (.{ "visible", "hidden", "collapse" }) |vis| if (std.ascii.eqlIgnoreCase(n.style.visibility, vis)) {
+            n.style.visibility = vis;
+            valid_vis = true;
+        };
+        if (!valid_vis) return error.InvalidVisibility;
+        if (std.ascii.eqlIgnoreCase(n.style.willChange, "auto") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "scroll-position") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "contents") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "transform") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "opacity"))
+        {
+            // Valid common willChange keyword
+        } else {
+            var it = std.mem.tokenizeAny(u8, n.style.willChange, ", \t\r\n");
+            var any_tok = false;
+            var all_tok_valid = true;
+            while (it.next()) |tok| {
+                any_tok = true;
+                if (!std.ascii.eqlIgnoreCase(tok, "scroll-position") and
+                    !std.ascii.eqlIgnoreCase(tok, "contents") and
+                    !std.ascii.eqlIgnoreCase(tok, "transform") and
+                    !std.ascii.eqlIgnoreCase(tok, "opacity") and
+                    !std.ascii.eqlIgnoreCase(tok, "left") and
+                    !std.ascii.eqlIgnoreCase(tok, "top") and
+                    !std.ascii.eqlIgnoreCase(tok, "right") and
+                    !std.ascii.eqlIgnoreCase(tok, "bottom") and
+                    !std.ascii.eqlIgnoreCase(tok, "width") and
+                    !std.ascii.eqlIgnoreCase(tok, "height"))
+                {
+                    all_tok_valid = false;
+                    break;
+                }
+            }
+            if (!any_tok or !all_tok_valid) return error.InvalidWillChange;
+        }
         if (std.ascii.eqlIgnoreCase(n.style.isolation, "auto")) n.style.isolation = "auto" else if (std.ascii.eqlIgnoreCase(n.style.isolation, "isolate")) n.style.isolation = "isolate" else return error.InvalidIsolation;
         var valid_position = false;
         inline for (.{ "static", "relative", "absolute", "fixed", "sticky" }) |position| if (std.ascii.eqlIgnoreCase(n.style.position, position)) {
@@ -520,7 +604,7 @@ pub const Scene = struct {
     }
     fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) void {
         if (child.style.fontSize == 0 and child.style.fontSizeCss == null) child.style.fontSize = parent.fontSize();
-        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent" }, 0..) |field, bit| {
+        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse" }, 0..) |field, bit| {
             const defaults: Style = .{};
             const at_default = if (comptime @TypeOf(@field(child.style, field)) == []const u8) std.mem.eql(u8, @field(child.style, field), @field(defaults, field)) else @field(child.style, field) == @field(defaults, field);
             if (child.style.typographySpecified & (@as(u32, 1) << bit) == 0 and at_default) {
@@ -1237,6 +1321,14 @@ pub const Scene = struct {
     pub fn establishesContext(self: *const Scene, item: Item) bool {
         const st = item.node.style;
         if (std.mem.eql(u8, st.isolation, "isolate")) return true;
+        if (st.willChange.len > 0 and !std.mem.eql(u8, st.willChange, "auto")) {
+            if (std.mem.indexOf(u8, st.willChange, "transform") != null or
+                std.mem.indexOf(u8, st.willChange, "opacity") != null or
+                std.mem.indexOf(u8, st.willChange, "filter") != null or
+                std.mem.indexOf(u8, st.willChange, "isolation") != null or
+                std.mem.indexOf(u8, st.willChange, "scroll-position") != null or
+                std.mem.indexOf(u8, st.willChange, "contents") != null) return true;
+        }
         if (item.parent_id == null or st.opacity < 1 or (st.transform.len > 0 and !std.mem.eql(u8, st.transform, "none"))) return true;
         if (std.mem.eql(u8, st.position, "fixed") or std.mem.eql(u8, st.position, "sticky")) return true;
         if (st.zIndex != null) {

@@ -4,7 +4,8 @@ out vec4 finalColor;
 uniform sampler2D texture0;
 uniform mat4 inverseWorld;
 uniform vec4 box;
-uniform vec4 radii;
+uniform vec4 radiiX;
+uniform vec4 radiiY;
 uniform vec2 axes;
 uniform vec2 resolution;
 void main() {
@@ -14,11 +15,16 @@ void main() {
     if(axes.x>0.5 && (p.x<0.0 || p.x>=box.z)) coverage=0.0;
     if(axes.y>0.5 && (p.y<0.0 || p.y>=box.w)) coverage=0.0;
     if(axes.x>0.5 && axes.y>0.5) {
-        bool right=p.x>box.z*0.5, bottom=p.y>box.w*0.5;
-        float r=bottom ? (right?radii.z:radii.w) : (right?radii.y:radii.x);
-        vec2 center=vec2(right?box.z-r:r,bottom?box.w-r:r);
-        vec2 d=abs(p-center);
-        if(d.x<r && d.y<r) coverage*=1.0-smoothstep(r-0.5,r+0.5,length(d));
+        for(int i=0;i<4;i++) {
+            bool right=i==1 || i==2, bottom=i==2 || i==3;
+            vec2 radius=vec2(radiiX[i],radiiY[i]);
+            vec2 d=vec2(right?box.z-p.x:p.x,bottom?box.w-p.y:p.y);
+            if(radius.x>0.0 && radius.y>0.0 && d.x<radius.x && d.y<radius.y) {
+                float edge=length((d-radius)/radius)-1.0;
+                float aa=max(fwidth(edge),0.00001);
+                coverage*=1.0-smoothstep(-aa*0.5,aa*0.5,edge);
+            }
+        }
     }
     finalColor=vec4(vec3(1.0),texture(texture0,fragTexCoord).a*coverage);
 }

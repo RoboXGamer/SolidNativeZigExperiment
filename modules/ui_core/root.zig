@@ -31,6 +31,7 @@ pub const layout_grid = @import("layout_grid.zig");
 pub const transform = @import("transform.zig");
 pub const gradient = @import("gradient.zig");
 pub const paint = @import("paint.zig");
+pub const interaction = @import("interaction.zig");
 pub const animation = @import("animation.zig");
 pub const transitions = @import("transitions.zig");
 

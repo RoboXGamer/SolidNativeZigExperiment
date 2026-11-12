@@ -70,6 +70,7 @@ pub const Node = struct {
     }
 
     pub fn isFocusable(self: *const Node) bool {
+        if (!@import("interaction.zig").acceptsFocus(self)) return false;
         if (std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "button")) {
             return self.clickable;
         }
@@ -148,6 +149,41 @@ pub const Node = struct {
 
     pub fn fontSize(self: *const Node) f32 {
         return if (self.style.fontSize > 0) self.style.fontSize else text_mod.default_font_size;
+    }
+
+    pub fn textContext(self: *const Node, base: Text) Text {
+        var result = base;
+        result.typography = .{
+            .font_family = self.style.fontFamily,
+            .font_weight = self.style.fontWeight,
+            .font_style = self.style.fontStyle,
+            .language = self.style.language,
+            .text_transform = self.style.textTransform,
+            .letter_spacing = self.style.letterSpacing orelse 0,
+            .word_spacing = self.style.wordSpacing orelse 0,
+            .tab_size = self.style.tabSize,
+            .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
+            .text_indent = self.style.textIndent orelse 0,
+        };
+        return result;
+    }
+
+    /// Paint projection only: original text and editing/selection offsets survive.
+    pub fn shapeText(self: *const Node, base: Text, a: std.mem.Allocator, available: f32) ![]text_mod.ShapedLine {
+        const text = self.textContext(base);
+        const lines = try text.shapeLines(a, self.text, self.fontSize(), available, self.style.whiteSpace);
+        for (lines, 0..) |*line, i| {
+            const capacity = @max(0, available - line.indent);
+            if (self.clipsX() and std.mem.eql(u8, self.style.textOverflow, "ellipsis") and (std.mem.eql(u8, self.style.whiteSpace, "nowrap") or std.mem.eql(u8, self.style.whiteSpace, "pre"))) {
+                line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
+                line.width = text.width(line.text, self.fontSize());
+            }
+            const alignment = if (i + 1 == lines.len and !std.mem.eql(u8, self.style.textAlignLast, "auto")) self.style.textAlignLast else self.style.textAlign;
+            const free = @max(0, capacity - line.width);
+            const rtl = std.mem.eql(u8, self.style.direction, "rtl");
+            line.offset_x = line.indent + if (std.mem.eql(u8, alignment, "center")) free / 2 else if (std.mem.eql(u8, alignment, "right") or (std.mem.eql(u8, alignment, "end") and !rtl) or (std.mem.eql(u8, alignment, "start") and rtl)) free else @as(f32, 0);
+        }
+        return lines;
     }
 
     pub fn aspectRatio(self: *const Node) ?f32 {
@@ -234,13 +270,17 @@ pub const Scene = struct {
     length_context: sizing.Context = .{},
     viewport: Rect = .{},
 
+    pub fn textFor(self: *const Scene, node: *const Node) Text {
+        return node.textContext(self.text);
+    }
+
     fn intrinsicWidth(self: *const Scene, n: *const Node, minimum: bool) f32 {
         const frame = n.padding().horizontal() + n.border().horizontal();
-        if (std.mem.eql(u8, n.type, "text")) return frame + if (minimum) self.text.minContentWidth(n.text, n.fontSize()) else self.text.maxContentWidth(n.text, n.fontSize());
+        if (std.mem.eql(u8, n.type, "text")) return frame + if (minimum) self.textFor(n).minContentWidth(n.text, n.fontSize()) else self.textFor(n).maxContentWidth(n.text, n.fontSize());
         if (std.mem.eql(u8, n.type, "select") and n.children.len == 0) {
             const display_text = if (n.text.len > 0) n.text else n.value;
-            const text_w = if (minimum) self.text.minContentWidth(display_text, n.fontSize()) else self.text.maxContentWidth(display_text, n.fontSize());
-            return frame + text_w + self.text.maxContentWidth(" v", n.fontSize());
+            const text_w = if (minimum) self.textFor(n).minContentWidth(display_text, n.fontSize()) else self.textFor(n).maxContentWidth(display_text, n.fontSize());
+            return frame + text_w + self.textFor(n).maxContentWidth(" v", n.fontSize());
         }
         const is_flex = std.mem.eql(u8, n.style.display, "flex") or std.mem.eql(u8, n.style.display, "inline-flex");
         const row = is_flex and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
@@ -275,7 +315,7 @@ pub const Scene = struct {
         const frame = n.padding().vertical() + n.border().vertical();
         if (std.mem.eql(u8, n.type, "text")) {
             if (n.text.len == 0) return frame;
-            const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else self.text.lineHeight(n.fontSize())) else self.text.lineHeight(n.fontSize());
+            const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else self.textFor(n).lineHeight(n.fontSize())) else self.textFor(n).lineHeight(n.fontSize());
             var lines: usize = 1;
             for (n.text) |ch| if (ch == '\n') {
                 lines += 1;
@@ -283,7 +323,7 @@ pub const Scene = struct {
             return frame + @as(f32, @floatFromInt(lines)) * line_h;
         }
         if (std.mem.eql(u8, n.type, "select") and n.children.len == 0) {
-            return frame + self.text.lineHeight(n.fontSize());
+            return frame + self.textFor(n).lineHeight(n.fontSize());
         }
         const is_flex = std.mem.eql(u8, n.style.display, "flex") or std.mem.eql(u8, n.style.display, "inline-flex");
         const row = is_flex and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
@@ -308,12 +348,64 @@ pub const Scene = struct {
             var font_context = context;
             font_context.font_size = context.font_size orelse text_mod.default_font_size;
             font_context.percentage = font_context.font_size;
-            const used = try sizing.resolve(css, font_context);
+            const keyword_size = text_mod.fontSizeKeyword(css, font_context.font_size.?);
+            const used: sizing.Resolution = if (keyword_size) |value| .{ .length = value } else try sizing.resolve(css, font_context);
             n.style.fontSize = switch (used) {
                 .length => |v| if (v > 0) v else return error.InvalidFontSize,
                 else => return error.InvalidFontSize,
             };
             n.style.fontSizeCss = null;
+        }
+        if (n.style.fontWeightCss) |css| {
+            if (std.ascii.eqlIgnoreCase(css, "normal")) n.style.fontWeight = 400 else if (std.ascii.eqlIgnoreCase(css, "bold")) n.style.fontWeight = 700 else if (std.ascii.eqlIgnoreCase(css, "bolder")) n.style.fontWeight = if (n.style.fontWeight < 350) 400 else if (n.style.fontWeight < 550) 700 else 900 else if (std.ascii.eqlIgnoreCase(css, "lighter")) n.style.fontWeight = if (n.style.fontWeight < 550) 100 else if (n.style.fontWeight < 750) 400 else 700 else n.style.fontWeight = std.fmt.parseFloat(f32, css) catch return error.InvalidFontWeight;
+            n.style.fontWeightCss = null;
+        }
+        if (!std.math.isFinite(n.style.fontWeight) or n.style.fontWeight < 1 or n.style.fontWeight > 1000) return error.InvalidFontWeight;
+        if (!std.ascii.eqlIgnoreCase(n.style.fontStyle, "normal") and !std.ascii.eqlIgnoreCase(n.style.fontStyle, "italic") and !std.ascii.startsWithIgnoreCase(n.style.fontStyle, "oblique")) return error.InvalidFontStyle;
+        inline for (.{ "letterSpacing", "wordSpacing", "textIndent" }) |field| {
+            if (@field(n.style, field ++ "Css")) |css| {
+                if (std.ascii.eqlIgnoreCase(css, "normal") and !std.mem.eql(u8, field, "textIndent")) {
+                    @field(n.style, field) = 0;
+                } else {
+                    if (std.mem.eql(u8, field, "letterSpacing") and std.mem.indexOfScalar(u8, css, '%') != null) return error.InvalidLength;
+                    var ctx = context;
+                    ctx.font_size = n.fontSize();
+                    ctx.percentage = if (std.mem.eql(u8, field, "textIndent")) inline_size else n.fontSize();
+                    @field(n.style, field) = switch (try sizing.resolve(css, ctx)) {
+                        .length => |v| v,
+                        else => return error.InvalidLength,
+                    };
+                }
+                @field(n.style, field ++ "Css") = null;
+            }
+            if (@field(n.style, field)) |v| if (!std.math.isFinite(v)) return error.InvalidLength;
+        }
+        if (n.style.tabSizeCss) |css| if (!std.mem.eql(u8, css, "length")) {
+            if (std.fmt.parseFloat(f32, css)) |number| {
+                n.style.tabSize = number;
+                n.style.tabSizeCss = null;
+            } else |_| {
+                if (std.mem.indexOfScalar(u8, css, '%') != null) return error.InvalidLength;
+                var ctx = context;
+                ctx.font_size = n.fontSize();
+                n.style.tabSize = switch (try sizing.resolve(css, ctx)) {
+                    .length => |v| v,
+                    else => return error.InvalidLength,
+                };
+                n.style.tabSizeCss = "length";
+            }
+        };
+        if (!std.math.isFinite(n.style.tabSize) or n.style.tabSize < 0) return error.InvalidLength;
+        inline for (.{ "textTransform", "textOverflow", "textAlignLast" }) |field| {
+            var valid = false;
+            inline for (.{ "none", "uppercase", "lowercase", "capitalize", "full-width", "clip", "ellipsis", "auto", "left", "right", "center", "start", "end", "justify" }) |value| {
+                const allowed = if (comptime std.mem.eql(u8, field, "textTransform")) std.mem.eql(u8, value, "none") or std.mem.eql(u8, value, "uppercase") or std.mem.eql(u8, value, "lowercase") or std.mem.eql(u8, value, "capitalize") or std.mem.eql(u8, value, "full-width") else if (comptime std.mem.eql(u8, field, "textOverflow")) std.mem.eql(u8, value, "clip") or std.mem.eql(u8, value, "ellipsis") else std.mem.eql(u8, value, "auto") or std.mem.eql(u8, value, "left") or std.mem.eql(u8, value, "right") or std.mem.eql(u8, value, "center") or std.mem.eql(u8, value, "start") or std.mem.eql(u8, value, "end") or std.mem.eql(u8, value, "justify");
+                if (allowed and std.ascii.eqlIgnoreCase(@field(n.style, field), value)) {
+                    @field(n.style, field) = value;
+                    valid = true;
+                }
+            }
+            if (!valid) return error.InvalidTypography;
         }
         if (std.ascii.eqlIgnoreCase(n.style.isolation, "auto")) n.style.isolation = "auto" else if (std.ascii.eqlIgnoreCase(n.style.isolation, "isolate")) n.style.isolation = "isolate" else return error.InvalidIsolation;
         var valid_position = false;
@@ -428,6 +520,21 @@ pub const Scene = struct {
     }
     fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) void {
         if (child.style.fontSize == 0 and child.style.fontSizeCss == null) child.style.fontSize = parent.fontSize();
+        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent" }, 0..) |field, bit| {
+            const defaults: Style = .{};
+            const at_default = if (comptime @TypeOf(@field(child.style, field)) == []const u8) std.mem.eql(u8, @field(child.style, field), @field(defaults, field)) else @field(child.style, field) == @field(defaults, field);
+            if (child.style.typographySpecified & (@as(u32, 1) << bit) == 0 and at_default) {
+                @field(child.style, field) = @field(parent.style, field);
+                if (comptime std.mem.eql(u8, field, "tabSize")) child.style.tabSizeCss = parent.style.tabSizeCss;
+            }
+        }
+        // Relative weight keywords resolve against the parent's computed weight.
+        if (child.style.fontWeightCss) |css| if (std.ascii.eqlIgnoreCase(css, "bolder") or std.ascii.eqlIgnoreCase(css, "lighter")) {
+            child.style.fontWeight = parent.style.fontWeight;
+        };
+        inline for (.{ "visibility", "pointerEvents", "cursor" }, 0..) |field, bit| if (child.style.interactionSpecified & (@as(u32, 1) << bit) == 0 and std.mem.eql(u8, @field(child.style, field), @field(@as(Style, .{}), field))) {
+            @field(child.style, field) = @field(parent.style, field);
+        };
         if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (parent.style.color.len > 0) parent.style.color else "#ffffff";
         inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow" }) |field| {
             @field(child.style, field) = self.colorTokens(@field(child.style, field), child.style.color) catch @field(child.style, field);
@@ -443,6 +550,10 @@ pub const Scene = struct {
             const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
             const inline_size: ?f32 = if (vertical) height else width;
             self.inheritComputedStyle(child, n);
+            if (std.mem.eql(u8, child.type, "text") and std.mem.eql(u8, n.style.textOverflow, "ellipsis") and n.clipsX()) {
+                child.style.textOverflow = "ellipsis";
+                child.style.overflowX = "clip";
+            }
             var child_context = self.length_context;
             child_context.font_size = n.fontSize();
             try self.resolveStyle(child, child_context, width, height, inline_size);
@@ -572,9 +683,9 @@ pub const Scene = struct {
         }
         if (std.mem.eql(u8, n.type, "text")) {
             if (n.text.len == 0) return n.constrain(frame_y, false);
-            const lh = if (n.style.lineHeight) |h| (if (h > 0) h else self.text.lineHeight(n.fontSize())) else self.text.lineHeight(n.fontSize());
+            const lh = if (n.style.lineHeight) |h| (if (h > 0) h else self.textFor(n).lineHeight(n.fontSize())) else self.textFor(n).lineHeight(n.fontSize());
             if (!std.mem.eql(u8, n.style.whiteSpace, "nowrap")) {
-                const lines = self.text.wrap(n.text, n.fontSize(), @max(0, border_width - frame_x));
+                const lines = self.textFor(n).wrapWithWhitespace(n.text, n.fontSize(), @max(0, border_width - frame_x), n.style.whiteSpace);
                 return n.constrain(frame_y + @as(f32, @floatFromInt(lines.lines)) * lh, false);
             }
             return n.constrain(frame_y + lh, false);
@@ -651,12 +762,12 @@ pub const Scene = struct {
         }
         if (std.mem.eql(u8, n.type, "text")) {
             if (n.text.len == 0) return n.constrain(frame, false);
-            const lh = if (n.style.lineHeight) |h| (if (h > 0) h else self.text.lineHeight(n.fontSize())) else self.text.lineHeight(n.fontSize());
+            const lh = if (n.style.lineHeight) |h| (if (h > 0) h else self.textFor(n).lineHeight(n.fontSize())) else self.textFor(n).lineHeight(n.fontSize());
             if (n.style.width) |width| {
                 if (!std.mem.eql(u8, n.style.whiteSpace, "nowrap")) {
                     const horizontal_frame = n.padding().horizontal() + n.border().horizontal();
                     const inner_w = @max(0, n.constrain(n.borderSize(width, horizontal_frame), true) - horizontal_frame);
-                    const lines = self.text.wrap(n.text, n.fontSize(), inner_w);
+                    const lines = self.textFor(n).wrapWithWhitespace(n.text, n.fontSize(), inner_w, n.style.whiteSpace);
                     return n.constrain(frame + @as(f32, @floatFromInt(lines.lines)) * lh, false);
                 }
             }
@@ -1083,20 +1194,11 @@ pub const Scene = struct {
     }
 
     pub fn scrollTarget(self: *const Scene, x: f32, y: f32) ?u32 {
-        const order = self.getPaintOrder(std.heap.page_allocator) catch return null;
-        defer std.heap.page_allocator.free(order);
-        var i = order.len;
-        while (i > 0) {
-            i -= 1;
-            var item = self.items.items[order[i]];
-            const point = self.localPoint(item, x, y) orelse continue;
-            if (!item.bounds.contains(point.x, point.y) or !self.pointVisible(item, x, y)) continue;
-            while (true) {
-                if (item.node.isScrollContainer()) return item.node.id;
-                if (item.parent_id) |pid| item = self.find(pid) orelse return null else return null;
-            }
+        var item = self.find(self.pointerTarget(x, y) orelse return null) orelse return null;
+        while (true) {
+            if (item.node.isScrollContainer()) return item.node.id;
+            item = self.find(item.parent_id orelse return null) orelse return null;
         }
-        return null;
     }
 
     pub fn getFocusOrder(self: *const Scene, a: std.mem.Allocator) ![]u32 {
@@ -1223,13 +1325,13 @@ pub const Scene = struct {
             const box = p.node.paddingBox(p.bounds);
             if (p.node.clipsX() and (point.x < box.x or point.x >= box.right())) return false;
             if (p.node.clipsY() and (point.y < box.y or point.y >= box.bottom())) return false;
-            if (p.node.clipsX() and p.node.clipsY() and !@import("paint.zig").roundedContains(box, @import("paint.zig").radii(p.node), point.x, point.y)) return false;
+            if (p.node.clipsX() and p.node.clipsY() and !@import("paint.zig").ellipticalContains(box, @import("paint.zig").paddingRadii(p.node, p.bounds), point.x, point.y)) return false;
             parent_id = p.parent_id;
         }
         return true;
     }
 
-    pub fn hitTest(self: *const Scene, x: f32, y: f32) ?u32 {
+    pub fn pointerTarget(self: *const Scene, x: f32, y: f32) ?u32 {
         const a = std.heap.page_allocator;
         const order = self.getPaintOrder(a) catch return null;
         defer a.free(order);
@@ -1237,10 +1339,17 @@ pub const Scene = struct {
         while (i > 0) {
             i -= 1;
             const item = self.items.items[order[i]];
-            if (!item.node.clickable and !item.node.isFocusable()) continue;
-            const p = self.localPoint(item, x, y) orelse continue;
-            if (item.bounds.contains(p.x, p.y) and self.pointVisible(item, x, y)) return item.node.id;
+            if (!@import("interaction.zig").acceptsPointer(item.node) or std.mem.eql(u8, item.node.type, "__layout_root")) continue;
+            const point = self.localPoint(item, x, y) orelse continue;
+            if (@import("paint.zig").ellipticalContains(item.bounds, @import("paint.zig").resolvedRadii(item.node, item.bounds.width, item.bounds.height), point.x, point.y) and self.pointVisible(item, x, y)) return item.node.id;
         }
         return null;
+    }
+    pub fn hitTest(self: *const Scene, x: f32, y: f32) ?u32 {
+        var item = self.find(self.pointerTarget(x, y) orelse return null) orelse return null;
+        while (true) {
+            if (item.node.clickable or item.node.isFocusable()) return item.node.id;
+            item = self.find(item.parent_id orelse return null) orelse return null;
+        }
     }
 };

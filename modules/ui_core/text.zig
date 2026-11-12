@@ -92,6 +92,7 @@ pub const PositionFn = *const fn (?*anyopaque, []const u8, f32, f32) usize;
 /// Immutable, per-run styling shared by measurement, rasterization and hit testing.
 pub const Typography = struct {
     font_family: []const u8 = "system-ui",
+    font_feature_settings: []const u8 = "normal",
     font_weight: f32 = 400,
     font_style: []const u8 = "normal",
     language: []const u8 = "",

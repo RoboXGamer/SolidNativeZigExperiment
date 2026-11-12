@@ -29,12 +29,26 @@ pub const Node = struct {
 
     pub fn effectiveOverflowX(self: *const Node) []const u8 {
         if (self.style.overflowX.len > 0) return self.style.overflowX;
+        const vertical = !std.mem.eql(u8, self.style.writingMode, "horizontal-tb");
+        if (vertical and self.style.overflowBlock.len > 0) return self.style.overflowBlock;
+        if (!vertical and self.style.overflowInline.len > 0) return self.style.overflowInline;
         return self.style.overflow;
     }
 
     pub fn effectiveOverflowY(self: *const Node) []const u8 {
         if (self.style.overflowY.len > 0) return self.style.overflowY;
+        const vertical = !std.mem.eql(u8, self.style.writingMode, "horizontal-tb");
+        if (!vertical and self.style.overflowBlock.len > 0) return self.style.overflowBlock;
+        if (vertical and self.style.overflowInline.len > 0) return self.style.overflowInline;
         return self.style.overflow;
+    }
+
+    pub fn skipsContents(self: *const Node, viewport: Rect, bounds: Rect) bool {
+        if (std.mem.eql(u8, self.style.contentVisibility, "hidden")) return true;
+        if (std.mem.eql(u8, self.style.contentVisibility, "auto")) {
+            return !bounds.intersects(viewport);
+        }
+        return false;
     }
 
     pub fn isScrollContainerX(self: *const Node) bool {
@@ -89,32 +103,35 @@ pub const Node = struct {
     pub fn padding(self: *const Node) Edges {
         const default: f32 = if (std.mem.eql(u8, self.type, "button") or std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "select") or std.mem.eql(u8, self.type, "option")) 10 else 0;
         const base = self.style.padding orelse default;
+        const z = self.style.zoom;
         return .{
-            .top = self.style.paddingTop orelse base,
-            .right = self.style.paddingRight orelse base,
-            .bottom = self.style.paddingBottom orelse base,
-            .left = self.style.paddingLeft orelse base,
+            .top = (self.style.paddingTop orelse base) * z,
+            .right = (self.style.paddingRight orelse base) * z,
+            .bottom = (self.style.paddingBottom orelse base) * z,
+            .left = (self.style.paddingLeft orelse base) * z,
         };
     }
 
     /// Border ring, per side with the uniform width as fallback.
     pub fn border(self: *const Node) Edges {
+        const z = self.style.zoom;
         return .{
-            .top = self.style.borderTopWidth orelse self.style.borderWidth,
-            .right = self.style.borderRightWidth orelse self.style.borderWidth,
-            .bottom = self.style.borderBottomWidth orelse self.style.borderWidth,
-            .left = self.style.borderLeftWidth orelse self.style.borderWidth,
+            .top = (self.style.borderTopWidth orelse self.style.borderWidth) * z,
+            .right = (self.style.borderRightWidth orelse self.style.borderWidth) * z,
+            .bottom = (self.style.borderBottomWidth orelse self.style.borderWidth) * z,
+            .left = (self.style.borderLeftWidth orelse self.style.borderWidth) * z,
         };
     }
 
     /// Fixed margin lengths; automatic sides resolve to zero until allocated.
     pub fn margin(self: *const Node) Edges {
         const shorthand = self.style.margin;
+        const z = self.style.zoom;
         return .{
-            .top = if (self.style.marginTopAuto) 0 else self.style.marginTop orelse shorthand,
-            .right = if (self.style.marginRightAuto) 0 else self.style.marginRight orelse shorthand,
-            .bottom = if (self.style.marginBottomAuto) 0 else self.style.marginBottom orelse shorthand,
-            .left = if (self.style.marginLeftAuto) 0 else self.style.marginLeft orelse shorthand,
+            .top = (if (self.style.marginTopAuto) 0 else self.style.marginTop orelse shorthand) * z,
+            .right = (if (self.style.marginRightAuto) 0 else self.style.marginRight orelse shorthand) * z,
+            .bottom = (if (self.style.marginBottomAuto) 0 else self.style.marginBottom orelse shorthand) * z,
+            .left = (if (self.style.marginLeftAuto) 0 else self.style.marginLeft orelse shorthand) * z,
         };
     }
 
@@ -172,7 +189,8 @@ pub const Node = struct {
     }
 
     pub fn borderSize(self: *const Node, value: f32, frame: f32) f32 {
-        return @max(frame, value + if (std.mem.eql(u8, self.style.boxSizing, "content-box")) frame else @as(f32, 0));
+        const z = self.style.zoom;
+        return @max(frame, value * z + if (std.mem.eql(u8, self.style.boxSizing, "content-box")) frame else @as(f32, 0));
     }
 
     pub fn constrain(self: *const Node, value: f32, horizontal: bool) f32 {
@@ -186,22 +204,25 @@ pub const Node = struct {
     }
 
     pub fn fontSize(self: *const Node) f32 {
-        return if (self.style.fontSize > 0) self.style.fontSize else text_mod.default_font_size;
+        const base = if (self.style.fontSize > 0) self.style.fontSize else text_mod.default_font_size;
+        return base * self.style.zoom;
     }
 
     pub fn textContext(self: *const Node, base: Text) Text {
         var result = base;
+        const z = self.style.zoom;
         result.typography = .{
             .font_family = self.style.fontFamily,
+            .font_feature_settings = self.style.fontFeatureSettings,
             .font_weight = self.style.fontWeight,
             .font_style = self.style.fontStyle,
             .language = self.style.language,
             .text_transform = self.style.textTransform,
-            .letter_spacing = self.style.letterSpacing orelse 0,
-            .word_spacing = self.style.wordSpacing orelse 0,
-            .tab_size = self.style.tabSize,
+            .letter_spacing = (self.style.letterSpacing orelse 0) * z,
+            .word_spacing = (self.style.wordSpacing orelse 0) * z,
+            .tab_size = if (self.style.tabSizeCss != null and self.style.tabSize > 0) self.style.tabSize * z else self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
-            .text_indent = self.style.textIndent orelse 0,
+            .text_indent = (self.style.textIndent orelse 0) * z,
             .ruby_position = self.style.rubyPosition,
             .text_autospace = self.style.textAutospace,
             .math_shift = self.style.mathShift,
@@ -762,6 +783,24 @@ pub const Scene = struct {
     }
     fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) void {
         if (child.style.fontSize == 0 and child.style.fontSizeCss == null) child.style.fontSize = parent.fontSize();
+        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, parent.style.writingMode, "horizontal-tb")) {
+            child.style.writingMode = parent.style.writingMode;
+        }
+        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, parent.style.direction, "ltr")) {
+            child.style.direction = parent.style.direction;
+        }
+        if (child.style.zoom == 1.0 and child.style.zoomCss == null) {
+            child.style.zoom = parent.style.zoom;
+        }
+        if (std.mem.eql(u8, child.style.fontFeatureSettings, "normal") and !std.mem.eql(u8, parent.style.fontFeatureSettings, "normal")) {
+            child.style.fontFeatureSettings = parent.style.fontFeatureSettings;
+        }
+        if (std.mem.eql(u8, parent.style.contentVisibility, "hidden")) {
+            child.style.contentVisibility = "hidden";
+        }
+        if (parent.style.activeViewTransition) {
+            child.style.activeViewTransition = true;
+        }
         inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse" }, 0..) |field, bit| {
             const defaults: Style = .{};
             const at_default = if (comptime @TypeOf(@field(child.style, field)) == []const u8) std.mem.eql(u8, @field(child.style, field), @field(defaults, field)) else @field(child.style, field) == @field(defaults, field);
@@ -1229,10 +1268,28 @@ pub const Scene = struct {
             const justify = child.style.justifySelf;
             const align_self = child.style.alignSelf;
             if (!child.style.marginLeftAuto and !child.style.marginRightAuto) {
-                if (std.mem.eql(u8, justify, "center")) x = cb.x + left + free_x / 2 + child_mg.left else if (std.mem.eql(u8, justify, "end") or std.mem.eql(u8, justify, "right")) x = cb.x + left + free_x + child_mg.left;
+                if (std.mem.eql(u8, justify, "center")) {
+                    x = cb.x + left + free_x / 2 + child_mg.left;
+                } else if (std.mem.eql(u8, justify, "end") or std.mem.eql(u8, justify, "self-end") or std.mem.eql(u8, justify, "flex-end") or std.mem.eql(u8, justify, "right")) {
+                    x = cb.x + left + free_x + child_mg.left;
+                } else if (std.mem.eql(u8, justify, "start") or std.mem.eql(u8, justify, "self-start") or std.mem.eql(u8, justify, "flex-start") or std.mem.eql(u8, justify, "left")) {
+                    x = cb.x + left + child_mg.left;
+                } else if (std.mem.eql(u8, justify, "stretch") and child.style.width == null and child.style.left != null and child.style.right != null) {
+                    w = child.constrain(@max(0, cb.width - left - right - child_mg.horizontal()), true);
+                    x = cb.x + left + child_mg.left;
+                }
             }
             if (!child.style.marginTopAuto and !child.style.marginBottomAuto) {
-                if (std.mem.eql(u8, align_self, "center")) y = cb.y + top + free_y / 2 + child_mg.top else if (std.mem.eql(u8, align_self, "end") or std.mem.eql(u8, align_self, "flex-end")) y = cb.y + top + free_y + child_mg.top;
+                if (std.mem.eql(u8, align_self, "center")) {
+                    y = cb.y + top + free_y / 2 + child_mg.top;
+                } else if (std.mem.eql(u8, align_self, "end") or std.mem.eql(u8, align_self, "self-end") or std.mem.eql(u8, align_self, "flex-end") or std.mem.eql(u8, align_self, "bottom")) {
+                    y = cb.y + top + free_y + child_mg.top;
+                } else if (std.mem.eql(u8, align_self, "start") or std.mem.eql(u8, align_self, "self-start") or std.mem.eql(u8, align_self, "flex-start") or std.mem.eql(u8, align_self, "top")) {
+                    y = cb.y + top + child_mg.top;
+                } else if (std.mem.eql(u8, align_self, "stretch") and child.style.height == null and child.style.top != null and child.style.bottom != null) {
+                    h = child.constrain(@max(0, cb.height - top - bottom - child_mg.vertical()), false);
+                    y = cb.y + top + child_mg.top;
+                }
             }
             try self.layout(child, .{ .x = x, .y = y, .width = w, .height = h }, n.id);
         }
@@ -1623,11 +1680,15 @@ pub const Scene = struct {
     }
 
     fn appendContext(self: *const Scene, a: std.mem.Allocator, out: *std.ArrayList(usize), root_index: usize) anyerror!void {
-        try out.append(a, root_index);
-        const context_id = self.items.items[root_index].node.id;
+        const root_item = self.items.items[root_index];
+        const skip_descendants = root_item.node.skipsContents(self.viewport, root_item.bounds);
+
+        const context_id = root_item.node.id;
         var participants: std.ArrayList(usize) = .empty;
         defer participants.deinit(a);
-        for (self.items.items, 0..) |item, i| if (self.contextOwner(item) == context_id) try participants.append(a, i);
+        if (!skip_descendants) {
+            for (self.items.items, 0..) |item, i| if (self.contextOwner(item) == context_id) try participants.append(a, i);
+        }
         const Ctx = struct {
             scene: *const Scene,
             fn key(c: @This(), i: usize) i64 {
@@ -1644,7 +1705,15 @@ pub const Scene = struct {
         };
         std.mem.sort(usize, participants.items, Ctx{ .scene = self }, Ctx.less);
         for (participants.items) |i| {
-            if (self.establishesContext(self.items.items[i])) try self.appendContext(a, out, i) else try out.append(a, i);
+            if ((Ctx{ .scene = self }).key(i) < 0) {
+                if (self.establishesContext(self.items.items[i])) try self.appendContext(a, out, i) else try out.append(a, i);
+            }
+        }
+        try out.append(a, root_index);
+        for (participants.items) |i| {
+            if ((Ctx{ .scene = self }).key(i) >= 0) {
+                if (self.establishesContext(self.items.items[i])) try self.appendContext(a, out, i) else try out.append(a, i);
+            }
         }
     }
 

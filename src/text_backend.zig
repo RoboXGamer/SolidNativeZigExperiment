@@ -12,13 +12,15 @@ const NativeStyle = extern struct {
     language_length: usize,
     transform: [*]const u8,
     transform_length: usize,
+    feature_settings: [*]const u8,
+    feature_settings_length: usize,
     weight: f32,
     letter_spacing: f32,
     word_spacing: f32,
     tab_size: f32,
     tab_size_is_length: c_int,
     fn from(t: Typography) NativeStyle {
-        return .{ .family = t.font_family.ptr, .family_length = t.font_family.len, .style = t.font_style.ptr, .style_length = t.font_style.len, .language = t.language.ptr, .language_length = t.language.len, .transform = t.text_transform.ptr, .transform_length = t.text_transform.len, .weight = t.font_weight, .letter_spacing = t.letter_spacing, .word_spacing = t.word_spacing, .tab_size = t.tab_size, .tab_size_is_length = @intFromBool(t.tab_size_is_length) };
+        return .{ .family = t.font_family.ptr, .family_length = t.font_family.len, .style = t.font_style.ptr, .style_length = t.font_style.len, .language = t.language.ptr, .language_length = t.language.len, .transform = t.text_transform.ptr, .transform_length = t.text_transform.len, .feature_settings = t.font_feature_settings.ptr, .feature_settings_length = t.font_feature_settings.len, .weight = t.font_weight, .letter_spacing = t.letter_spacing, .word_spacing = t.word_spacing, .tab_size = t.tab_size, .tab_size_is_length = @intFromBool(t.tab_size_is_length) };
     }
 };
 extern fn ui_text_measure_styled([*]const u8, usize, f32, *const NativeStyle, *NativeMetrics) c_int;

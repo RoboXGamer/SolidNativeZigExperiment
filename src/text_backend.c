@@ -16,6 +16,7 @@ typedef struct {
     const char *style; size_t style_length;
     const char *language; size_t language_length;
     const char *transform; size_t transform_length;
+    const char *feature_settings; size_t feature_settings_length;
     float weight,letter_spacing,word_spacing,tab_size;
     int tab_size_is_length;
 } TextStyle;

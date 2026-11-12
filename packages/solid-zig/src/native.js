@@ -1,6 +1,7 @@
 import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
+export { matchesSelector } from "./renderer.js";
 import { createModuleHost } from "./module-runtime.js";
 
 let root = renderer.node("root");
@@ -83,11 +84,116 @@ function boxSides(value, options) {
   return { t: parts[0], r: parts[1], b: parts[2], l: parts[3] };
 }
 
+export const propertyRegistry = new Map();
+
+export function registerProperty(definition) {
+  if (!definition || !definition.name || !definition.name.startsWith("--")) {
+    throw Error("Invalid custom property name");
+  }
+  propertyRegistry.set(definition.name, {
+    name: definition.name,
+    syntax: definition.syntax ?? "*",
+    inherits: definition.inherits ?? true,
+    initialValue: definition.initialValue != null ? String(definition.initialValue) : undefined,
+  });
+}
+
+if (typeof globalThis !== "undefined") {
+  globalThis.CSS = globalThis.CSS || {};
+  globalThis.CSS.registerProperty = registerProperty;
+}
+
+export function matchMedia(query, context = {}) {
+  const currentDppx = context.resolution ?? context.devicePixelRatio ?? 1.0;
+  let q = String(query).trim();
+  if (q.startsWith("(") && q.endsWith(")")) q = q.slice(1, -1).trim();
+
+  // -webkit-device-pixel-ratio compatibility prefixes
+  const webkitMatch = q.match(/^(-webkit-(?:min-|max-)?device-pixel-ratio)\s*:\s*([\d\.\/]+)$/i);
+  if (webkitMatch) {
+    const name = webkitMatch[1].toLowerCase();
+    const valStr = webkitMatch[2];
+    let val = 1.0;
+    if (valStr.includes("/")) {
+      const [num, den] = valStr.split("/");
+      val = Number(num) / Number(den);
+    } else {
+      val = Number(valStr);
+    }
+    if (name === "-webkit-device-pixel-ratio") return { matches: Math.abs(currentDppx - val) < 1e-4, media: query };
+    if (name === "-webkit-min-device-pixel-ratio") return { matches: currentDppx >= val - 1e-4, media: query };
+    if (name === "-webkit-max-device-pixel-ratio") return { matches: currentDppx <= val + 1e-4, media: query };
+  }
+
+  // resolution media queries
+  const resMatch = q.match(/^(min-|max-)?resolution\s*:\s*([\d\.]+)(dpi|dpcm|dppx|x)$/i);
+  if (resMatch) {
+    const prefix = (resMatch[1] || "").toLowerCase();
+    const val = Number(resMatch[2]);
+    const unit = resMatch[3].toLowerCase();
+    let reqDppx = val;
+    if (unit === "dpi") reqDppx = val / 96.0;
+    else if (unit === "dpcm") reqDppx = val * 2.54 / 96.0;
+    if (prefix === "min-") return { matches: currentDppx >= reqDppx - 1e-4, media: query };
+    if (prefix === "max-") return { matches: currentDppx <= reqDppx + 1e-4, media: query };
+    return { matches: Math.abs(currentDppx - reqDppx) < 1e-4, media: query };
+  }
+
+  return { matches: false, media: query };
+}
+
+if (typeof globalThis !== "undefined") {
+  globalThis.matchMedia = globalThis.matchMedia || matchMedia;
+}
+
+const inheritedProperties = new Set([
+  "color", "fontSize", "fontFamily", "fontWeight", "fontStyle", "language",
+  "letterSpacing", "wordSpacing", "tabSize", "textIndent", "textTransform",
+  "textAlignLast", "textAlign", "whiteSpace", "rubyAlign", "visibility",
+  "cursor", "pointerEvents", "direction", "writingMode", "lineHeight"
+]);
+
+function resolveVariablesInString(str, varsMap) {
+  if (typeof str !== "string" || !str.includes("var(")) return str;
+  return str.replace(/var\(\s*(--[a-zA-Z0-9-_]+)\s*(?:,\s*([^)]+))?\)/g, (match, name, fallback) => {
+    if (varsMap.has(name)) {
+      return resolveVariablesInString(varsMap.get(name), varsMap);
+    }
+    if (fallback != null) {
+      return resolveVariablesInString(fallback.trim(), varsMap);
+    }
+    return match;
+  });
+}
+
+function resolveNodeVariables(nodeStyle, inheritedVars = new Map()) {
+  const currentVars = new Map();
+  for (const [k, v] of inheritedVars.entries()) {
+    const reg = propertyRegistry.get(k);
+    if (reg && reg.inherits === false) {
+      if (reg.initialValue !== undefined) currentVars.set(k, reg.initialValue);
+    } else {
+      currentVars.set(k, v);
+    }
+  }
+  for (const [k, reg] of propertyRegistry.entries()) {
+    if (!currentVars.has(k) && reg.initialValue !== undefined) {
+      currentVars.set(k, reg.initialValue);
+    }
+  }
+  for (const [k, v] of Object.entries(nodeStyle)) {
+    if (k.startsWith("--") && v != null) {
+      currentVars.set(k, String(v));
+    }
+  }
+  return currentVars;
+}
+
 function isLengthOrKeyword(val) {
   if (typeof val !== "string") return false;
   const s = val.trim();
   if (s === "auto" || s === "content" || s === "min-content" || s === "max-content" || s === "fit-content") return true;
-  if (/px|%|em|rem|vw|vh|vmin|vmax|calc\(|min\(|max\(|clamp\(/i.test(s)) return true;
+  if (/px|%|em|rem|lh|rlh|vw|vh|vmin|vmax|calc\(|min\(|max\(|clamp\(/i.test(s)) return true;
   return isNaN(Number(s));
 }
 
@@ -154,7 +260,7 @@ function flexValues(style) {
 // Inline object declarations are applied in insertion order. Logical and
 // physical declarations targeting the same side therefore obey last-declared
 // precedence; the mode and direction are computed for the whole style object.
-export function physicalStyle(style, inherited = {}) {
+export function physicalStyle(style, inherited = {}, currentVars = new Map()) {
   const mode = style.writingMode ?? inherited.writingMode ?? "horizontal-tb";
   const direction = style.direction ?? inherited.direction ?? "ltr";
   if (!["horizontal-tb", "vertical-rl", "vertical-lr"].includes(mode) || !["ltr", "rtl"].includes(direction)) throw Error("Unsupported writing mode or direction");
@@ -168,8 +274,19 @@ export function physicalStyle(style, inherited = {}) {
     minInlineSize: vertical ? "minHeight" : "minWidth", minBlockSize: vertical ? "minWidth" : "minHeight",
     maxInlineSize: vertical ? "maxHeight" : "maxWidth", maxBlockSize: vertical ? "maxWidth" : "maxHeight" };
   const result = { writingMode: mode, direction };
-  for (const [key, value] of Object.entries(style)) {
+  for (let [key, value] of Object.entries(style)) {
     if (value == null) continue;
+    if (value === "revert") {
+      if (inheritedProperties.has(key)) {
+        value = inherited[key] ?? null;
+        if (value == null) continue;
+      } else {
+        continue;
+      }
+    }
+    if (typeof value === "string") {
+      value = resolveVariablesInString(value, currentVars);
+    }
     if (key === "flexFlow" && typeof value === "string") {
       const parts = splitSpacing(value.trim());
       for (const part of parts) {
@@ -277,8 +394,9 @@ function styleLength(value,{normal=false,negative=false}={}) {
   throw Error("Invalid style length: "+value);
 }
 
-export function snapshot(node, inherited = {}) {
-  const style = physicalStyle(node.props.style || {}, inherited);
+export function snapshot(node, inherited = {}, inheritedVars = new Map()) {
+  const currentVars = resolveNodeVariables(node.props.style || {}, inheritedVars);
+  const style = physicalStyle(node.props.style || {}, inherited, currentVars);
   if(typeof style.outline==="string") {
     let width,kind,color;
     for(const token of splitSpacing(style.outline)) {
@@ -288,7 +406,7 @@ export function snapshot(node, inherited = {}) {
     }
     style.outlineWidth??=width??"medium"; style.outlineStyle??=kind??"none"; style.outlineColor??=color??"currentColor";
   }
-  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent"]) | (node.props.lang != null ? 1 << 3 : 0);
+  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent","rubyAlign"]) | (node.props.lang != null ? 1 << 3 : 0);
   const interactionSpecified=authoredMask(style,["visibility","pointerEvents","cursor"]);
   const letterSpacing=styleLength(style.letterSpacing,{normal:true,negative:true});
   const wordSpacing=styleLength(style.wordSpacing,{normal:true,negative:true});
@@ -364,6 +482,7 @@ export function snapshot(node, inherited = {}) {
     language: node.props.lang ?? style.language ?? inherited.language ?? "",
     textTransform: style.textTransform ?? inherited.textTransform ?? "none",
     textAlignLast: style.textAlignLast ?? inherited.textAlignLast ?? "auto",
+    rubyAlign: style.rubyAlign ?? inherited.rubyAlign ?? "space-around",
     cursor: style.cursor ?? inherited.cursor ?? "auto",
     visibility: style.visibility ?? inherited.visibility ?? "visible",
     pointerEvents: style.pointerEvents ?? inherited.pointerEvents ?? "auto",
@@ -372,6 +491,8 @@ export function snapshot(node, inherited = {}) {
     lineHeight: style.lineHeight ?? inherited.lineHeight,
     writingMode: style.writingMode,
     direction: style.direction,
+    rootFontSize: inherited.rootFontSize ?? (typeof style.fontSize === "number" ? style.fontSize : 20),
+    rootLineHeight: inherited.rootLineHeight ?? (typeof style.lineHeight === "number" ? style.lineHeight : 24),
   };
   let columns = [];
   let gridTemplateColumnsCss = null;
@@ -572,7 +693,7 @@ export function snapshot(node, inherited = {}) {
       ...defaultSelectStyle,
       ...defaultOptionStyle,
     },
-    children: node.children.map(child => snapshot(child, textStyle)),
+    children: node.children.map(child => snapshot(child, textStyle, currentVars)),
   };
 }
 

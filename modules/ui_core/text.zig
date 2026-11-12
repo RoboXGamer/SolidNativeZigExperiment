@@ -85,6 +85,7 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    ruby_align: []const u8 = "space-around",
 };
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;

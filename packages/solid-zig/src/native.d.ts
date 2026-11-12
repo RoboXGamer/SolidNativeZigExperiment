@@ -88,6 +88,8 @@ export interface NativeStyle {
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
   textOverflow?: "clip" | "ellipsis";
   textAlignLast?: "auto" | "start" | "end" | "left" | "right" | "center" | "justify";
+  rubyAlign?: "start" | "center" | "space-between" | "space-around";
+  [key: `--${string}`]: any;
   visibility?: "visible" | "hidden" | "collapse";
   pointerEvents?: string;
   cursor?: string;
@@ -201,6 +203,15 @@ export namespace JSX {
   }
 }
 
+export interface PropertyDefinition {
+  name: string;
+  syntax?: string;
+  inherits?: boolean;
+  initialValue?: string;
+}
+
+export function registerProperty(definition: PropertyDefinition): void;
+export function matchMedia(query: string, context?: { resolution?: number; devicePixelRatio?: number }): { matches: boolean; media: string };
 export function dispatchClick(id: number): void;
 export function dispatchInput(id: number, value: string): void;
 export function dispatchKey(id: number, key: string): void;

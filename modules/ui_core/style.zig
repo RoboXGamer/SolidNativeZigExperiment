@@ -89,6 +89,7 @@ pub const Style = struct {
     whiteSpace: []const u8 = "normal",
     textAlign: []const u8 = "left",
     textAlignLast: []const u8 = "auto",
+    rubyAlign: []const u8 = "space-around",
     textOverflow: []const u8 = "clip",
     textTransform: []const u8 = "none",
     textIndent: ?f32 = null,

@@ -235,6 +235,249 @@ fn explicitSpace(space: []const u8, input: Vec) ?Vec {
     return xyzToRgb(multiply(matrix, v), d50);
 }
 
+fn rgbToHsl(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
+    const r = @as(f64, @floatFromInt(r_u8)) / 255.0;
+    const g = @as(f64, @floatFromInt(g_u8)) / 255.0;
+    const b = @as(f64, @floatFromInt(b_u8)) / 255.0;
+    const max = @max(r, @max(g, b));
+    const min = @min(r, @min(g, b));
+    const delta = max - min;
+    const l = (max + min) / 2.0;
+    var h: f64 = 0;
+    var s: f64 = 0;
+    if (delta > 1e-6) {
+        s = if (l > 0.5) delta / (2.0 - max - min) else delta / (max + min);
+        if (max == r) {
+            h = (g - b) / delta + (if (g < b) @as(f64, 6.0) else 0.0);
+        } else if (max == g) {
+            h = (b - r) / delta + 2.0;
+        } else {
+            h = (r - g) / delta + 4.0;
+        }
+        h *= 60.0;
+    }
+    return .{ h, s * 100.0, l * 100.0 };
+}
+
+fn rgbToHwb(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
+    const hsl = rgbToHsl(r_u8, g_u8, b_u8);
+    const r = @as(f64, @floatFromInt(r_u8)) / 255.0;
+    const g = @as(f64, @floatFromInt(g_u8)) / 255.0;
+    const b = @as(f64, @floatFromInt(b_u8)) / 255.0;
+    const w = @min(r, @min(g, b)) * 100.0;
+    const blk = (1.0 - @max(r, @max(g, b))) * 100.0;
+    return .{ hsl[0], w, blk };
+}
+
+fn rgbToOklab(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
+    const r = linearize(@as(f64, @floatFromInt(r_u8)) / 255.0);
+    const g = linearize(@as(f64, @floatFromInt(g_u8)) / 255.0);
+    const b = linearize(@as(f64, @floatFromInt(b_u8)) / 255.0);
+    const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+    const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+    const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+    const l_ = std.math.cbrt(l);
+    const m_ = std.math.cbrt(m);
+    const s_ = std.math.cbrt(s);
+    return .{
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    };
+}
+
+fn rgbToOklch(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
+    const lab = rgbToOklab(r_u8, g_u8, b_u8);
+    const c = std.math.hypot(lab[1], lab[2]);
+    var h = std.math.atan2(lab[2], lab[1]) * 180.0 / std.math.pi;
+    if (h < 0) h += 360.0;
+    return .{ lab[0], c, h };
+}
+
+fn labF(t: f64) f64 {
+    return if (t > 216.0 / 24389.0) std.math.cbrt(t) else (24389.0 / 27.0 * t + 16.0) / 116.0;
+}
+
+fn rgbToLab(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
+    const r = linearize(@as(f64, @floatFromInt(r_u8)) / 255.0);
+    const g = linearize(@as(f64, @floatFromInt(g_u8)) / 255.0);
+    const b = linearize(@as(f64, @floatFromInt(b_u8)) / 255.0);
+    const x65 = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b;
+    const y65 = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+    const z65 = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b;
+    const x50 = 1.0478112 * x65 + 0.0228866 * y65 - 0.0501270 * z65;
+    const y50 = 0.0295424 * x65 + 0.9904844 * y65 - 0.0170491 * z65;
+    const z50 = -0.0092345 * x65 + 0.0150436 * y65 + 0.7521316 * z65;
+    const fx = labF(x50 / 0.96422);
+    const fy = labF(y50 / 1.0);
+    const fz = labF(z50 / 0.82521);
+    return .{ 116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz) };
+}
+
+fn rgbToLch(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
+    const lab = rgbToLab(r_u8, g_u8, b_u8);
+    const c = std.math.hypot(lab[1], lab[2]);
+    var h = std.math.atan2(lab[2], lab[1]) * 180.0 / std.math.pi;
+    if (h < 0) h += 360.0;
+    return .{ lab[0], c, h };
+}
+
+fn parseRelativeColor(name: []const u8, body: []const u8) ?[4]u8 {
+    var i: usize = 4;
+    while (i < body.len and std.ascii.isWhitespace(body[i])) : (i += 1) {}
+    if (i >= body.len) return null;
+    const origin_start = i;
+    var paren_depth: usize = 0;
+    while (i < body.len) : (i += 1) {
+        if (body[i] == '(') {
+            paren_depth += 1;
+        } else if (body[i] == ')') {
+            if (paren_depth > 0) paren_depth -= 1;
+        } else if (paren_depth == 0 and std.ascii.isWhitespace(body[i])) {
+            break;
+        }
+    }
+    const origin_str = body[origin_start..i];
+    const origin_rgba = parseColor(origin_str) orelse return null;
+    var rest = std.mem.trim(u8, body[i..], ws);
+    var space: []const u8 = "";
+    if (eq(name, "color")) {
+        const space_end = std.mem.indexOfAny(u8, rest, ws) orelse return null;
+        space = rest[0..space_end];
+        rest = std.mem.trim(u8, rest[space_end..], ws);
+    }
+    const rgb = eq(name, "rgb") or eq(name, "rgba");
+    const hsl = eq(name, "hsl") or eq(name, "hsla");
+    const hwb = eq(name, "hwb");
+    const lab = eq(name, "lab") or eq(name, "lch") or eq(name, "oklab") or eq(name, "oklch");
+    if (!rgb and !hsl and !hwb and !lab and !eq(name, "color")) return null;
+
+    var halves = @import("css_syntax.zig").Split{ .input = rest, .separator = '/' };
+    const channels_body = halves.next() orelse return null;
+    const alpha_body = if (halves.next()) |a| std.mem.trim(u8, a, ws) else null;
+    if (halves.next() != null) return null;
+
+    var it = @import("css_syntax.zig").Tokens{ .input = channels_body, .separators = ws };
+    var ch_tokens: [3][]const u8 = undefined;
+    for (&ch_tokens) |*c| c.* = it.next() orelse return null;
+    if (it.next() != null) return null;
+
+    var n0: []const u8 = "r";
+    var n1: []const u8 = "g";
+    var n2: []const u8 = "b";
+    var orig_c: Vec = undefined;
+    const orig_alpha: f64 = @as(f64, @floatFromInt(origin_rgba[3])) / 255.0;
+
+    if (rgb) {
+        orig_c = .{ @floatFromInt(origin_rgba[0]), @floatFromInt(origin_rgba[1]), @floatFromInt(origin_rgba[2]) };
+    } else if (hsl) {
+        n0 = "h"; n1 = "s"; n2 = "l";
+        orig_c = rgbToHsl(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
+    } else if (hwb) {
+        n0 = "h"; n1 = "w"; n2 = "b";
+        orig_c = rgbToHwb(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
+    } else if (lab) {
+        const ok = eq(name, "oklab") or eq(name, "oklch");
+        const polar = eq(name, "lch") or eq(name, "oklch");
+        if (ok) {
+            orig_c = if (polar) rgbToOklch(origin_rgba[0], origin_rgba[1], origin_rgba[2]) else rgbToOklab(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
+            if (polar) { n0 = "l"; n1 = "c"; n2 = "h"; } else { n0 = "l"; n1 = "a"; n2 = "b"; }
+        } else {
+            orig_c = if (polar) rgbToLch(origin_rgba[0], origin_rgba[1], origin_rgba[2]) else rgbToLab(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
+            if (polar) { n0 = "l"; n1 = "c"; n2 = "h"; } else { n0 = "l"; n1 = "a"; n2 = "b"; }
+        }
+    } else {
+        orig_c = .{ @as(f64, @floatFromInt(origin_rgba[0])) / 255.0, @as(f64, @floatFromInt(origin_rgba[1])) / 255.0, @as(f64, @floatFromInt(origin_rgba[2])) / 255.0 };
+    }
+
+    const evalToken = struct {
+        fn eval(tok: []const u8, name0: []const u8, name1: []const u8, name2: []const u8, c_vals: Vec, a_val: f64, pct_scale: f64) ?f64 {
+            if (eq(tok, "none")) return 0;
+            if (eq(tok, name0)) return c_vals[0];
+            if (eq(tok, name1)) return c_vals[1];
+            if (eq(tok, name2)) return c_vals[2];
+            if (eq(tok, "alpha")) return a_val;
+            if (suffix(tok, "%")) {
+                const n = number(tok[0 .. tok.len - 1]) orelse return null;
+                return n * pct_scale / 100.0;
+            }
+            if (std.mem.startsWith(u8, tok, "calc(") and std.mem.endsWith(u8, tok, ")")) {
+                var buf: [256]u8 = undefined;
+                var out_len: usize = 0;
+                var p: usize = 0;
+                while (p < tok.len) {
+                    if (std.ascii.isAlphabetic(tok[p])) {
+                        const id_start = p;
+                        while (p < tok.len and std.ascii.isAlphanumeric(tok[p])) : (p += 1) {}
+                        const id = tok[id_start..p];
+                        var val: ?f64 = null;
+                        if (eq(id, name0)) val = c_vals[0]
+                        else if (eq(id, name1)) val = c_vals[1]
+                        else if (eq(id, name2)) val = c_vals[2]
+                        else if (eq(id, "alpha")) val = a_val;
+                        if (val) |v| {
+                            const formatted = std.fmt.bufPrint(buf[out_len..], "{d:.4}", .{v}) catch return null;
+                            out_len += formatted.len;
+                        } else {
+                            if (out_len + id.len > buf.len) return null;
+                            @memcpy(buf[out_len .. out_len + id.len], id);
+                            out_len += id.len;
+                        }
+                    } else {
+                        if (out_len >= buf.len) return null;
+                        buf[out_len] = tok[p];
+                        out_len += 1;
+                        p += 1;
+                    }
+                }
+                const resolved = (@import("sizing.zig").resolveNumber(buf[0..out_len], .{}) catch return null) orelse return null;
+                return resolved;
+            }
+            return number(tok);
+        }
+    }.eval;
+
+    var resolved_c: Vec = undefined;
+    const scales: [3]f64 = if (rgb) .{ 255, 255, 255 } else if (hsl or hwb) .{ 360, 100, 100 } else if (lab) (if (eq(name, "oklab") or eq(name, "oklch")) .{ 1, 0.4, 360 } else .{ 100, 125, 360 }) else .{ 1, 1, 1 };
+    for (ch_tokens, 0..) |tok, idx| {
+        resolved_c[idx] = evalToken(tok, n0, n1, n2, orig_c, orig_alpha, scales[idx]) orelse return null;
+    }
+
+    const resolved_alpha = if (alpha_body) |ab| (evalToken(ab, n0, n1, n2, orig_c, orig_alpha, 1.0) orelse return null) else orig_alpha;
+
+    if (rgb) {
+        return pack(.{ resolved_c[0] / 255.0, resolved_c[1] / 255.0, resolved_c[2] / 255.0 }, resolved_alpha);
+    }
+    if (hsl) {
+        const x = std.math.clamp(resolved_c[1] / 100.0, 0, 1);
+        const y = std.math.clamp(resolved_c[2] / 100.0, 0, 1);
+        return pack(hueRgb(resolved_c[0], x, y), resolved_alpha);
+    }
+    if (hwb) {
+        const x = std.math.clamp(resolved_c[1] / 100.0, 0, 1);
+        const y = std.math.clamp(resolved_c[2] / 100.0, 0, 1);
+        if (x + y >= 1) return pack(.{ x / (x + y), x / (x + y), x / (x + y) }, resolved_alpha);
+        var out = hueRgb(resolved_c[0], 1, 0.5);
+        for (&out) |*v| v.* = v.* * (1 - x - y) + x;
+        return pack(out, resolved_alpha);
+    }
+    if (lab) {
+        const ok = eq(name, "oklab") or eq(name, "oklch");
+        const polar = eq(name, "lch") or eq(name, "oklch");
+        var l = resolved_c[0];
+        var a = resolved_c[1];
+        var b = resolved_c[2];
+        if (polar) {
+            const chroma = @max(0, a);
+            const radians = @mod(b, 360) * std.math.pi / 180.0;
+            a = chroma * @cos(radians);
+            b = chroma * @sin(radians);
+        }
+        return pack(labToRgb(.{ l, a, b }, ok), resolved_alpha);
+    }
+    return pack(explicitSpace(space, resolved_c) orelse return null, resolved_alpha);
+}
+
 pub fn parseColor(input: []const u8) ?[4]u8 {
     const s = std.mem.trim(u8, input, ws);
     if (s.len == 0) return null;
@@ -256,6 +499,9 @@ pub fn parseColor(input: []const u8) ?[4]u8 {
         if (s[s.len - 1] != ')') return null;
         const name = s[0..open];
         var body = std.mem.trim(u8, s[open + 1 .. s.len - 1], ws);
+        if (std.ascii.startsWithIgnoreCase(body, "from ") or std.ascii.startsWithIgnoreCase(body, "from\t")) {
+            return parseRelativeColor(name, body);
+        }
         var space: []const u8 = "";
         if (eq(name, "color")) {
             const end = std.mem.indexOfAny(u8, body, ws) orelse return null;

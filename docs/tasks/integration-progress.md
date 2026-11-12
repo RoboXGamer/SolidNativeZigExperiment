@@ -1,6 +1,6 @@
 # Integration checkpoint
 
-Nine batches integrated: 8, 1, 12, 3, 2, 4, 5, 6, 7. Batches 9, 10, 11 remain future milestones.
+Ten batches integrated: 8, 1, 12, 3, 2, 4, 5, 6, 7, 9. Batches 10 and 11 remain future milestones.
 
 Reconciled view transition lifecycle/type tracking, nested and user/input selectors, attr values, unset, media update queries, logical overflow/writing modes, positioning, transforms and transitions. Both native.js copies match. Fixed native viewport intersection, stray transition syntax, Zig ASCII API compatibility and reflection evaluation quotas.
 
@@ -18,3 +18,5 @@ Batch 6: integrated tables, filter/system colors, target selectors, emphasis and
 Batch 7: reconciled additive geometry, paint, style and type declarations, SVG length resolution and table sticky traversal. Preserved previous transition, positioning, table, details and selector pipelines; added conditional/state snapshot style handling and slot projection; mirrored native.js. Fixed Zig reserved integer-type identifier in shape interpolation.
 
 Validation: pnpm test, pnpm run test:native, zig build and pnpm run test:smoke passed (batch7-*.log); smoke reports 19 scene items. These are regression checks, not proof of all batch-7 ticket claims. Source limitations: SVG background rasterizer is a white placeholder; non-circle/ellipse SVG shapes use bounding fill; subgrid parsing does not establish inherited tracks; shape-outside is not wired into block layout; startingStyle is serialized without a native transition lifecycle; polygon interpolation returns destination. Custom state style handling does not prove general selector conformance. Original batch report remains historical unverified scope. Five partial tickets #296, #295, #294, #291, #178 remain partial.
+
+Batch 9: resolved scene, renderer, native bridge and type conflicts additively, preserving previous helpers and APIs. Integrated ruby alignment, root line-height context, registered custom properties, var/revert handling, resolution media evaluation and shared :root selector matching. Mirrored UI sources. Validation: pnpm test, pnpm run test:native, zig build, pnpm run test:smoke all passed; batch9-*.log records evidence. Smoke: 19 scene items; timer polling fallback warning remains. These checks do not prove complete CSS conformance. Existing SVG backgrounds, subgrid, shape-outside and starting-style-selector gaps and five partial tickets remain unresolved.

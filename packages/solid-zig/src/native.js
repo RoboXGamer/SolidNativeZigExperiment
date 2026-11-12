@@ -207,8 +207,24 @@ export function physicalStyle(style, inherited = {}) {
       result.justifySelf = parts[1] ?? parts[0];
       continue;
     }
+    if (key === "wordWrap") {
+      result.overflowWrap = value;
+      continue;
+    }
+    if (key === "pageBreakBefore") {
+      result.breakBefore = value;
+      continue;
+    }
+    if (key === "pageBreakAfter") {
+      result.breakAfter = value;
+      continue;
+    }
+    if (key === "pageBreakInside") {
+      result.breakInside = value;
+      continue;
+    }
     if (key === "inset") {
-      const sides = boxSides(value, { negative: true });
+      const sides = boxSides(value, { auto: true, negative: true });
       for (const [letter, side] of [["t", "top"], ["r", "right"], ["b", "bottom"], ["l", "left"]]) result[side] = sides[letter];
       continue;
     }
@@ -288,7 +304,17 @@ export function snapshot(node, inherited = {}) {
     }
     style.outlineWidth??=width??"medium"; style.outlineStyle??=kind??"none"; style.outlineColor??=color??"currentColor";
   }
-  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent"]) | (node.props.lang != null ? 1 << 3 : 0);
+  const isInput = node.type === "input";
+  const isTextarea = node.type === "textarea";
+  const placeholder = (isInput || isTextarea) ? String(node.props.placeholder ?? "") : "";
+  const isPlaceholder = isPlaceholderShown(node);
+  if (isPlaceholder && node.props?.style?.[":placeholder-shown"]) {
+    Object.assign(style, node.props.style[":placeholder-shown"]);
+  }
+  if (isPlaceholder && node.props?.placeholderShownStyle) {
+    Object.assign(style, node.props.placeholderShownStyle);
+  }
+  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent","overflowWrap","paintOrder"]) | (node.props.lang != null ? 1 << 3 : 0);
   const interactionSpecified=authoredMask(style,["visibility","pointerEvents","cursor"]);
   const letterSpacing=styleLength(style.letterSpacing,{normal:true,negative:true});
   const wordSpacing=styleLength(style.wordSpacing,{normal:true,negative:true});
@@ -317,7 +343,15 @@ export function snapshot(node, inherited = {}) {
     emitLength("border" + key + "Width", border(style["border" + key + "Width"]));
   }
   for (const side of ["top", "right", "bottom", "left"]) {
-    emitLength(side, style[side] == null ? null : spacingValue(style[side], { negative: true }));
+    const raw = style[side] == null ? null : spacingValue(style[side], { auto: true, negative: true });
+    if (raw === "auto") {
+      lengths[side] = null;
+      lengths[side + "Css"] = "auto";
+      lengths[side + "Auto"] = true;
+    } else {
+      emitLength(side, raw);
+      lengths[side + "Auto"] = false;
+    }
   }
   const flex = flexValues(style);
   const rawBasis = flex.basis;
@@ -369,6 +403,8 @@ export function snapshot(node, inherited = {}) {
     pointerEvents: style.pointerEvents ?? inherited.pointerEvents ?? "auto",
     whiteSpace: style.whiteSpace ?? inherited.whiteSpace ?? "normal",
     textAlign: style.textAlign ?? inherited.textAlign ?? "left",
+    overflowWrap: style.overflowWrap ?? inherited.overflowWrap ?? "normal",
+    paintOrder: style.paintOrder ?? inherited.paintOrder ?? "normal",
     lineHeight: style.lineHeight ?? inherited.lineHeight,
     writingMode: style.writingMode,
     direction: style.direction,
@@ -473,6 +509,8 @@ export function snapshot(node, inherited = {}) {
     value: node.type === "input" ? String(node.props.value ?? "") :
            node.type === "select" ? getSelectValue(node) :
            node.type === "option" ? getOptionValue(node) : "",
+    placeholder,
+    placeholderShown: isPlaceholder,
     selected: node.type === "option" ? isSelectedOption(node) : undefined,
     open: node.type === "select" ? Boolean(node._open) : undefined,
     style: {
@@ -492,6 +530,25 @@ export function snapshot(node, inherited = {}) {
       flexBasisContent: basis === "content",
       order: typeof style.order === "number" ? style.order : 0,
       ...lengths,
+      topAuto: Boolean(lengths.topAuto),
+      rightAuto: Boolean(lengths.rightAuto),
+      bottomAuto: Boolean(lengths.bottomAuto),
+      leftAuto: Boolean(lengths.leftAuto),
+      overflowWrap: style.overflowWrap ?? inherited.overflowWrap ?? "normal",
+      paintOrder: typeof style.paintOrder === "string" ? style.paintOrder : (inherited.paintOrder || "normal"),
+      clipPath: typeof style.clipPath === "string" ? style.clipPath : "",
+      clipPathCss: typeof style.clipPath === "string" ? style.clipPath : null,
+      offsetPath: typeof style.offsetPath === "string" ? style.offsetPath : "",
+      offsetPathCss: typeof style.offsetPath === "string" ? style.offsetPath : null,
+      offsetDistance: typeof style.offsetDistance === "number" ? style.offsetDistance : (parseFloat(style.offsetDistance) || 0),
+      offsetDistanceCss: typeof style.offsetDistance === "string" ? style.offsetDistance : null,
+      offsetRotate: typeof style.offsetRotate === "string" ? style.offsetRotate : "auto",
+      page: typeof style.page === "string" ? style.page : "auto",
+      breakBefore: typeof style.breakBefore === "string" ? style.breakBefore : "auto",
+      breakAfter: typeof style.breakAfter === "string" ? style.breakAfter : "auto",
+      breakInside: typeof style.breakInside === "string" ? style.breakInside : "auto",
+      placeholderColor: typeof style.placeholderColor === "string" ? style.placeholderColor : (style["::placeholder"]?.color ?? style[":placeholder"]?.color ?? style.placeholderStyle?.color ?? ""),
+      placeholderOpacity: typeof style.placeholderOpacity === "number" ? style.placeholderOpacity : (style["::placeholder"]?.opacity ?? style[":placeholder"]?.opacity ?? style.placeholderStyle?.opacity ?? 0.6),
       aspectRatio: style.aspectRatio ?? null,
       marginTopAuto: margin.t === "auto", marginRightAuto: margin.r === "auto",
       marginBottomAuto: margin.b === "auto", marginLeftAuto: margin.l === "auto",
@@ -831,3 +888,255 @@ export function mountApp(Component) {
   };
   mount(Component);
 }
+
+// ---------------------------------------------------------------------------
+// CSS 2024 Batch 11 Helpers
+// ---------------------------------------------------------------------------
+
+export function isPlaceholderShown(node) {
+  if (!node) return false;
+  const isInput = node.type === "input";
+  const isTextarea = node.type === "textarea";
+  if (!isInput && !isTextarea) return false;
+  const inputType = String(node.props?.type ?? "text").toLowerCase();
+  const supports = ["text", "search", "url", "tel", "email", "password", "number"].includes(inputType);
+  if (!supports && !isTextarea) return false;
+  const ph = node.props?.placeholder;
+  if (!ph || typeof ph !== "string" || ph.length === 0) return false;
+  const val = node.props?.value ?? node.value ?? "";
+  return String(val).length === 0;
+}
+
+export function matchesSelector(node, selector) {
+  if (!node || typeof selector !== "string") return false;
+  const s = selector.trim();
+  if (s === ":placeholder-shown") return isPlaceholderShown(node);
+  if (s === "::placeholder" || s === ":placeholder") return node.type === "input" || node.type === "textarea";
+  if (s === ":first") return node.parent ? node.parent.children?.[0] === node : true;
+  if (s === ":first-child") return node.parent?.children?.[0] === node;
+  if (s === ":last-child") return node.parent?.children?.[node.parent.children.length - 1] === node;
+  if (s === ":empty") return (!node.children || node.children.length === 0) && (!node.text || node.text.length === 0);
+  if (s === ":disabled") return Boolean(node.props?.disabled);
+  if (s === ":enabled") return !node.props?.disabled;
+  if (s.startsWith("#")) return node.props?.id === s.slice(1);
+  if (s.startsWith(".")) return (node.props?.class || "").split(/\s+/).includes(s.slice(1));
+  return node.type === s;
+}
+
+export function matchMedia(query, context = {}) {
+  const ctx = {
+    overflowBlock: context.overflowBlock ?? "scroll",
+    overflowInline: context.overflowInline ?? "scroll",
+    media: context.media ?? "screen",
+    width: context.width ?? 800,
+    height: context.height ?? 600,
+  };
+  let q = query.trim();
+  if (q.startsWith("@media")) q = q.slice(6).trim();
+  if (!q || q === "all") return true;
+
+  const branches = q.split(",").map(b => b.trim());
+  for (const branch of branches) {
+    let negated = false;
+    let text = branch;
+    if (text.startsWith("not ")) {
+      negated = true;
+      text = text.slice(4).trim();
+    } else if (text.startsWith("only ")) {
+      text = text.slice(5).trim();
+    }
+
+    const clauses = text.split(/\sand\s/i).map(c => c.trim());
+    let match = true;
+    for (const clause of clauses) {
+      if (clause.startsWith("(") && clause.endsWith(")")) {
+        const inner = clause.slice(1, -1).trim();
+        const colon = inner.indexOf(":");
+        if (colon >= 0) {
+          const feature = inner.slice(0, colon).trim().toLowerCase();
+          const val = inner.slice(colon + 1).trim().toLowerCase();
+          if (feature === "overflow-block") {
+            if (ctx.overflowBlock.toLowerCase() !== val) match = false;
+          } else if (feature === "overflow-inline") {
+            if (ctx.overflowInline.toLowerCase() !== val) match = false;
+          } else if (feature === "width") {
+            if (parseFloat(val) !== ctx.width) match = false;
+          } else if (feature === "height") {
+            if (parseFloat(val) !== ctx.height) match = false;
+          }
+        } else {
+          // Boolean context
+          const feature = inner.toLowerCase();
+          if (feature === "overflow-block") {
+            if (ctx.overflowBlock.toLowerCase() === "none") match = false;
+          } else if (feature === "overflow-inline") {
+            if (ctx.overflowInline.toLowerCase() === "none") match = false;
+          }
+        }
+      } else {
+        // Media type
+        const type = clause.toLowerCase();
+        if (type !== "all" && type !== ctx.media.toLowerCase()) match = false;
+      }
+    }
+    const res = negated ? !match : match;
+    if (res) return true;
+  }
+  return false;
+}
+
+export const PAGE_SIZES = {
+  "jis-b4": { width: 728.5039, height: 1031.811 },
+  "jis-b5": { width: 515.9055, height: 728.5039 },
+  a4: { width: 595.2756, height: 841.8898 },
+  a3: { width: 841.8898, height: 1190.551 },
+  a5: { width: 419.5276, height: 595.2756 },
+  b4: { width: 708.6614, height: 1000.6299 },
+  b5: { width: 498.8976, height: 708.6614 },
+  letter: { width: 612.0, height: 792.0 },
+  legal: { width: 612.0, height: 1008.0 },
+  ledger: { width: 792.0, height: 1224.0 },
+};
+
+export function pageSetup(input = {}) {
+  let sizeStr = typeof input === "string" ? input : (input.size ?? "a4");
+  let orientation = input.orientation ?? null;
+  const margin = input.margin ? boxSides(input.margin) : { t: 36, r: 36, b: 36, l: 36 };
+  let width = PAGE_SIZES.a4.width;
+  let height = PAGE_SIZES.a4.height;
+
+  const tokens = splitSpacing(sizeStr.toLowerCase());
+  for (const token of tokens) {
+    if (token === "portrait" || token === "landscape") {
+      orientation = token;
+    } else if (PAGE_SIZES[token]) {
+      width = PAGE_SIZES[token].width;
+      height = PAGE_SIZES[token].height;
+    } else if (token.endsWith("in")) {
+      width = parseFloat(token) * 72;
+    } else if (token.endsWith("mm")) {
+      width = parseFloat(token) * (72 / 25.4);
+    } else if (token.endsWith("pt") || /^\d+(\.\d+)?$/.test(token)) {
+      width = parseFloat(token);
+    }
+  }
+
+  if (orientation === "landscape" && width < height) {
+    const tmp = width; width = height; height = tmp;
+  } else if (orientation === "portrait" && width > height) {
+    const tmp = width; width = height; height = tmp;
+  }
+
+  return {
+    name: input.name ?? "auto",
+    selector: input.selector ?? ":first",
+    size: { width, height },
+    orientation: orientation ?? (width > height ? "landscape" : "portrait"),
+    margin: { top: margin.t, right: margin.r, bottom: margin.b, left: margin.l },
+    contentWidth: Math.max(0, width - margin.l - margin.r),
+    contentHeight: Math.max(0, height - margin.t - margin.b),
+  };
+}
+
+export function paginate(nodes = [], setup = pageSetup()) {
+  const pages = [];
+  let pageNumber = 1;
+  let isLeft = false;
+  let contentH = setup.contentHeight;
+  let remainingH = contentH;
+
+  pages.push({
+    pageNumber,
+    isLeft,
+    isBlank: false,
+    dimensions: setup.size,
+    items: [],
+  });
+
+  for (const item of nodes) {
+    const style = item.style || {};
+    const h = item.bounds?.height || (typeof style.height === "number" ? style.height : 20);
+    const bb = style.breakBefore ?? "auto";
+    const ba = style.breakAfter ?? "auto";
+    const bi = style.breakInside ?? "auto";
+
+    if (["page", "left", "right"].includes(bb)) {
+      pageNumber++;
+      isLeft = !isLeft;
+      if (bb === "left" && !isLeft) {
+        pages.push({ pageNumber, isLeft: false, isBlank: true, dimensions: setup.size, items: [] });
+        pageNumber++;
+        isLeft = true;
+      } else if (bb === "right" && isLeft) {
+        pages.push({ pageNumber, isLeft: true, isBlank: true, dimensions: setup.size, items: [] });
+        pageNumber++;
+        isLeft = false;
+      }
+      pages.push({ pageNumber, isLeft, isBlank: false, dimensions: setup.size, items: [] });
+      remainingH = contentH;
+    }
+
+    if (h > remainingH && (bi === "avoid" || bi === "avoid-page" || remainingH < contentH * 0.2)) {
+      pageNumber++;
+      isLeft = !isLeft;
+      pages.push({ pageNumber, isLeft, isBlank: false, dimensions: setup.size, items: [] });
+      remainingH = contentH;
+    }
+
+    pages[pages.length - 1].items.push(item);
+    remainingH = Math.max(0, remainingH - h);
+
+    if (["page", "left", "right"].includes(ba)) {
+      pageNumber++;
+      isLeft = !isLeft;
+      if (ba === "left" && !isLeft) {
+        pages.push({ pageNumber, isLeft: false, isBlank: true, dimensions: setup.size, items: [] });
+        pageNumber++;
+        isLeft = true;
+      } else if (ba === "right" && isLeft) {
+        pages.push({ pageNumber, isLeft: true, isBlank: true, dimensions: setup.size, items: [] });
+        pageNumber++;
+        isLeft = false;
+      }
+      pages.push({ pageNumber, isLeft, isBlank: false, dimensions: setup.size, items: [] });
+      remainingH = contentH;
+    }
+  }
+
+  return pages;
+}
+
+export function parsePathShape(pathStr) {
+  let s = String(pathStr || "").trim();
+  let fillRule = "nonzero";
+  if (s.startsWith("path(") && s.endsWith(")")) {
+    const inner = s.slice(5, -1).trim();
+    const comma = inner.indexOf(",");
+    if (comma >= 0) {
+      const rule = inner.slice(0, comma).trim().toLowerCase();
+      if (rule === "evenodd" || rule === "nonzero") fillRule = rule;
+      s = inner.slice(comma + 1).trim();
+    } else {
+      s = inner;
+    }
+  }
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1);
+  }
+
+  const commands = [];
+  const regex = /([a-df-z])([^a-df-z]*)/gi;
+  let match;
+  while ((match = regex.exec(s)) !== null) {
+    const type = match[1];
+    const args = (match[2].trim().match(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/gi) || []).map(Number);
+    commands.push({ type, args });
+  }
+
+  return {
+    fillRule,
+    d: s,
+    commands,
+  };
+}
+

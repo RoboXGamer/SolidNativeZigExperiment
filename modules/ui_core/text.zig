@@ -85,6 +85,8 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    overflow_wrap: []const u8 = "normal",
+    paint_order: []const u8 = "normal",
 };
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
@@ -230,7 +232,23 @@ pub const Text = struct {
     }
 
     /// Widest unbreakable word, i.e. the min-content width of the run.
+    /// If overflow-wrap: anywhere, soft wrap opportunities are introduced between every character/grapheme.
     pub fn minContentWidth(self: Text, content: []const u8, font_size: f32) f32 {
+        if (std.mem.eql(u8, self.typography.overflow_wrap, "anywhere")) {
+            var widest: f32 = 0;
+            var offset: usize = 0;
+            const edit = @import("text_edit.zig");
+            while (offset < content.len) {
+                const next = edit.nextGrapheme(content, offset);
+                const cluster = content[offset..next];
+                if (!std.mem.eql(u8, cluster, " ") and !std.mem.eql(u8, cluster, "\t") and !std.mem.eql(u8, cluster, "\r") and !std.mem.eql(u8, cluster, "\n")) {
+                    const w = self.width(cluster, font_size);
+                    if (w > widest) widest = w;
+                }
+                offset = next;
+            }
+            return widest;
+        }
         var widest: f32 = 0;
         var it = std.mem.tokenizeAny(u8, content, " \t\r\n");
         while (it.next()) |word| {
@@ -287,7 +305,25 @@ pub const Text = struct {
                     accepted = candidate_end;
                     if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
                 }
-                if (accepted == start) accepted = end;
+                if (accepted == start) {
+                    if (std.mem.eql(u8, self.typography.overflow_wrap, "break-word") or std.mem.eql(u8, self.typography.overflow_wrap, "anywhere")) {
+                        // Break within the word at grapheme boundary that fits in capacity
+                        const edit = @import("text_edit.zig");
+                        var g_offset = start;
+                        var prev_g = start;
+                        while (g_offset < end) {
+                            const next_g = edit.nextGrapheme(hard_line, g_offset);
+                            if (self.width(hard_line[start..next_g], font_size) > capacity and prev_g > start) {
+                                break;
+                            }
+                            prev_g = next_g;
+                            g_offset = next_g;
+                        }
+                        accepted = if (prev_g > start) prev_g else end;
+                    } else {
+                        accepted = end;
+                    }
+                }
                 const slice = hard_line[start..accepted];
                 try list.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = indent });
                 start = accepted;

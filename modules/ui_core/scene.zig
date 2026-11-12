@@ -22,10 +22,18 @@ pub const Node = struct {
     focusable: bool = false,
     tabIndex: ?i32 = null,
     value: []const u8 = "",
+    placeholder: []const u8 = "",
     /// Optional input for a future replaced-element measurement provider.
     intrinsicAspectRatio: ?f32 = null,
     style: Style = .{},
     children: []Node = &.{},
+
+    pub fn isPlaceholderShown(self: *const Node) bool {
+        if (std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "textarea")) {
+            return self.placeholder.len > 0 and self.value.len == 0;
+        }
+        return false;
+    }
 
     pub fn effectiveOverflowX(self: *const Node) []const u8 {
         if (self.style.overflowX.len > 0) return self.style.overflowX;
@@ -164,6 +172,8 @@ pub const Node = struct {
             .tab_size = self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
             .text_indent = self.style.textIndent orelse 0,
+            .overflow_wrap = self.style.overflowWrap,
+            .paint_order = self.style.paintOrder,
         };
         return result;
     }
@@ -447,6 +457,9 @@ pub const Scene = struct {
                     },
                     .keyword => |keyword| {
                         if (keyword == .auto and (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "height") or std.mem.startsWith(u8, name, "min"))) {
+                            @field(n.style, name) = null;
+                        } else if (keyword == .auto and is_inset) {
+                            @field(n.style, name ++ "Auto") = true;
                             @field(n.style, name) = null;
                         } else if (keyword == .none and std.mem.startsWith(u8, name, "max")) {
                             @field(n.style, name) = null;
@@ -846,8 +859,18 @@ pub const Scene = struct {
             }
         };
         if (std.mem.eql(u8, n.style.position, "relative")) {
-            const dx = if (n.style.left) |l| l else if (n.style.right) |r| -r else 0;
-            const dy = if (n.style.top) |t| t else if (n.style.bottom) |btm| -btm else 0;
+            var dx: f32 = 0;
+            if (!n.style.leftAuto and n.style.left != null) {
+                dx = n.style.left.?;
+            } else if (!n.style.rightAuto and n.style.right != null) {
+                dx = -n.style.right.?;
+            }
+            var dy: f32 = 0;
+            if (!n.style.topAuto and n.style.top != null) {
+                dy = n.style.top.?;
+            } else if (!n.style.bottomAuto and n.style.bottom != null) {
+                dy = -n.style.bottom.?;
+            }
             b.x += dx;
             b.y += dy;
         }
@@ -908,7 +931,7 @@ pub const Scene = struct {
             var w: f32 = undefined;
             if (child.style.width) |specified_w| {
                 w = child.constrain(child.borderSize(specified_w, child_frame_x), true);
-            } else if (child.style.left != null and child.style.right != null) {
+            } else if (child.style.left != null and child.style.right != null and !child.style.leftAuto and !child.style.rightAuto) {
                 w = child.constrain(@max(0, cb.width - child.style.left.? - child.style.right.? - child_mg.horizontal()), true);
             } else {
                 w = child.constrain(self.intrinsicWidthFor(child, .{ .definite = @max(0, cb.width - child_mg.horizontal()) }), true);
@@ -918,7 +941,7 @@ pub const Scene = struct {
             var h: f32 = undefined;
             if (child.style.height) |specified_h| {
                 h = child.constrain(child.borderSize(specified_h, child_frame_y), false);
-            } else if (child.style.top != null and child.style.bottom != null) {
+            } else if (child.style.top != null and child.style.bottom != null and !child.style.topAuto and !child.style.bottomAuto) {
                 h = child.constrain(@max(0, cb.height - child.style.top.? - child.style.bottom.? - child_mg.vertical()), false);
             } else {
                 h = child.constrain(self.naturalHeightForWidth(child, w), false);
@@ -926,17 +949,25 @@ pub const Scene = struct {
 
             // Placement
             var x: f32 = cb.x + child_mg.left;
-            if (child.style.left) |left_val| {
-                x = cb.x + left_val + child_mg.left;
-            } else if (child.style.right) |right_val| {
-                x = cb.right() - right_val - w - child_mg.right;
+            if (!child.style.leftAuto and child.style.left != null) {
+                x = cb.x + child.style.left.? + child_mg.left;
+            } else if (!child.style.rightAuto and child.style.right != null) {
+                x = cb.right() - child.style.right.? - w - child_mg.right;
             }
 
             var y: f32 = cb.y + child_mg.top;
-            if (child.style.top) |top_val| {
-                y = cb.y + top_val + child_mg.top;
-            } else if (child.style.bottom) |bottom_val| {
-                y = cb.bottom() - bottom_val - h - child_mg.bottom;
+            if (!child.style.topAuto and child.style.top != null) {
+                y = cb.y + child.style.top.? + child_mg.top;
+            } else if (!child.style.bottomAuto and child.style.bottom != null) {
+                y = cb.bottom() - child.style.bottom.? - h - child_mg.bottom;
+            }
+
+            if (child.style.offsetPath.len > 0) {
+                if (@import("path_shape.zig").parseCssPath(self.arena.allocator(), child.style.offsetPath)) |path_obj| {
+                    const pt = path_obj.pointAtDistance(child.style.offsetDistance);
+                    x = cb.x + pt.point.x;
+                    y = cb.y + pt.point.y;
+                } else |_| {}
             }
 
             // Auto margins and self alignment operate in the inset-modified containing block.

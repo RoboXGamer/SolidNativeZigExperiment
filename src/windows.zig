@@ -84,7 +84,13 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
                 rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
             }
         }
-        try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
+        if (n.value.len == 0 and n.placeholder.len > 0) {
+            const ph_color = if (n.style.placeholderColor.len > 0) n.style.placeholderColor else "#888888";
+            const ph_op = op * n.style.placeholderOpacity;
+            try ctx.text_cache.drawStyled(n.placeholder, text_x, text_y, n.fontSize(), colorWithOpacity(ph_color, .gray, ph_op), text.typography);
+        } else {
+            try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
+        }
         if (focused == n.id) text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + text.width(n.value[0..editor.cursor], n.fontSize())), @intFromFloat(text_y + text.lineHeight(n.fontSize())));
     }
     // Scrollbar rendering

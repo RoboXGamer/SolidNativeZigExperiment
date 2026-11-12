@@ -92,6 +92,288 @@ pub const Edges = struct {
     }
 };
 
+pub const ObjectFit = enum {
+    fill,
+    contain,
+    cover,
+    none,
+    scale_down,
+
+    pub fn parse(s: []const u8) ObjectFit {
+        if (std.ascii.eqlIgnoreCase(s, "contain")) return .contain;
+        if (std.ascii.eqlIgnoreCase(s, "cover")) return .cover;
+        if (std.ascii.eqlIgnoreCase(s, "none")) return .none;
+        if (std.ascii.eqlIgnoreCase(s, "scale-down")) return .scale_down;
+        return .fill;
+    }
+};
+
+pub fn computeObjectFit(fit: ObjectFit, container_w: f32, container_h: f32, intrinsic_w: f32, intrinsic_h: f32) struct { width: f32, height: f32 } {
+    const cw = @max(0, container_w);
+    const ch = @max(0, container_h);
+    const iw = @max(0, intrinsic_w);
+    const ih = @max(0, intrinsic_h);
+    if (iw <= 0 or ih <= 0 or cw <= 0 or ch <= 0) {
+        return .{ .width = cw, .height = ch };
+    }
+    switch (fit) {
+        .fill => return .{ .width = cw, .height = ch },
+        .none => return .{ .width = iw, .height = ih },
+        .contain => {
+            const scale = @min(cw / iw, ch / ih);
+            return .{ .width = iw * scale, .height = ih * scale };
+        },
+        .cover => {
+            const scale = @max(cw / iw, ch / ih);
+            return .{ .width = iw * scale, .height = ih * scale };
+        },
+        .scale_down => {
+            const scale = @min(cw / iw, ch / ih);
+            if (scale < 1.0) {
+                return .{ .width = iw * scale, .height = ih * scale };
+            } else {
+                return .{ .width = iw, .height = ih };
+            }
+        },
+    }
+}
+
+pub fn computeObjectPosition(position: []const u8, container_w: f32, container_h: f32, obj_w: f32, obj_h: f32) struct { x: f32, y: f32 } {
+    const cw = @max(0, container_w);
+    const ch = @max(0, container_h);
+    const ow = @max(0, obj_w);
+    const oh = @max(0, obj_h);
+
+    var pos_x: f32 = 0.5;
+    var pos_y: f32 = 0.5;
+    var offset_x: f32 = 0;
+    var offset_y: f32 = 0;
+
+    var it = std.mem.tokenizeAny(u8, position, " \t\r\n");
+    var tokens: [4][]const u8 = undefined;
+    var count: usize = 0;
+    while (it.next()) |tok| {
+        if (count < 4) {
+            tokens[count] = tok;
+            count += 1;
+        }
+    }
+
+    if (count == 1) {
+        const t = tokens[0];
+        if (std.ascii.eqlIgnoreCase(t, "top") or std.ascii.eqlIgnoreCase(t, "bottom")) {
+            pos_y = if (std.ascii.eqlIgnoreCase(t, "top")) 0 else 1;
+            pos_x = 0.5;
+        } else if (std.ascii.eqlIgnoreCase(t, "left") or std.ascii.eqlIgnoreCase(t, "right") or std.ascii.eqlIgnoreCase(t, "center")) {
+            pos_x = if (std.ascii.eqlIgnoreCase(t, "left")) 0 else if (std.ascii.eqlIgnoreCase(t, "right")) 1 else 0.5;
+            pos_y = 0.5;
+        } else if (std.mem.endsWith(u8, t, "%")) {
+            const val = std.fmt.parseFloat(f32, t[0 .. t.len - 1]) catch 50;
+            pos_x = val / 100.0;
+            pos_y = 0.5;
+        } else {
+            const raw = if (std.mem.endsWith(u8, t, "px")) t[0 .. t.len - 2] else t;
+            offset_x = std.fmt.parseFloat(f32, raw) catch 0;
+            pos_x = 0;
+            pos_y = 0.5;
+        }
+    } else if (count == 2) {
+        const is_first_vert = std.ascii.eqlIgnoreCase(tokens[0], "top") or std.ascii.eqlIgnoreCase(tokens[0], "bottom");
+        const h_tok = if (is_first_vert) tokens[1] else tokens[0];
+        const v_tok = if (is_first_vert) tokens[0] else tokens[1];
+
+        if (std.ascii.eqlIgnoreCase(h_tok, "left")) pos_x = 0
+        else if (std.ascii.eqlIgnoreCase(h_tok, "right")) pos_x = 1
+        else if (std.ascii.eqlIgnoreCase(h_tok, "center")) pos_x = 0.5
+        else if (std.mem.endsWith(u8, h_tok, "%")) {
+            const val = std.fmt.parseFloat(f32, h_tok[0 .. h_tok.len - 1]) catch 50;
+            pos_x = val / 100.0;
+        } else {
+            const raw = if (std.mem.endsWith(u8, h_tok, "px")) h_tok[0 .. h_tok.len - 2] else h_tok;
+            offset_x = std.fmt.parseFloat(f32, raw) catch 0;
+            pos_x = 0;
+        }
+
+        if (std.ascii.eqlIgnoreCase(v_tok, "top")) pos_y = 0
+        else if (std.ascii.eqlIgnoreCase(v_tok, "bottom")) pos_y = 1
+        else if (std.ascii.eqlIgnoreCase(v_tok, "center")) pos_y = 0.5
+        else if (std.mem.endsWith(u8, v_tok, "%")) {
+            const val = std.fmt.parseFloat(f32, v_tok[0 .. v_tok.len - 1]) catch 50;
+            pos_y = val / 100.0;
+        } else {
+            const raw = if (std.mem.endsWith(u8, v_tok, "px")) v_tok[0 .. v_tok.len - 2] else v_tok;
+            offset_y = std.fmt.parseFloat(f32, raw) catch 0;
+            pos_y = 0;
+        }
+    } else if (count == 4) {
+        var i: usize = 0;
+        while (i < 4) : (i += 2) {
+            const edge = tokens[i];
+            const val_str = tokens[i + 1];
+            const raw = if (std.mem.endsWith(u8, val_str, "px")) val_str[0 .. val_str.len - 2] else val_str;
+            const val = std.fmt.parseFloat(f32, raw) catch 0;
+            if (std.ascii.eqlIgnoreCase(edge, "left")) {
+                pos_x = 0;
+                offset_x = val;
+            } else if (std.ascii.eqlIgnoreCase(edge, "right")) {
+                pos_x = 1;
+                offset_x = -val;
+            } else if (std.ascii.eqlIgnoreCase(edge, "top")) {
+                pos_y = 0;
+                offset_y = val;
+            } else if (std.ascii.eqlIgnoreCase(edge, "bottom")) {
+                pos_y = 1;
+                offset_y = -val;
+            }
+        }
+    }
+
+    const x = (cw - ow) * pos_x + offset_x;
+    const y = (ch - oh) * pos_y + offset_y;
+    return .{ .x = x, .y = y };
+}
+
+pub fn computeObjectRect(container: Rect, intrinsic_w: f32, intrinsic_h: f32, fit_str: []const u8, pos_str: []const u8) Rect {
+    const size = computeObjectFit(ObjectFit.parse(fit_str), container.width, container.height, intrinsic_w, intrinsic_h);
+    const pos = computeObjectPosition(pos_str, container.width, container.height, size.width, size.height);
+    return .{
+        .x = container.x + pos.x,
+        .y = container.y + pos.y,
+        .width = size.width,
+        .height = size.height,
+    };
+}
+
+pub const Point = struct {
+    x: f32 = 0,
+    y: f32 = 0,
+};
+
+pub const FillRule = enum {
+    nonzero,
+    evenodd,
+};
+
+pub const BasicShape = union(enum) {
+    circle: struct {
+        cx: f32,
+        cy: f32,
+        r: f32,
+    },
+    ellipse: struct {
+        cx: f32,
+        cy: f32,
+        rx: f32,
+        ry: f32,
+    },
+    inset: struct {
+        top: f32,
+        right: f32,
+        bottom: f32,
+        left: f32,
+        radii: [4]f32 = .{ 0, 0, 0, 0 },
+    },
+    polygon: struct {
+        points: []const Point,
+        fill_rule: FillRule = .nonzero,
+    },
+
+    pub fn sliceX(self: BasicShape, y: f32, box: Rect, margin: f32) ?struct { min_x: f32, max_x: f32 } {
+        switch (self) {
+            .circle => |c| {
+                const effective_r = c.r + margin;
+                if (effective_r <= 0) return null;
+                const dy = @abs(y - c.cy);
+                if (dy > effective_r) return null;
+                const dx = @sqrt(effective_r * effective_r - dy * dy);
+                return .{
+                    .min_x = c.cx - dx,
+                    .max_x = c.cx + dx,
+                };
+            },
+            .ellipse => |e| {
+                const eff_ry = e.ry + margin;
+                const eff_rx = e.rx + margin;
+                if (eff_ry <= 0 or eff_rx <= 0) return null;
+                const dy = @abs(y - e.cy);
+                if (dy > eff_ry) return null;
+                const ratio = dy / eff_ry;
+                const dx = eff_rx * @sqrt(@max(0, 1.0 - ratio * ratio));
+                return .{
+                    .min_x = e.cx - dx,
+                    .max_x = e.cx + dx,
+                };
+            },
+            .inset => |in| {
+                const top = box.y + in.top - margin;
+                const bottom = box.bottom() - in.bottom + margin;
+                if (y < top or y > bottom) return null;
+                return .{
+                    .min_x = box.x + in.left - margin,
+                    .max_x = box.right() - in.right + margin,
+                };
+            },
+            .polygon => |poly| {
+                if (poly.points.len < 3) return null;
+                var min_x: f32 = std.math.inf(f32);
+                var max_x: f32 = -std.math.inf(f32);
+                var count: usize = 0;
+                for (poly.points, 0..) |p1, i| {
+                    const p2 = poly.points[(i + 1) % poly.points.len];
+                    if ((p1.y <= y and p2.y > y) or (p2.y <= y and p1.y > y)) {
+                        const t = (y - p1.y) / (p2.y - p1.y);
+                        const inter_x = p1.x + t * (p2.x - p1.x);
+                        min_x = @min(min_x, inter_x);
+                        max_x = @max(max_x, inter_x);
+                        count += 1;
+                    }
+                }
+                if (count == 0) return null;
+                return .{
+                    .min_x = min_x - margin,
+                    .max_x = max_x + margin,
+                };
+            },
+        }
+    }
+
+    pub fn contains(self: BasicShape, px: f32, py: f32, box: Rect) bool {
+        switch (self) {
+            .circle => |c| {
+                const dx = px - c.cx;
+                const dy = py - c.cy;
+                return (dx * dx + dy * dy) <= (c.r * c.r);
+            },
+            .ellipse => |e| {
+                if (e.rx <= 0 or e.ry <= 0) return false;
+                const dx = (px - e.cx) / e.rx;
+                const dy = (py - e.cy) / e.ry;
+                return (dx * dx + dy * dy) <= 1.0;
+            },
+            .inset => |in| {
+                const x0 = box.x + in.left;
+                const y0 = box.y + in.top;
+                const x1 = box.right() - in.right;
+                const y1 = box.bottom() - in.bottom;
+                return px >= x0 and px <= x1 and py >= y0 and py <= y1;
+            },
+            .polygon => |poly| {
+                if (poly.points.len < 3) return false;
+                var inside = false;
+                for (poly.points, 0..) |p1, i| {
+                    const p2 = poly.points[(i + 1) % poly.points.len];
+                    if (((p1.y > py) != (p2.y > py)) and
+                        (px < (p2.x - p1.x) * (py - p1.y) / (p2.y - p1.y) + p1.x))
+                    {
+                        inside = !inside;
+                    }
+                }
+                return inside;
+            },
+        }
+    }
+};
+
 test "DOMRect edges and containment" {
     const r = Rect{ .x = 10, .y = 20, .width = 100, .height = 50 };
     try std.testing.expectEqual(@as(f32, 10), r.left());

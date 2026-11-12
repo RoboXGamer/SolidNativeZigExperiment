@@ -50,6 +50,27 @@ pub const Runtime = struct {
         var result: [32]u8 = undefined;
         if (ui_eval(@ptrCast(expression.ptr), &result, result.len) == 0) return error.JavaScriptEvaluationFailed;
     }
+    pub fn hover(_: *Runtime, id: u32, is_hovered: bool) !void {
+        var command: [64]u8 = undefined;
+        const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "uiDispatchHover({d},{s})", .{ id, if (is_hovered) "true" else "false" });
+        command[expression.len] = 0;
+        var result: [32]u8 = undefined;
+        _ = ui_eval(@ptrCast(expression.ptr), &result, result.len);
+    }
+    pub fn active(_: *Runtime, id: u32, is_active: bool) !void {
+        var command: [64]u8 = undefined;
+        const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "uiDispatchActive({d},{s})", .{ id, if (is_active) "true" else "false" });
+        command[expression.len] = 0;
+        var result: [32]u8 = undefined;
+        _ = ui_eval(@ptrCast(expression.ptr), &result, result.len);
+    }
+    pub fn focus(_: *Runtime, id: u32, is_focused: bool) !void {
+        var command: [64]u8 = undefined;
+        const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "uiDispatchFocus({d},{s})", .{ id, if (is_focused) "true" else "false" });
+        command[expression.len] = 0;
+        var result: [32]u8 = undefined;
+        _ = ui_eval(@ptrCast(expression.ptr), &result, result.len);
+    }
     pub fn key(_: *Runtime, id: u32, key_name: []const u8) !void {
         var command: [128]u8 = undefined;
         const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "uiDispatchKey({d},\"{s}\")", .{ id, key_name });

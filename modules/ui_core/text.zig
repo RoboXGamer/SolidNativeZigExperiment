@@ -12,10 +12,26 @@ const std = @import("std");
 
 /// CSS collapsing for the scene projection. The authoring tree keeps its text.
 pub fn collapseWhitespace(a: std.mem.Allocator, input: []const u8) ![]const u8 {
+    return collapseWhitespaceMode(a, input, "collapse");
+}
+
+pub fn collapseWhitespaceMode(a: std.mem.Allocator, input: []const u8, mode: []const u8) ![]const u8 {
+    if (std.mem.eql(u8, mode, "preserve") or std.mem.eql(u8, mode, "break-spaces")) return input;
+    const preserve_breaks = std.mem.eql(u8, mode, "preserve-breaks");
     const result = try a.alloc(u8, input.len);
     var length: usize = 0;
     var pending = false;
     for (input) |c| {
+        if (preserve_breaks and (c == '\n' or c == '\r')) {
+            if (pending) {
+                result[length] = ' ';
+                length += 1;
+                pending = false;
+            }
+            result[length] = c;
+            length += 1;
+            continue;
+        }
         if (c == ' ' or c == '\t' or c == '\r' or c == '\n' or c == 0x0c) {
             pending = length > 0;
             continue;
@@ -76,6 +92,7 @@ pub const PositionFn = *const fn (?*anyopaque, []const u8, f32, f32) usize;
 /// Immutable, per-run styling shared by measurement, rasterization and hit testing.
 pub const Typography = struct {
     font_family: []const u8 = "system-ui",
+    font_feature_settings: []const u8 = "normal",
     font_weight: f32 = 400,
     font_style: []const u8 = "normal",
     language: []const u8 = "",
@@ -85,9 +102,123 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    ruby_position: []const u8 = "over",
+    text_autospace: []const u8 = "normal",
+    math_shift: []const u8 = "normal",
+    text_decoration_line: []const u8 = "none",
+    text_decoration_style: []const u8 = "solid",
+    text_decoration_color: []const u8 = "",
+    text_decoration_thickness: f32 = 0,
+    word_break: []const u8 = "normal",
+    white_space_collapse: []const u8 = "collapse",
+    vertical_align: []const u8 = "baseline",
+    vertical_align_offset: f32 = 0,
+    text_orientation: []const u8 = "mixed",
+    text_wrap_mode: []const u8 = "wrap",
+    text_wrap_style: []const u8 = "auto",
+    text_underline_position: []const u8 = "auto",
+    text_underline_offset: f32 = 0,
+    text_stroke_width: f32 = 0,
+    text_emphasis_style: []const u8 = "none",
+    text_emphasis_color: []const u8 = "",
+    text_emphasis_position: []const u8 = "over right",
+    text_decoration_skip_ink: []const u8 = "auto",
+    text_combine_upright: []const u8 = "none",
+    ruby_align: []const u8 = "space-around",
+    quotes: []const u8 = "auto",
+    overflow_wrap: []const u8 = "normal",
+    paint_order: []const u8 = "normal",
 };
+
+pub fn emphasisMark(style_str: []const u8) []const u8 {
+    const s = std.mem.trim(u8, style_str, " \t\r\n");
+    if (s.len == 0 or std.mem.eql(u8, s, "none")) return "";
+    const is_open = std.mem.indexOf(u8, s, "open") != null;
+    if (std.mem.indexOf(u8, s, "double-circle") != null) {
+        return if (is_open) "◎" else "⦿";
+    } else if (std.mem.indexOf(u8, s, "circle") != null) {
+        return if (is_open) "○" else "●";
+    } else if (std.mem.indexOf(u8, s, "dot") != null) {
+        return if (is_open) "◦" else "•";
+    } else if (std.mem.indexOf(u8, s, "triangle") != null) {
+        return if (is_open) "△" else "▲";
+    } else if (std.mem.indexOf(u8, s, "sesame") != null) {
+        return if (is_open) "﹆" else "﹅";
+    } else if (std.mem.indexOf(u8, s, "filled") != null) {
+        return "●";
+    } else if (is_open) {
+        return "○";
+    }
+    return s;
+}
+
+pub fn hasDescender(c: u8) bool {
+    return switch (c) {
+        'g', 'j', 'p', 'q', 'y', 'Q', ',', ';' => true,
+        else => false,
+    };
+}
+
+pub const QuotePair = struct {
+    open: []const u8,
+    close: []const u8,
+};
+
+pub fn resolveQuotes(quotes: []const u8, lang: []const u8, depth: usize) ?QuotePair {
+    if (std.ascii.eqlIgnoreCase(quotes, "none")) return null;
+    if (std.ascii.eqlIgnoreCase(quotes, "auto") or quotes.len == 0) {
+        if (std.ascii.startsWithIgnoreCase(lang, "fr")) {
+            return if (depth % 2 == 0) QuotePair{ .open = "« ", .close = " »" } else QuotePair{ .open = "“", .close = "”" };
+        } else if (std.ascii.startsWithIgnoreCase(lang, "de")) {
+            return if (depth % 2 == 0) QuotePair{ .open = "„", .close = "“" } else QuotePair{ .open = "‚", .close = "‘" };
+        } else if (std.ascii.startsWithIgnoreCase(lang, "ja") or std.ascii.startsWithIgnoreCase(lang, "zh")) {
+            return if (depth % 2 == 0) QuotePair{ .open = "「", .close = "」" } else QuotePair{ .open = "『", .close = "』" };
+        } else {
+            return if (depth % 2 == 0) QuotePair{ .open = "“", .close = "”" } else QuotePair{ .open = "‘", .close = "’" };
+        }
+    }
+    var tokens = @import("css_syntax.zig").Tokens{ .input = quotes, .separators = " \t\r\n" };
+    var pairs: [8]QuotePair = undefined;
+    var count: usize = 0;
+    while (tokens.next()) |open_tok| {
+        const close_tok = tokens.next() orelse break;
+        if (count < pairs.len) {
+            const clean_open = std.mem.trim(u8, open_tok, "\"'");
+            const clean_close = std.mem.trim(u8, close_tok, "\"'");
+            pairs[count] = .{ .open = clean_open, .close = clean_close };
+            count += 1;
+        }
+    }
+    if (count == 0) return QuotePair{ .open = "“", .close = "”" };
+    const idx = if (depth < count) depth else count - 1;
+    return pairs[idx];
+}
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
+
+pub fn isIdeographic(cp: u21) bool {
+    return (cp >= 0x4E00 and cp <= 0x9FFF) or
+        (cp >= 0x3400 and cp <= 0x4DBF) or
+        (cp >= 0x20000 and cp <= 0x2A6DF) or
+        (cp >= 0xF900 and cp <= 0xFAFF) or
+        (cp >= 0x3040 and cp <= 0x309F) or
+        (cp >= 0x30A0 and cp <= 0x30FF) or
+        (cp >= 0xAC00 and cp <= 0xD7AF);
+}
+
+pub fn isNonIdeographic(cp: u21) bool {
+    return (cp >= 'a' and cp <= 'z') or
+        (cp >= 'A' and cp <= 'Z') or
+        (cp >= '0' and cp <= '9');
+}
+
+fn firstCodepoint(slice: []const u8) ?u21 {
+    if (slice.len == 0) return null;
+    if (std.unicode.Utf8View.init(slice)) |view| {
+        var it = view.iterator();
+        return it.nextCodepoint();
+    } else |_| return null;
+}
 
 pub const ShapedLine = struct {
     text: []const u8,
@@ -97,11 +228,22 @@ pub const ShapedLine = struct {
     /// First-line indentation, relative to the line's content box.
     indent: f32 = 0,
     offset_x: f32 = 0,
+    offset_y: f32 = 0,
 };
 
 pub const Wrap = struct {
     lines: usize = 0,
     widest: f32 = 0,
+};
+
+pub const RubyMetrics = struct {
+    base: Metrics,
+    annotation: Metrics,
+    position: []const u8 = "over",
+    total_width: f32,
+    total_height: f32,
+    base_y: f32,
+    annotation_y: f32,
 };
 
 pub const Text = struct {
@@ -111,6 +253,26 @@ pub const Text = struct {
     styled_measure_fn: ?StyledMeasureFn = null,
     styled_position_fn: ?StyledPositionFn = null,
     typography: Typography = .{},
+
+    pub fn measureRuby(self: Text, base_text: []const u8, annotation_text: []const u8, font_size: f32, ruby_pos: []const u8) RubyMetrics {
+        const base_m = self.measure(base_text, font_size);
+        const anno_font_size = @max(8, font_size * 0.5);
+        const anno_m = self.measure(annotation_text, anno_font_size);
+        const total_w = @max(base_m.width, anno_m.width);
+        const total_h = base_m.height + anno_m.height;
+        const is_under = std.ascii.eqlIgnoreCase(ruby_pos, "under");
+        const anno_y: f32 = if (is_under) base_m.height else 0;
+        const base_y: f32 = if (is_under) 0 else anno_m.height;
+        return .{
+            .base = base_m,
+            .annotation = anno_m,
+            .position = if (is_under) "under" else "over",
+            .total_width = total_w,
+            .total_height = total_h,
+            .base_y = base_y,
+            .annotation_y = anno_y,
+        };
+    }
 
     pub fn isMeasured(self: Text) bool {
         return self.measure_fn != null or self.styled_measure_fn != null;
@@ -122,22 +284,55 @@ pub const Text = struct {
 
     pub fn measure(self: Text, content: []const u8, font_size: f32) Metrics {
         const px = size(font_size);
+        const is_compact = std.mem.eql(u8, self.typography.math_shift, "compact");
+        const compact_h_scale: f32 = if (is_compact) 0.9 else 1.0;
+        const compact_asc_scale: f32 = if (is_compact) 0.85 else 1.0;
         if (content.len == 0) {
-            const h = px * fallback_line_height_ratio;
-            const asc = px * fallback_ascent_ratio;
+            const h = px * fallback_line_height_ratio * compact_h_scale;
+            const asc = px * fallback_ascent_ratio * compact_asc_scale;
             const desc = px * fallback_descent_ratio;
             return .{ .width = 0, .height = h, .ascent = asc, .descent = desc, .leading = @max(0, h - (asc + desc)) };
         }
-        if (self.styled_measure_fn) |f| return f(self.ctx, content, px, self.typography);
+        if (self.styled_measure_fn) |f| {
+            var m = f(self.ctx, content, px, self.typography);
+            if (is_compact) {
+                m.height *= compact_h_scale;
+                m.ascent *= compact_asc_scale;
+            }
+            return m;
+        }
         var metrics = if (self.measure_fn) |f| f(self.ctx, content, px) else estimate(content, px);
+        if (is_compact) {
+            metrics.height *= compact_h_scale;
+            metrics.ascent *= compact_asc_scale;
+        }
         // Preserve legacy callbacks while giving their fallback spacing semantics.
         var offset: usize = 0;
         var advance: f32 = 0;
         const edit = @import("text_edit.zig");
         const space = if (self.measure_fn) |f| f(self.ctx, " ", px).width else estimate(" ", px).width;
+        const auto_space = std.mem.eql(u8, self.typography.text_autospace, "normal");
+        var prev_was_ideo: ?bool = null;
         while (offset < content.len) {
             const next = edit.nextGrapheme(content, offset);
             const cluster = content[offset..next];
+            const cp = firstCodepoint(cluster);
+            if (auto_space and cp != null) {
+                const cur_ideo = isIdeographic(cp.?);
+                const cur_non_ideo = isNonIdeographic(cp.?);
+                if (prev_was_ideo) |p_ideo| {
+                    if ((p_ideo and cur_non_ideo) or (!p_ideo and cur_ideo)) {
+                        advance += 0.125 * px;
+                    }
+                }
+                if (cur_ideo) {
+                    prev_was_ideo = true;
+                } else if (cur_non_ideo) {
+                    prev_was_ideo = false;
+                } else {
+                    prev_was_ideo = null;
+                }
+            }
             if (cluster.len == 1 and cluster[0] == '\t') {
                 const stop = if (self.typography.tab_size_is_length) self.typography.tab_size else self.typography.tab_size * (space + self.typography.letter_spacing + self.typography.word_spacing);
                 if (stop > 0) advance += stop - @mod(advance, stop);
@@ -147,8 +342,11 @@ pub const Text = struct {
             }
             offset = next;
         }
-        if (self.typography.letter_spacing != 0 or self.typography.word_spacing != 0 or std.mem.indexOfScalar(u8, content, '\t') != null) {
+        if (self.typography.letter_spacing != 0 or self.typography.word_spacing != 0 or auto_space or std.mem.indexOfScalar(u8, content, '\t') != null) {
             metrics.width = @max(0, advance);
+        }
+        if (std.mem.eql(u8, self.typography.text_combine_upright, "all")) {
+            metrics.width = @min(metrics.width, px);
         }
         return metrics;
     }
@@ -179,6 +377,29 @@ pub const Text = struct {
         result.clearRetainingCapacity();
         try result.appendSlice(a, content[0..end]);
         try result.appendSlice(a, ellipsis);
+        return result.toOwnedSlice(a);
+    }
+
+    /// Returns an arena-owned start-ellipsized run (e.g. "…tail"); authoring text is untouched.
+    pub fn ellipsizeStart(self: Text, a: std.mem.Allocator, content: []const u8, font_size: f32, available: f32) ![]const u8 {
+        if (self.width(content, font_size) <= available) return content;
+        const ellipsis = "\xe2\x80\xa6";
+        if (self.width(ellipsis, font_size) > available) return "";
+        var result: std.ArrayList(u8) = .empty;
+        errdefer result.deinit(a);
+        const edit = @import("text_edit.zig");
+        var start: usize = content.len;
+        while (start > 0) {
+            const prev = edit.prevGrapheme(content, start);
+            result.clearRetainingCapacity();
+            try result.appendSlice(a, ellipsis);
+            try result.appendSlice(a, content[prev..content.len]);
+            if (self.width(result.items, font_size) > available) break;
+            start = prev;
+        }
+        result.clearRetainingCapacity();
+        try result.appendSlice(a, ellipsis);
+        try result.appendSlice(a, content[start..content.len]);
         return result.toOwnedSlice(a);
     }
 
@@ -230,7 +451,23 @@ pub const Text = struct {
     }
 
     /// Widest unbreakable word, i.e. the min-content width of the run.
+    /// If overflow-wrap: anywhere, soft wrap opportunities are introduced between every character/grapheme.
     pub fn minContentWidth(self: Text, content: []const u8, font_size: f32) f32 {
+        if (std.mem.eql(u8, self.typography.word_break, "break-all") or std.mem.eql(u8, self.typography.overflow_wrap, "anywhere")) {
+            var widest: f32 = 0;
+            const edit = @import("text_edit.zig");
+            var offset: usize = 0;
+            while (offset < content.len) {
+                const next = edit.nextGrapheme(content, offset);
+                const cluster = content[offset..next];
+                if (cluster.len > 0 and cluster[0] != ' ' and cluster[0] != '\t' and cluster[0] != '\r' and cluster[0] != '\n') {
+                    const w = self.width(cluster, font_size);
+                    if (w > widest) widest = w;
+                }
+                offset = next;
+            }
+            return widest;
+        }
         var widest: f32 = 0;
         var it = std.mem.tokenizeAny(u8, content, " \t\r\n");
         while (it.next()) |word| {
@@ -252,50 +489,186 @@ pub const Text = struct {
         for (lines) |line| result.widest = @max(result.widest, line.width + line.indent);
         return result;
     }
-    /// Lines borrow author text. Only overflow presentation allocates new text.
-    /// Measurements use complete candidate runs so shaping and tabs match paint.
+
+    fn shapeHardLine(self: Text, allocator: std.mem.Allocator, hard_line: []const u8, font_size: f32, target_width: f32, preserve: bool, indent: f32) ![]ShapedLine {
+        var lines: std.ArrayList(ShapedLine) = .empty;
+        errdefer lines.deinit(allocator);
+        const line_h = self.lineHeight(font_size);
+        const asc = self.ascent(font_size);
+        var start: usize = 0;
+        while (start < hard_line.len) {
+            if (!preserve) while (start < hard_line.len and (hard_line[start] == ' ' or hard_line[start] == '\t')) : (start += 1) {};
+            if (start == hard_line.len) break;
+            const cur_indent = if (lines.items.len == 0) indent else 0;
+            const capacity = @max(0, target_width - cur_indent);
+            var end = start;
+            var accepted = start;
+            while (end < hard_line.len) {
+                while (end < hard_line.len and hard_line[end] != ' ' and hard_line[end] != '\t') : (end += 1) {}
+                const word_end = end;
+                while (end < hard_line.len and (hard_line[end] == ' ' or hard_line[end] == '\t')) : (end += 1) {}
+                const candidate_end = if (preserve) end else word_end;
+                if (accepted > start and self.width(hard_line[start..candidate_end], font_size) > capacity) break;
+                accepted = candidate_end;
+                if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
+            }
+            if (accepted == start or (accepted > start and self.width(hard_line[start..accepted], font_size) > capacity)) {
+                if ((std.mem.eql(u8, self.typography.word_break, "break-all") or std.mem.eql(u8, self.typography.overflow_wrap, "anywhere") or std.mem.eql(u8, self.typography.overflow_wrap, "break-word")) and capacity > 0) {
+                    const edit = @import("text_edit.zig");
+                    var g_end = start;
+                    var g_accepted = start;
+                    while (g_end < hard_line.len and hard_line[g_end] != ' ' and hard_line[g_end] != '\t') {
+                        const next = edit.nextGrapheme(hard_line, g_end);
+                        if (g_accepted > start and self.width(hard_line[start..next], font_size) > capacity) break;
+                        g_accepted = next;
+                        g_end = next;
+                    }
+                    accepted = if (g_accepted > start) g_accepted else edit.nextGrapheme(hard_line, start);
+                } else {
+                    accepted = end;
+                }
+            }
+
+            const slice = hard_line[start..accepted];
+            try lines.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = cur_indent, .offset_y = self.typography.vertical_align_offset });
+            start = accepted;
+        }
+        return lines.toOwnedSlice(allocator);
+    }
+
+    /// Lines borrow author text. Only overflow presentation allocates new text.\n    /// Measurements use complete candidate runs so shaping and tabs match paint.
     pub fn shapeLines(self: Text, allocator: std.mem.Allocator, content: []const u8, font_size: f32, available: f32, white_space: []const u8) ![]ShapedLine {
         var list: std.ArrayList(ShapedLine) = .empty;
         errdefer list.deinit(allocator);
         if (content.len == 0) return list.toOwnedSlice(allocator);
-        const preserve = std.mem.eql(u8, white_space, "pre") or std.mem.eql(u8, white_space, "pre-wrap") or std.mem.eql(u8, white_space, "break-spaces");
-        const no_wrap = std.mem.eql(u8, white_space, "nowrap") or std.mem.eql(u8, white_space, "pre") or available <= 0;
+        const collapse_mode = self.typography.white_space_collapse;
+        const preserve = std.mem.eql(u8, white_space, "pre") or std.mem.eql(u8, white_space, "pre-wrap") or std.mem.eql(u8, white_space, "break-spaces") or std.mem.eql(u8, collapse_mode, "preserve") or std.mem.eql(u8, collapse_mode, "break-spaces");
+        const no_wrap = std.mem.eql(u8, white_space, "nowrap") or (std.mem.eql(u8, white_space, "pre") and !std.mem.eql(u8, collapse_mode, "break-spaces")) or std.mem.eql(u8, self.typography.text_wrap_mode, "nowrap") or available <= 0;
         const line_h = self.lineHeight(font_size);
         const asc = self.ascent(font_size);
         var hard_lines = std.mem.splitScalar(u8, content, '\n');
         while (hard_lines.next()) |raw| {
             const hard_line = trimCarriageReturn(raw);
+            const cur_indent: f32 = if (list.items.len == 0) self.typography.text_indent else 0;
             if (no_wrap or hard_line.len == 0) {
-                try list.append(allocator, .{ .text = hard_line, .width = self.width(hard_line, font_size), .height = line_h, .ascent = asc, .indent = if (list.items.len == 0) self.typography.text_indent else 0 });
+                try list.append(allocator, .{ .text = hard_line, .width = self.width(hard_line, font_size), .height = line_h, .ascent = asc, .indent = if (list.items.len == 0) self.typography.text_indent else 0, .offset_y = self.typography.vertical_align_offset });
                 continue;
             }
-            var start: usize = 0;
-            while (start < hard_line.len) {
-                if (!preserve) while (start < hard_line.len and (hard_line[start] == ' ' or hard_line[start] == '\t')) : (start += 1) {};
-                if (start == hard_line.len) break;
-                const indent: f32 = if (list.items.len == 0) self.typography.text_indent else 0;
-                const capacity = @max(0, available - indent);
-                var end = start;
-                var accepted = start;
-                while (end < hard_line.len) {
-                    // A break opportunity follows each whitespace sequence.
-                    while (end < hard_line.len and hard_line[end] != ' ' and hard_line[end] != '\t') : (end += 1) {}
-                    const word_end = end;
-                    while (end < hard_line.len and (hard_line[end] == ' ' or hard_line[end] == '\t')) : (end += 1) {}
-                    const candidate_end = if (preserve) end else word_end;
-                    if (accepted > start and self.width(hard_line[start..candidate_end], font_size) > capacity) break;
-                    accepted = candidate_end;
-                    if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
+            if (std.mem.eql(u8, self.typography.text_wrap_style, "balance") and available > 0) {
+                const normal_lines = try self.shapeHardLine(allocator, hard_line, font_size, available, preserve, cur_indent);
+                if (normal_lines.len > 1 and normal_lines.len <= 10) {
+                    var low = self.minContentWidth(hard_line, font_size);
+                    var high = available;
+                    var iter: usize = 0;
+                    while (iter < 10 and high - low > 1.0) : (iter += 1) {
+                        const mid = (low + high) * 0.5;
+                        const trial = try self.shapeHardLine(allocator, hard_line, font_size, mid, preserve, cur_indent);
+                        if (trial.len <= normal_lines.len) {
+                            high = mid;
+                        } else {
+                            low = mid;
+                        }
+                        allocator.free(trial);
+                    }
+                    allocator.free(normal_lines);
+                    const balanced = try self.shapeHardLine(allocator, hard_line, font_size, high, preserve, cur_indent);
+                    for (balanced) |bline| try list.append(allocator, bline);
+                    allocator.free(balanced);
+                    continue;
+                } else {
+                    for (normal_lines) |nline| try list.append(allocator, nline);
+                    allocator.free(normal_lines);
+                    continue;
                 }
-                if (accepted == start) accepted = end;
-                const slice = hard_line[start..accepted];
-                try list.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = indent });
-                start = accepted;
             }
+            const shaped = try self.shapeHardLine(allocator, hard_line, font_size, available, preserve, cur_indent);
+            for (shaped) |sline| try list.append(allocator, sline);
+            allocator.free(shaped);
         }
         return list.toOwnedSlice(allocator);
     }
 };
+
+pub fn applyTextTransform(a: std.mem.Allocator, content: []const u8, transform: []const u8, language: []const u8) ![]const u8 {
+    if (std.mem.eql(u8, transform, "none") or content.len == 0) return content;
+    var result: std.ArrayList(u8) = .empty;
+    errdefer result.deinit(a);
+    const is_tr_az = std.ascii.startsWithIgnoreCase(language, "tr") or std.ascii.startsWithIgnoreCase(language, "az");
+
+    if (std.mem.eql(u8, transform, "uppercase")) {
+        var i: usize = 0;
+        while (i < content.len) {
+            if (i + 1 < content.len and content[i] == 0xc3 and content[i + 1] == 0x9f) {
+                try result.appendSlice(a, "SS");
+                i += 2;
+                continue;
+            }
+            if (is_tr_az and content[i] == 'i') {
+                try result.appendSlice(a, "\xc4\xb0");
+                i += 1;
+                continue;
+            }
+            if (content[i] >= 'a' and content[i] <= 'z') {
+                try result.append(a, content[i] - 32);
+                i += 1;
+            } else {
+                try result.append(a, content[i]);
+                i += 1;
+            }
+        }
+        return result.toOwnedSlice(a);
+    } else if (std.mem.eql(u8, transform, "lowercase")) {
+        var i: usize = 0;
+        while (i < content.len) {
+            if (is_tr_az and content[i] == 'I') {
+                try result.appendSlice(a, "\xc4\xb1");
+                i += 1;
+                continue;
+            }
+            if (i + 1 < content.len and content[i] == 0xce and content[i + 1] == 0xa3) {
+                var is_word_end = (i + 2 == content.len);
+                if (i + 2 < content.len) {
+                    const next = content[i + 2];
+                    if (next == ' ' or next == '\t' or next == '\r' or next == '\n' or next == '.' or next == ',' or next == ';' or next == '!' or next == '?') {
+                        is_word_end = true;
+                    }
+                }
+                if (is_word_end) {
+                    try result.appendSlice(a, "\xcf\x82");
+                } else {
+                    try result.appendSlice(a, "\xcf\x83");
+                }
+                i += 2;
+                continue;
+            }
+            if (content[i] >= 'A' and content[i] <= 'Z') {
+                try result.append(a, content[i] + 32);
+                i += 1;
+            } else {
+                try result.append(a, content[i]);
+                i += 1;
+            }
+        }
+        return result.toOwnedSlice(a);
+    } else if (std.mem.eql(u8, transform, "capitalize")) {
+        var initial = true;
+        for (content) |c| {
+            if (initial and c >= 'a' and c <= 'z') {
+                try result.append(a, c - 32);
+                initial = false;
+            } else {
+                try result.append(a, c);
+                if (c == ' ' or c == '\t' or c == '\r' or c == '\n') {
+                    initial = true;
+                } else if ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9')) {
+                    initial = false;
+                }
+            }
+        }
+        return result.toOwnedSlice(a);
+    }
+    return content;
+}
 
 pub fn estimate(content: []const u8, font_size: f32) Metrics {
     var count: usize = 0;

@@ -56,8 +56,8 @@ const Parser = struct {
             if (std.mem.indexOfScalar(u8, " \t\n\r\x0c", self.input[self.pos]) != null) {
                 self.pos += 1;
             } else if (std.mem.startsWith(u8, self.input[self.pos..], "/*")) {
-                const end = std.mem.indexOf(u8, self.input[self.pos + 2 ..], "*/") orelse return invalid;
-                self.pos += end + 4;
+                const comment_end = std.mem.indexOf(u8, self.input[self.pos + 2 ..], "*/") orelse return invalid;
+                self.pos += comment_end + 4;
             } else break;
         }
     }

@@ -37,6 +37,17 @@ pub const Context = struct {
     container_height: ?f32 = null,
     container_inline: ?f32 = null,
     container_block: ?f32 = null,
+    safe_area_inset_top: ?f32 = null,
+    safe_area_inset_right: ?f32 = null,
+    safe_area_inset_bottom: ?f32 = null,
+    safe_area_inset_left: ?f32 = null,
+    color_scheme: ColorScheme = .light,
+    contrast: Contrast = .no_preference,
+    reduced_motion: ReducedMotion = .no_preference,
+
+    pub const ColorScheme = enum { light, dark };
+    pub const Contrast = enum { no_preference, more, less, custom };
+    pub const ReducedMotion = enum { no_preference, reduce };
 };
 
 pub const AvailableSpace = union(enum) { definite: f32, min_content, max_content };
@@ -156,7 +167,7 @@ const Parser = struct {
             while (p.pos < p.input.len and (std.ascii.isAlphabetic(p.input[p.pos]) or p.input[p.pos] == '%')) : (p.pos += 1) {}
             const unit_str = p.input[unit_start..p.pos];
             if (unit_str.len == 0) return .{ .value = value, .dimension = .number };
-            const typed = .{ .{ "deg", Dimension.angle, @as(f32, 1) }, .{ "rad", Dimension.angle, @as(f32, 180 / std.math.pi) }, .{ "grad", Dimension.angle, @as(f32, 0.9) }, .{ "turn", Dimension.angle, @as(f32, 360) }, .{ "s", Dimension.time, @as(f32, 1) }, .{ "ms", Dimension.time, @as(f32, 0.001) }, .{ "Hz", Dimension.frequency, @as(f32, 1) }, .{ "kHz", Dimension.frequency, @as(f32, 1000) }, .{ "dppx", Dimension.resolution, @as(f32, 1) }, .{ "dpi", Dimension.resolution, @as(f32, 1.0 / 96) }, .{ "dpcm", Dimension.resolution, @as(f32, 2.54 / 96) }, .{ "fr", Dimension.flex, @as(f32, 1) } };
+            const typed = .{ .{ "deg", Dimension.angle, @as(f32, 1) }, .{ "rad", Dimension.angle, @as(f32, 180.0 / std.math.pi) }, .{ "grad", Dimension.angle, @as(f32, 0.9) }, .{ "turn", Dimension.angle, @as(f32, 360) }, .{ "s", Dimension.time, @as(f32, 1) }, .{ "ms", Dimension.time, @as(f32, 0.001) }, .{ "Hz", Dimension.frequency, @as(f32, 1) }, .{ "kHz", Dimension.frequency, @as(f32, 1000) }, .{ "dppx", Dimension.resolution, @as(f32, 1) }, .{ "x", Dimension.resolution, @as(f32, 1) }, .{ "dpi", Dimension.resolution, @as(f32, 1.0 / 96.0) }, .{ "dpcm", Dimension.resolution, @as(f32, 2.54 / 96.0) }, .{ "fr", Dimension.flex, @as(f32, 1) } };
             inline for (typed) |t| if (std.ascii.eqlIgnoreCase(unit_str, t[0])) return .{ .value = value * t[2], .dimension = t[1] };
             return .{ .value = try p.unit(value, unit_str), .dimension = if (p.context.percentage_is_number and std.mem.eql(u8, unit_str, "%")) .number else .length };
         }
@@ -185,6 +196,37 @@ const Parser = struct {
             const q = try p.expression();
             if (!p.take(')')) return error.InvalidLength;
             return q;
+        }
+        if (std.ascii.eqlIgnoreCase(name, "env")) {
+            p.whitespace();
+            const ident_start = p.pos;
+            while (p.pos < p.input.len and (std.ascii.isAlphanumeric(p.input[p.pos]) or p.input[p.pos] == '-' or p.input[p.pos] == '_')) : (p.pos += 1) {}
+            const ident = p.input[ident_start..p.pos];
+            p.whitespace();
+            var fallback: ?Quantity = null;
+            if (p.take(',')) {
+                fallback = try p.expression();
+            }
+            if (!p.take(')')) return error.InvalidLength;
+
+            var val: ?f32 = null;
+            if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-top")) {
+                val = p.context.safe_area_inset_top;
+            } else if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-right")) {
+                val = p.context.safe_area_inset_right;
+            } else if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-bottom")) {
+                val = p.context.safe_area_inset_bottom;
+            } else if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-left")) {
+                val = p.context.safe_area_inset_left;
+            }
+
+            if (val) |v| {
+                return .{ .dimension = .length, .value = v };
+            } else if (fallback) |fb| {
+                return fb;
+            } else {
+                return .{ .dimension = .length, .value = 0 };
+            }
         }
         const is_min = std.ascii.eqlIgnoreCase(name, "min");
         const is_max = std.ascii.eqlIgnoreCase(name, "max");
@@ -338,3 +380,25 @@ const Parser = struct {
         return error.UnsupportedUnit;
     }
 };
+
+pub const UpdateFrequency = enum {
+    none,
+    slow,
+    fast,
+};
+
+/// Evaluates the CSS update frequency media query feature: (update: fast | slow | none) or (update)
+pub fn evaluateUpdateMediaQuery(query: []const u8, current_frequency: UpdateFrequency) bool {
+    const trimmed = std.mem.trim(u8, query, " \t\r\n()");
+    if (std.ascii.eqlIgnoreCase(trimmed, "update")) {
+        return current_frequency != .none;
+    }
+    if (std.ascii.startsWithIgnoreCase(trimmed, "update:")) {
+        const val = std.mem.trim(u8, trimmed[7..], " \t\r\n");
+        if (std.ascii.eqlIgnoreCase(val, "fast")) return current_frequency == .fast;
+        if (std.ascii.eqlIgnoreCase(val, "slow")) return current_frequency == .slow;
+        if (std.ascii.eqlIgnoreCase(val, "none")) return current_frequency == .none;
+    }
+    return false;
+}
+

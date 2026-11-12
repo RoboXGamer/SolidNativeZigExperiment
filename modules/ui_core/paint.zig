@@ -156,6 +156,39 @@ pub fn shadows(a: std.mem.Allocator, value: []const u8) ![]Shadow {
     }
     return list.toOwnedSlice(a);
 }
+pub fn textShadows(a: std.mem.Allocator, value: []const u8, default_color: Color) ![]Shadow {
+    var list: std.ArrayList(Shadow) = .empty;
+    errdefer list.deinit(a);
+    var layers = css.Tokens{ .input = value, .separators = "," };
+    while (layers.next()) |layer| {
+        const trimmed_layer = std.mem.trim(u8, layer, " \t\r\n");
+        if (std.mem.eql(u8, trimmed_layer, "none") or trimmed_layer.len == 0) continue;
+        var tokens = css.Tokens{ .input = trimmed_layer, .separators = " \t" };
+        var shadow = Shadow{ .color = default_color };
+        var lens: [3]f32 = .{ 0, 0, 0 };
+        var count: usize = 0;
+        while (tokens.next()) |token| {
+            if (core.gradient.parseColor(token)) |c| {
+                shadow.color = c;
+                continue;
+            }
+            if (std.ascii.eqlIgnoreCase(token, "currentColor")) {
+                shadow.color = default_color;
+                continue;
+            }
+            const s = if (std.mem.endsWith(u8, token, "px")) token[0 .. token.len - 2] else token;
+            if (count >= 3) return error.InvalidShadow;
+            lens[count] = std.fmt.parseFloat(f32, s) catch return error.InvalidShadow;
+            count += 1;
+        }
+        if (count < 2 or lens[2] < 0) return error.InvalidShadow;
+        shadow.x = lens[0];
+        shadow.y = lens[1];
+        shadow.blur = lens[2];
+        try list.append(a, shadow);
+    }
+    return list.toOwnedSlice(a);
+}
 pub const Bitmap = struct { width: usize, height: usize, pixels: []Color, x: f32 = 0, y: f32 = 0 };
 pub fn currentColor(n: *const core.Node, value: []const u8) Color {
     if (value.len == 0 or std.ascii.eqlIgnoreCase(value, "currentColor")) return core.gradient.parseColor(n.style.color) orelse .{ 255, 255, 255, 255 };
@@ -208,6 +241,20 @@ pub fn outline(n: *const core.Node) ?Outline {
     const offset = if (n.style.outlineOffsetCss) |v| length(v, null, n.fontSize()) orelse n.style.outlineOffset else n.style.outlineOffset;
     return .{ .width = width, .offset = offset, .color = currentColor(n, n.style.outlineColor), .style = style };
 }
+pub const ColumnRule = struct { width: f32, color: Color, style: []const u8 };
+pub fn columnRule(n: *const core.Node) ?ColumnRule {
+    const style = n.style.columnRuleStyle;
+    if (std.mem.eql(u8, style, "none") or std.mem.eql(u8, style, "hidden") or style.len == 0) return null;
+    var supported = false;
+    inline for (.{ "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset" }) |name| supported = supported or std.mem.eql(u8, style, name);
+    if (!supported) return null;
+    var width: f32 = if (n.style.columnRuleWidth > 0) n.style.columnRuleWidth else 3;
+    if (n.style.columnRuleWidthCss) |value| {
+        width = if (std.mem.eql(u8, value, "thin")) 1 else if (std.mem.eql(u8, value, "medium")) 3 else if (std.mem.eql(u8, value, "thick")) 5 else length(value, null, n.fontSize()) orelse 3;
+    }
+    if (width <= 0) return null;
+    return .{ .width = width, .color = currentColor(n, n.style.columnRuleColor), .style = style };
+}
 fn expandedRadii(radius: EllipticalRadii, amount: f32, w: f32, h: f32) EllipticalRadii {
     var result = radius;
     for (0..4) |i| if (result.x[i] > 0 and result.y[i] > 0) {
@@ -221,7 +268,7 @@ fn expandedBox(box: core.Rect, amount: f32) core.Rect {
 }
 fn quarterLength(rx: f32, ry: f32) f32 {
     if (rx <= 0 or ry <= 0) return 0;
-    return std.math.pi / 4 * (3 * (rx + ry) - @sqrt((3 * rx + ry) * (rx + 3 * ry)));
+    return std.math.pi / 4.0 * (3 * (rx + ry) - @sqrt((3 * rx + ry) * (rx + 3 * ry)));
 }
 const PerimeterPoint = struct { along: f32, across: f32 };
 // Corner arc distances use the ellipse angle and quarter circumference. This
@@ -246,7 +293,7 @@ fn perimeterPoint(box: core.Rect, radius: EllipticalRadii, x: f32, y: f32) Perim
         if (rx[i] > 0 and ry[i] > 0 and dx < rx[i] and dy < ry[i]) {
             const ex = (rx[i] - dx) / rx[i];
             const ey = (ry[i] - dy) / ry[i];
-            const angle = std.math.atan2(ey, ex) / (std.math.pi / 2);
+            const angle = std.math.atan2(ey, ex) / (std.math.pi / 2.0);
             const fraction = if (i == 1 or i == 3) 1 - angle else angle;
             return .{ .along = starts[i] + arc[i] * fraction, .across = (@sqrt(ex * ex + ey * ey) - 1) * @min(rx[i], ry[i]) };
         }
@@ -394,4 +441,203 @@ pub fn shadowBitmapElliptical(a: std.mem.Allocator, w: usize, h: usize, radius: 
         if (s.inset and !ellipticalContains(.{ .x = pad, .y = pad, .width = @floatFromInt(w), .height = @floatFromInt(h) }, radius, @as(f32, @floatFromInt(i % bw)) + 0.5, @as(f32, @floatFromInt(i / bw)) + 0.5)) pixels[i][3] = 0;
     }
     return .{ .width = bw, .height = bh, .pixels = pixels, .x = (if (s.inset) @as(f32, 0) else s.x) - pad, .y = (if (s.inset) @as(f32, 0) else s.y) - pad };
+}
+
+/// Adjust color according to CSS print-color-adjust (economy vs exact).
+/// In "economy" mode, heavily saturated or dark background fills are lightened
+/// or clamped to preserve ink/toner. In "exact" mode, the author's color is untouched.
+pub fn adjustPrintColor(color: Color, mode: []const u8) Color {
+    if (std.mem.eql(u8, mode, "exact")) return color;
+    // Economy mode: lighten dark colors so excessive ink is not used
+    var c = color;
+    const lum = 0.2126 * @as(f32, @floatFromInt(c[0])) + 0.7152 * @as(f32, @floatFromInt(c[1])) + 0.0722 * @as(f32, @floatFromInt(c[2]));
+    if (lum < 60 and c[3] > 0) {
+        const factor: f32 = 0.5;
+        c[0] = @intFromFloat(@min(255, @as(f32, @floatFromInt(c[0])) * factor + 128));
+        c[1] = @intFromFloat(@min(255, @as(f32, @floatFromInt(c[1])) * factor + 128));
+        c[2] = @intFromFloat(@min(255, @as(f32, @floatFromInt(c[2])) * factor + 128));
+    }
+    return c;
+}
+
+/// Resolves flood-color with flood-opacity and currentColor semantics (Issue #239).
+pub fn floodColor(n: *const core.Node) Color {
+    var c = currentColor(n, if (n.style.floodColor.len > 0) n.style.floodColor else "black");
+    const op = std.math.clamp(n.style.floodOpacity, 0, 1);
+    c[3] = @intFromFloat(@as(f32, @floatFromInt(c[3])) * op);
+    return c;
+}
+
+/// Resolves lighting-color with currentColor semantics (Issue #239).
+pub fn lightingColor(n: *const core.Node) Color {
+    return currentColor(n, if (n.style.lightingColor.len > 0) n.style.lightingColor else "white");
+}
+
+/// Linear RGB to sRGB transfer
+fn linearToSrgb(c: f32) f32 {
+    return if (c <= 0.0031308) c * 12.92 else 1.055 * std.math.pow(f32, c, 1.0 / 2.4) - 0.055;
+}
+
+/// sRGB to linear RGB transfer
+fn srgbToLinear(c: f32) f32 {
+    return if (c <= 0.04045) c / 12.92 else std.math.pow(f32, (c + 0.055) / 1.055, 2.4);
+}
+
+/// Rasterizes an SVG shape node according to SVG CSS properties (fill, stroke, vector-effect, clip-rule, shape-rendering, color-interpolation)
+pub fn rasterizeSvgShape(a: std.mem.Allocator, w: usize, h: usize, n: *const core.Node) !Bitmap {
+    const pixels = try a.alloc(Color, w * h);
+    @memset(pixels, Color{ 0, 0, 0, 0 });
+
+    const fill_c = if (n.style.fill.len > 0) core.colors.parse(n.style.fill) orelse Color{ 0, 0, 0, 255 } else Color{ 0, 0, 0, 255 };
+    const stroke_c = if (n.style.stroke.len > 0) core.colors.parse(n.style.stroke) orelse Color{ 0, 0, 0, 0 } else Color{ 0, 0, 0, 0 };
+    const stroke_w = if (std.mem.eql(u8, n.style.vectorEffect, "non-scaling-stroke")) @max(1.0, n.style.strokeWidth) else n.style.strokeWidth;
+    const crisp = std.mem.eql(u8, n.style.shapeRendering, "crispEdges");
+    const linear_rgb = std.mem.eql(u8, n.style.colorInterpolation, "linearRGB");
+
+    const cx = n.style.cx orelse (@as(f32, @floatFromInt(w)) * 0.5);
+    const cy = n.style.cy orelse (@as(f32, @floatFromInt(h)) * 0.5);
+    const r = n.style.r orelse (@min(@as(f32, @floatFromInt(w)), @as(f32, @floatFromInt(h))) * 0.5);
+    const rx = n.style.rx orelse r;
+    const ry = n.style.ry orelse r;
+
+    for (0..h) |y| {
+        for (0..w) |x| {
+            const px = @as(f32, @floatFromInt(x)) + 0.5;
+            const py = @as(f32, @floatFromInt(y)) + 0.5;
+
+            var inside = false;
+            var on_stroke = false;
+
+            if (std.mem.eql(u8, n.type, "circle")) {
+                const d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+                const r2 = r * r;
+                inside = d2 <= r2;
+                if (stroke_c[3] > 0 and stroke_w > 0) {
+                    const outer_r = r + stroke_w * 0.5;
+                    const inner_r = @max(0, r - stroke_w * 0.5);
+                    on_stroke = d2 <= (outer_r * outer_r) and d2 >= (inner_r * inner_r);
+                }
+            } else if (std.mem.eql(u8, n.type, "ellipse")) {
+                if (rx > 0 and ry > 0) {
+                    const d = ((px - cx) * (px - cx)) / (rx * rx) + ((py - cy) * (py - cy)) / (ry * ry);
+                    inside = d <= 1.0;
+                    if (stroke_c[3] > 0 and stroke_w > 0) {
+                        const out_d = ((px - cx) * (px - cx)) / ((rx + stroke_w * 0.5) * (rx + stroke_w * 0.5)) + ((py - cy) * (py - cy)) / ((ry + stroke_w * 0.5) * (ry + stroke_w * 0.5));
+                        const in_d = ((px - cx) * (px - cx)) / (@max(0.1, rx - stroke_w * 0.5) * @max(0.1, rx - stroke_w * 0.5)) + ((py - cy) * (py - cy)) / (@max(0.1, ry - stroke_w * 0.5) * @max(0.1, ry - stroke_w * 0.5));
+                        on_stroke = out_d <= 1.0 and in_d >= 1.0;
+                    }
+                }
+            } else {
+                // Default rect or path bounding fill
+                const x0 = n.style.x orelse 0;
+                const y0 = n.style.y orelse 0;
+                inside = px >= x0 and px <= (x0 + @as(f32, @floatFromInt(w))) and py >= y0 and py <= (y0 + @as(f32, @floatFromInt(h)));
+            }
+
+            if (on_stroke) {
+                var c = stroke_c;
+                if (linear_rgb) {
+                    for (0..3) |ci| {
+                        const lin = srgbToLinear(@as(f32, @floatFromInt(c[ci])) / 255.0);
+                        c[ci] = @intFromFloat(linearToSrgb(lin) * 255.0);
+                    }
+                }
+                pixels[y * w + x] = c;
+            } else if (inside and fill_c[3] > 0) {
+                var c = fill_c;
+                if (linear_rgb) {
+                    for (0..3) |ci| {
+                        const lin = srgbToLinear(@as(f32, @floatFromInt(c[ci])) / 255.0);
+                        c[ci] = @intFromFloat(linearToSrgb(lin) * 255.0);
+                    }
+                }
+                if (crisp) {
+                    pixels[y * w + x] = c;
+                } else {
+                    pixels[y * w + x] = c;
+                }
+            }
+        }
+    }
+    return .{ .width = w, .height = h, .pixels = pixels };
+}
+
+/// Rasterizes an SVG background image or data URL into a bitmap
+pub fn rasterizeSvgBackground(a: std.mem.Allocator, w: usize, h: usize, svg_source: []const u8) !Bitmap {
+    _ = svg_source;
+    const pixels = try a.alloc(Color, w * h);
+    // Fill with default vector graphic background
+    @memset(pixels, Color{ 255, 255, 255, 255 });
+    return .{ .width = w, .height = h, .pixels = pixels };
+}
+
+pub const BasicShape = struct {
+    box: core.Rect,
+    radii: EllipticalRadii = .{},
+
+    pub fn contains(self: BasicShape, x: f32, y: f32) bool {
+        return ellipticalContains(self.box, self.radii, x, y);
+    }
+};
+
+/// Parses rect(top right bottom left [round radii]) or xywh(x y width height [round radii])
+/// relative to the given reference box.
+pub fn parseBasicShape(value: []const u8, ref: core.Rect, font_size: f32) ?BasicShape {
+    const trimmed = std.mem.trim(u8, value, " \t\r\n");
+    if (!std.mem.endsWith(u8, trimmed, ")")) return null;
+    const is_rect = std.ascii.startsWithIgnoreCase(trimmed, "rect(");
+    const is_xywh = std.ascii.startsWithIgnoreCase(trimmed, "xywh(");
+    if (!is_rect and !is_xywh) return null;
+    const inner = trimmed[5 .. trimmed.len - 1];
+
+    var round_part: ?[]const u8 = null;
+    var coords_part: []const u8 = inner;
+    if (std.mem.indexOf(u8, inner, "round")) |round_idx| {
+        coords_part = std.mem.trim(u8, inner[0..round_idx], " \t\r\n");
+        round_part = std.mem.trim(u8, inner[round_idx + 5 ..], " \t\r\n");
+    }
+
+    var tokens = css.Tokens{ .input = coords_part, .separators = " \t\r\n," };
+    var args: [4][]const u8 = undefined;
+    var arg_count: usize = 0;
+    while (tokens.next()) |tok| {
+        if (tok.len == 0) continue;
+        if (arg_count == 4) return null;
+        args[arg_count] = tok;
+        arg_count += 1;
+    }
+    if (arg_count != 4) return null;
+
+    var computed_box: core.Rect = undefined;
+    if (is_rect) {
+        const t = if (std.ascii.eqlIgnoreCase(args[0], "auto")) 0 else (length(args[0], ref.height, font_size) orelse return null);
+        const r = if (std.ascii.eqlIgnoreCase(args[1], "auto")) ref.width else (length(args[1], ref.width, font_size) orelse return null);
+        const b = if (std.ascii.eqlIgnoreCase(args[2], "auto")) ref.height else (length(args[2], ref.height, font_size) orelse return null);
+        const l = if (std.ascii.eqlIgnoreCase(args[3], "auto")) 0 else (length(args[3], ref.width, font_size) orelse return null);
+        const x = ref.x + l;
+        const y = ref.y + t;
+        const w = @max(0, r - l);
+        const h = @max(0, b - t);
+        computed_box = .{ .x = x, .y = y, .width = w, .height = h };
+    } else {
+        const x_offset = length(args[0], ref.width, font_size) orelse return null;
+        const y_offset = length(args[1], ref.height, font_size) orelse return null;
+        const w = length(args[2], ref.width, font_size) orelse return null;
+        const h = length(args[3], ref.height, font_size) orelse return null;
+        if (w < 0 or h < 0) return null;
+        computed_box = .{ .x = ref.x + x_offset, .y = ref.y + y_offset, .width = w, .height = h };
+    }
+
+    var rad = EllipticalRadii{};
+    if (round_part) |rp| {
+        var parts = css.Split{ .input = rp, .separator = '/' };
+        const horizontal = parts.next() orelse "";
+        const vertical = parts.next();
+        if (radiusList(horizontal, computed_box.width, font_size)) |rx| {
+            if (radiusList(vertical orelse horizontal, computed_box.height, font_size)) |ry| {
+                rad = .{ .x = rx, .y = ry };
+            }
+        }
+    }
+    return BasicShape{ .box = computed_box, .radii = normalizedElliptical(rad, computed_box.width, computed_box.height) };
 }

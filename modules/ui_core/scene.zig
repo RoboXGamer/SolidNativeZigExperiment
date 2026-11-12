@@ -21,20 +21,59 @@ pub const Node = struct {
     clickable: bool = false,
     focusable: bool = false,
     tabIndex: ?i32 = null,
+    hovered: bool = false,
+    active: bool = false,
+    focused: bool = false,
     value: []const u8 = "",
+    readOnly: bool = false,
+    readWrite: bool = false,
+    popoverOpen: bool = false,
+    placeholder: []const u8 = "",
     /// Optional input for a future replaced-element measurement provider.
     intrinsicAspectRatio: ?f32 = null,
     style: Style = .{},
     children: []Node = &.{},
 
+    pub fn isReadOnly(self: *const Node) bool {
+        if (self.readWrite) return false;
+        if (self.readOnly) return true;
+        if (std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "textarea")) return false;
+        return true;
+    }
+
+    pub fn isReadWrite(self: *const Node) bool {
+        return !self.isReadOnly();
+    }
+
+    pub fn isPlaceholderShown(self: *const Node) bool {
+        if (std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "textarea")) {
+            return self.placeholder.len > 0 and self.value.len == 0;
+        }
+        return false;
+    }
+
     pub fn effectiveOverflowX(self: *const Node) []const u8 {
         if (self.style.overflowX.len > 0) return self.style.overflowX;
+        const vertical = !std.mem.eql(u8, self.style.writingMode, "horizontal-tb");
+        if (vertical and self.style.overflowBlock.len > 0) return self.style.overflowBlock;
+        if (!vertical and self.style.overflowInline.len > 0) return self.style.overflowInline;
         return self.style.overflow;
     }
 
     pub fn effectiveOverflowY(self: *const Node) []const u8 {
         if (self.style.overflowY.len > 0) return self.style.overflowY;
+        const vertical = !std.mem.eql(u8, self.style.writingMode, "horizontal-tb");
+        if (!vertical and self.style.overflowBlock.len > 0) return self.style.overflowBlock;
+        if (vertical and self.style.overflowInline.len > 0) return self.style.overflowInline;
         return self.style.overflow;
+    }
+
+    pub fn skipsContents(self: *const Node, viewport: Rect, bounds: Rect) bool {
+        if (std.mem.eql(u8, self.style.contentVisibility, "hidden")) return true;
+        if (std.mem.eql(u8, self.style.contentVisibility, "auto")) {
+            return (bounds.right() <= viewport.left() or bounds.left() >= viewport.right() or bounds.bottom() <= viewport.top() or bounds.top() >= viewport.bottom());
+        }
+        return false;
     }
 
     pub fn isScrollContainerX(self: *const Node) bool {
@@ -89,32 +128,35 @@ pub const Node = struct {
     pub fn padding(self: *const Node) Edges {
         const default: f32 = if (std.mem.eql(u8, self.type, "button") or std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "select") or std.mem.eql(u8, self.type, "option")) 10 else 0;
         const base = self.style.padding orelse default;
+        const z = self.style.zoom;
         return .{
-            .top = self.style.paddingTop orelse base,
-            .right = self.style.paddingRight orelse base,
-            .bottom = self.style.paddingBottom orelse base,
-            .left = self.style.paddingLeft orelse base,
+            .top = (self.style.paddingTop orelse base) * z,
+            .right = (self.style.paddingRight orelse base) * z,
+            .bottom = (self.style.paddingBottom orelse base) * z,
+            .left = (self.style.paddingLeft orelse base) * z,
         };
     }
 
     /// Border ring, per side with the uniform width as fallback.
     pub fn border(self: *const Node) Edges {
+        const z = self.style.zoom;
         return .{
-            .top = self.style.borderTopWidth orelse self.style.borderWidth,
-            .right = self.style.borderRightWidth orelse self.style.borderWidth,
-            .bottom = self.style.borderBottomWidth orelse self.style.borderWidth,
-            .left = self.style.borderLeftWidth orelse self.style.borderWidth,
+            .top = (self.style.borderTopWidth orelse self.style.borderWidth) * z,
+            .right = (self.style.borderRightWidth orelse self.style.borderWidth) * z,
+            .bottom = (self.style.borderBottomWidth orelse self.style.borderWidth) * z,
+            .left = (self.style.borderLeftWidth orelse self.style.borderWidth) * z,
         };
     }
 
     /// Fixed margin lengths; automatic sides resolve to zero until allocated.
     pub fn margin(self: *const Node) Edges {
         const shorthand = self.style.margin;
+        const z = self.style.zoom;
         return .{
-            .top = if (self.style.marginTopAuto) 0 else self.style.marginTop orelse shorthand,
-            .right = if (self.style.marginRightAuto) 0 else self.style.marginRight orelse shorthand,
-            .bottom = if (self.style.marginBottomAuto) 0 else self.style.marginBottom orelse shorthand,
-            .left = if (self.style.marginLeftAuto) 0 else self.style.marginLeft orelse shorthand,
+            .top = (if (self.style.marginTopAuto) 0 else self.style.marginTop orelse shorthand) * z,
+            .right = (if (self.style.marginRightAuto) 0 else self.style.marginRight orelse shorthand) * z,
+            .bottom = (if (self.style.marginBottomAuto) 0 else self.style.marginBottom orelse shorthand) * z,
+            .left = (if (self.style.marginLeftAuto) 0 else self.style.marginLeft orelse shorthand) * z,
         };
     }
 
@@ -129,12 +171,51 @@ pub const Node = struct {
         return bounds.inset(self.border());
     }
 
+    pub fn scrollMargin(self: *const Node) Edges {
+        return .{
+            .top = self.style.scrollMarginTop orelse 0,
+            .right = self.style.scrollMarginRight orelse 0,
+            .bottom = self.style.scrollMarginBottom orelse 0,
+            .left = self.style.scrollMarginLeft orelse 0,
+        };
+    }
+
+    pub fn scrollPadding(self: *const Node) Edges {
+        return .{
+            .top = self.style.scrollPaddingTop orelse 0,
+            .right = self.style.scrollPaddingRight orelse 0,
+            .bottom = self.style.scrollPaddingBottom orelse 0,
+            .left = self.style.scrollPaddingLeft orelse 0,
+        };
+    }
+
+    pub fn scrollbarTrackWidth(self: *const Node) f32 {
+        if (std.mem.eql(u8, self.style.scrollbarWidth, "none")) return 0;
+        if (std.mem.eql(u8, self.style.scrollbarWidth, "thin")) return 4;
+        return 8;
+    }
+
+    pub fn scrollbarGutterReserved(self: *const Node) Edges {
+        if (!std.mem.startsWith(u8, self.style.scrollbarGutter, "stable")) return .{};
+        const track_w = self.scrollbarTrackWidth();
+        if (track_w == 0) return .{};
+        const both = std.mem.indexOf(u8, self.style.scrollbarGutter, "both-edges") != null;
+        if (both) {
+            return .{ .left = track_w, .right = track_w };
+        } else if (std.mem.eql(u8, self.style.direction, "rtl")) {
+            return .{ .left = track_w };
+        } else {
+            return .{ .right = track_w };
+        }
+    }
+
     pub fn contentBox(self: *const Node, bounds: Rect) Rect {
-        return self.paddingBox(bounds).inset(self.padding());
+        return self.paddingBox(bounds).inset(self.padding()).inset(self.scrollbarGutterReserved());
     }
 
     pub fn borderSize(self: *const Node, value: f32, frame: f32) f32 {
-        return @max(frame, value + if (std.mem.eql(u8, self.style.boxSizing, "content-box")) frame else @as(f32, 0));
+        const z = self.style.zoom;
+        return @max(frame, value * z + if (std.mem.eql(u8, self.style.boxSizing, "content-box")) frame else @as(f32, 0));
     }
 
     pub fn constrain(self: *const Node, value: f32, horizontal: bool) f32 {
@@ -148,22 +229,51 @@ pub const Node = struct {
     }
 
     pub fn fontSize(self: *const Node) f32 {
-        return if (self.style.fontSize > 0) self.style.fontSize else text_mod.default_font_size;
+        const base = if (self.style.fontSize > 0) self.style.fontSize else text_mod.default_font_size;
+        return base * self.style.zoom;
     }
 
     pub fn textContext(self: *const Node, base: Text) Text {
         var result = base;
+        const z = self.style.zoom;
         result.typography = .{
             .font_family = self.style.fontFamily,
+            .font_feature_settings = self.style.fontFeatureSettings,
             .font_weight = self.style.fontWeight,
             .font_style = self.style.fontStyle,
             .language = self.style.language,
             .text_transform = self.style.textTransform,
-            .letter_spacing = self.style.letterSpacing orelse 0,
-            .word_spacing = self.style.wordSpacing orelse 0,
-            .tab_size = self.style.tabSize,
+            .letter_spacing = (self.style.letterSpacing orelse 0) * z,
+            .word_spacing = (self.style.wordSpacing orelse 0) * z,
+            .tab_size = if (self.style.tabSizeCss != null and self.style.tabSize > 0) self.style.tabSize * z else self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
-            .text_indent = self.style.textIndent orelse 0,
+            .text_indent = (self.style.textIndent orelse 0) * z,
+            .ruby_position = self.style.rubyPosition,
+            .text_autospace = self.style.textAutospace,
+            .math_shift = self.style.mathShift,
+            .text_decoration_line = self.style.textDecorationLine,
+            .text_decoration_style = self.style.textDecorationStyle,
+            .text_decoration_color = self.style.textDecorationColor,
+            .text_decoration_thickness = self.style.textDecorationThickness orelse 0,
+            .word_break = self.style.wordBreak,
+            .white_space_collapse = self.style.whiteSpaceCollapse,
+            .vertical_align = self.style.verticalAlign,
+            .vertical_align_offset = self.style.verticalAlignOffset orelse 0,
+            .text_orientation = self.style.textOrientation,
+            .text_wrap_mode = self.style.textWrapMode,
+            .text_wrap_style = self.style.textWrapStyle,
+            .text_underline_position = self.style.textUnderlinePosition,
+            .text_underline_offset = self.style.textUnderlineOffset orelse 0,
+            .text_stroke_width = self.style.textStrokeWidth,
+            .text_emphasis_style = self.style.textEmphasisStyle,
+            .text_emphasis_color = self.style.textEmphasisColor,
+            .text_emphasis_position = self.style.textEmphasisPosition,
+            .text_decoration_skip_ink = self.style.textDecorationSkipInk,
+            .text_combine_upright = self.style.textCombineUpright,
+            .ruby_align = self.style.rubyAlign,
+            .quotes = self.style.quotes,
+            .overflow_wrap = self.style.overflowWrap,
+            .paint_order = self.style.paintOrder,
         };
         return result;
     }
@@ -172,15 +282,53 @@ pub const Node = struct {
     pub fn shapeText(self: *const Node, base: Text, a: std.mem.Allocator, available: f32) ![]text_mod.ShapedLine {
         const text = self.textContext(base);
         const lines = try text.shapeLines(a, self.text, self.fontSize(), available, self.style.whiteSpace);
+        const has_ellipsis = std.mem.indexOf(u8, self.style.textOverflow, "ellipsis") != null;
+        const rtl = std.mem.eql(u8, self.style.direction, "rtl");
+        var overflow_tokens = std.mem.tokenizeAny(u8, self.style.textOverflow, " \t");
+        const tok1 = overflow_tokens.next() orelse "clip";
+        const second_token = overflow_tokens.next();
+        const tok2 = second_token orelse tok1;
+        const end_ellipsis = if (second_token != null) (if (rtl) std.mem.eql(u8, tok1, "ellipsis") else std.mem.eql(u8, tok2, "ellipsis")) else has_ellipsis;
+        const start_ellipsis = if (second_token != null) (if (rtl) std.mem.eql(u8, tok2, "ellipsis") else std.mem.eql(u8, tok1, "ellipsis")) else false;
+
         for (lines, 0..) |*line, i| {
             const capacity = @max(0, available - line.indent);
-            if (self.clipsX() and std.mem.eql(u8, self.style.textOverflow, "ellipsis") and (std.mem.eql(u8, self.style.whiteSpace, "nowrap") or std.mem.eql(u8, self.style.whiteSpace, "pre"))) {
-                line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
-                line.width = text.width(line.text, self.fontSize());
+            if (self.clipsX() and (std.mem.eql(u8, self.style.whiteSpace, "nowrap") or std.mem.eql(u8, self.style.whiteSpace, "pre") or std.mem.eql(u8, self.style.textWrapMode, "nowrap"))) {
+                if (start_ellipsis and end_ellipsis) {
+                    line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
+                    line.text = try text.ellipsizeStart(a, line.text, self.fontSize(), capacity);
+                    line.width = text.width(line.text, self.fontSize());
+                } else if (start_ellipsis) {
+                    line.text = try text.ellipsizeStart(a, line.text, self.fontSize(), capacity);
+                    line.width = text.width(line.text, self.fontSize());
+                } else if (end_ellipsis) {
+                    line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
+                    line.width = text.width(line.text, self.fontSize());
+                }
             }
-            const alignment = if (i + 1 == lines.len and !std.mem.eql(u8, self.style.textAlignLast, "auto")) self.style.textAlignLast else self.style.textAlign;
+            if (self.style.verticalAlignOffset == null) {
+                const font_sz = self.fontSize();
+                const line_h = text.lineHeight(font_sz);
+                if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "sub")) {
+                    line.offset_y = font_sz * 0.25;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "super")) {
+                    line.offset_y = -font_sz * 0.35;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "middle")) {
+                    line.offset_y = (line_h - font_sz) * 0.5;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "top") or std.ascii.eqlIgnoreCase(self.style.verticalAlign, "text-top")) {
+                    line.offset_y = -(line_h - font_sz) * 0.5;
+                } else if (std.ascii.eqlIgnoreCase(self.style.verticalAlign, "bottom") or std.ascii.eqlIgnoreCase(self.style.verticalAlign, "text-bottom")) {
+                    line.offset_y = (line_h - font_sz) * 0.5;
+                }
+            }
+            const is_last_line = (i + 1 == lines.len);
+            const alignment = if (is_last_line and !std.mem.eql(u8, self.style.textAlignLast, "auto"))
+                self.style.textAlignLast
+            else if (is_last_line and std.mem.eql(u8, self.style.textAlign, "justify"))
+                (if (rtl) "right" else "left")
+            else
+                self.style.textAlign;
             const free = @max(0, capacity - line.width);
-            const rtl = std.mem.eql(u8, self.style.direction, "rtl");
             line.offset_x = line.indent + if (std.mem.eql(u8, alignment, "center")) free / 2 else if (std.mem.eql(u8, alignment, "right") or (std.mem.eql(u8, alignment, "end") and !rtl) or (std.mem.eql(u8, alignment, "start") and rtl)) free else @as(f32, 0);
         }
         return lines;
@@ -396,10 +544,56 @@ pub const Scene = struct {
             }
         };
         if (!std.math.isFinite(n.style.tabSize) or n.style.tabSize < 0) return error.InvalidLength;
-        inline for (.{ "textTransform", "textOverflow", "textAlignLast" }) |field| {
+        if (n.style.textStrokeWidthCss) |css| {
+            var ctx = context;
+            ctx.font_size = n.fontSize();
+            n.style.textStrokeWidth = switch (try sizing.resolve(css, ctx)) {
+                .length => |v| @max(0, v),
+                else => return error.InvalidLength,
+            };
+            n.style.textStrokeWidthCss = null;
+        }
+        if (n.style.textUnderlineOffsetCss) |css| {
+            if (std.ascii.eqlIgnoreCase(css, "auto")) {
+                n.style.textUnderlineOffset = null;
+            } else {
+                var ctx = context;
+                ctx.font_size = n.fontSize();
+                ctx.percentage = n.fontSize();
+                n.style.textUnderlineOffset = switch (try sizing.resolve(css, ctx)) {
+                    .length => |v| v,
+                    else => return error.InvalidLength,
+                };
+            }
+            n.style.textUnderlineOffsetCss = null;
+        }
+        if (n.style.textDecorationThicknessCss) |css| {
+            if (std.ascii.eqlIgnoreCase(css, "auto") or std.ascii.eqlIgnoreCase(css, "from-font")) {
+                n.style.textDecorationThickness = null;
+            } else {
+                var ctx = context;
+                ctx.font_size = n.fontSize();
+                ctx.percentage = n.fontSize();
+                n.style.textDecorationThickness = switch (try sizing.resolve(css, ctx)) {
+                    .length => |v| @max(0, v),
+                    else => return error.InvalidLength,
+                };
+            }
+            n.style.textDecorationThicknessCss = null;
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.textOrientation, "mixed")) n.style.textOrientation = "mixed" else if (std.ascii.eqlIgnoreCase(n.style.textOrientation, "upright")) n.style.textOrientation = "upright" else if (std.ascii.eqlIgnoreCase(n.style.textOrientation, "sideways")) n.style.textOrientation = "sideways" else return error.InvalidTypography;
+        if (std.ascii.eqlIgnoreCase(n.style.textWrapMode, "wrap")) n.style.textWrapMode = "wrap" else if (std.ascii.eqlIgnoreCase(n.style.textWrapMode, "nowrap")) n.style.textWrapMode = "nowrap" else return error.InvalidTypography;
+        if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "auto")) n.style.textWrapStyle = "auto" else if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "balance")) n.style.textWrapStyle = "balance" else if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "stable")) n.style.textWrapStyle = "stable" else if (std.ascii.eqlIgnoreCase(n.style.textWrapStyle, "pretty")) n.style.textWrapStyle = "pretty" else return error.InvalidTypography;
+        {
+            var it = std.mem.tokenizeAny(u8, n.style.textOverflow, " \t");
+            while (it.next()) |tok| {
+                if (!std.ascii.eqlIgnoreCase(tok, "clip") and !std.ascii.eqlIgnoreCase(tok, "ellipsis")) return error.InvalidTypography;
+            }
+        }
+        inline for (.{ "textTransform", "textAlignLast" }) |field| {
             var valid = false;
-            inline for (.{ "none", "uppercase", "lowercase", "capitalize", "full-width", "clip", "ellipsis", "auto", "left", "right", "center", "start", "end", "justify" }) |value| {
-                const allowed = if (comptime std.mem.eql(u8, field, "textTransform")) std.mem.eql(u8, value, "none") or std.mem.eql(u8, value, "uppercase") or std.mem.eql(u8, value, "lowercase") or std.mem.eql(u8, value, "capitalize") or std.mem.eql(u8, value, "full-width") else if (comptime std.mem.eql(u8, field, "textOverflow")) std.mem.eql(u8, value, "clip") or std.mem.eql(u8, value, "ellipsis") else std.mem.eql(u8, value, "auto") or std.mem.eql(u8, value, "left") or std.mem.eql(u8, value, "right") or std.mem.eql(u8, value, "center") or std.mem.eql(u8, value, "start") or std.mem.eql(u8, value, "end") or std.mem.eql(u8, value, "justify");
+            inline for (.{ "none", "uppercase", "lowercase", "capitalize", "full-width", "auto", "left", "right", "center", "start", "end", "justify" }) |value| {
+                const allowed = if (comptime std.mem.eql(u8, field, "textTransform")) std.mem.eql(u8, value, "none") or std.mem.eql(u8, value, "uppercase") or std.mem.eql(u8, value, "lowercase") or std.mem.eql(u8, value, "capitalize") or std.mem.eql(u8, value, "full-width") else std.mem.eql(u8, value, "auto") or std.mem.eql(u8, value, "left") or std.mem.eql(u8, value, "right") or std.mem.eql(u8, value, "center") or std.mem.eql(u8, value, "start") or std.mem.eql(u8, value, "end") or std.mem.eql(u8, value, "justify");
                 if (allowed and std.ascii.eqlIgnoreCase(@field(n.style, field), value)) {
                     @field(n.style, field) = value;
                     valid = true;
@@ -407,6 +601,79 @@ pub const Scene = struct {
             }
             if (!valid) return error.InvalidTypography;
         }
+        var valid_wb = false;
+        inline for (.{ "normal", "break-all", "keep-all" }) |wb| if (std.ascii.eqlIgnoreCase(n.style.wordBreak, wb)) {
+            n.style.wordBreak = wb;
+            valid_wb = true;
+        };
+        if (!valid_wb) return error.InvalidTypography;
+        var valid_wsc = false;
+        inline for (.{ "collapse", "preserve", "preserve-breaks", "break-spaces" }) |wsc| if (std.ascii.eqlIgnoreCase(n.style.whiteSpaceCollapse, wsc)) {
+            n.style.whiteSpaceCollapse = wsc;
+            valid_wsc = true;
+        };
+        if (!valid_wsc) return error.InvalidTypography;
+        if (n.style.verticalAlignCss) |css| {
+            var ctx = context;
+            ctx.font_size = n.fontSize();
+            ctx.percentage = if (n.style.lineHeight) |lh| (if (lh > 0) lh else n.fontSize() * 1.2) else (n.fontSize() * 1.2);
+            n.style.verticalAlignOffset = switch (try sizing.resolve(css, ctx)) {
+                .length => |v| v,
+                else => return error.InvalidLength,
+            };
+            n.style.verticalAlignCss = null;
+        } else {
+            var valid_va = false;
+            inline for (.{ "baseline", "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom" }) |va| if (std.ascii.eqlIgnoreCase(n.style.verticalAlign, va)) {
+                n.style.verticalAlign = va;
+                valid_va = true;
+            };
+            if (!valid_va) return error.InvalidTypography;
+        }
+        var valid_vis = false;
+        inline for (.{ "visible", "hidden", "collapse" }) |vis| if (std.ascii.eqlIgnoreCase(n.style.visibility, vis)) {
+            n.style.visibility = vis;
+            valid_vis = true;
+        };
+        if (!valid_vis) return error.InvalidVisibility;
+        if (std.ascii.eqlIgnoreCase(n.style.willChange, "auto") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "scroll-position") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "contents") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "transform") or
+            std.ascii.eqlIgnoreCase(n.style.willChange, "opacity"))
+        {
+            // Valid common willChange keyword
+        } else {
+            var it = std.mem.tokenizeAny(u8, n.style.willChange, ", \t\r\n");
+            var any_tok = false;
+            var all_tok_valid = true;
+            while (it.next()) |tok| {
+                any_tok = true;
+                if (!std.ascii.eqlIgnoreCase(tok, "scroll-position") and
+                    !std.ascii.eqlIgnoreCase(tok, "contents") and
+                    !std.ascii.eqlIgnoreCase(tok, "transform") and
+                    !std.ascii.eqlIgnoreCase(tok, "opacity") and
+                    !std.ascii.eqlIgnoreCase(tok, "left") and
+                    !std.ascii.eqlIgnoreCase(tok, "top") and
+                    !std.ascii.eqlIgnoreCase(tok, "right") and
+                    !std.ascii.eqlIgnoreCase(tok, "bottom") and
+                    !std.ascii.eqlIgnoreCase(tok, "width") and
+                    !std.ascii.eqlIgnoreCase(tok, "height"))
+                {
+                    all_tok_valid = false;
+                    break;
+                }
+            }
+            if (!any_tok or !all_tok_valid) return error.InvalidWillChange;
+        }
+        var valid_ruby_align = false;
+        inline for (.{ "start", "center", "space-between", "space-around" }) |val| {
+            if (std.ascii.eqlIgnoreCase(n.style.rubyAlign, val)) {
+                n.style.rubyAlign = val;
+                valid_ruby_align = true;
+            }
+        }
+        if (!valid_ruby_align) return error.InvalidTypography;
         if (std.ascii.eqlIgnoreCase(n.style.isolation, "auto")) n.style.isolation = "auto" else if (std.ascii.eqlIgnoreCase(n.style.isolation, "isolate")) n.style.isolation = "isolate" else return error.InvalidIsolation;
         var valid_position = false;
         inline for (.{ "static", "relative", "absolute", "fixed", "sticky" }) |position| if (std.ascii.eqlIgnoreCase(n.style.position, position)) {
@@ -422,21 +689,123 @@ pub const Scene = struct {
         }
         if (std.math.isNan(n.style.opacity)) n.style.opacity = 0;
         n.style.opacity = std.math.clamp(n.style.opacity, 0, 1);
+        if (!std.mem.eql(u8, n.style.writingMode, "horizontal-tb") and
+            !std.mem.eql(u8, n.style.writingMode, "vertical-rl") and
+            !std.mem.eql(u8, n.style.writingMode, "vertical-lr") and
+            !std.mem.eql(u8, n.style.writingMode, "sideways-rl") and
+            !std.mem.eql(u8, n.style.writingMode, "sideways-lr"))
+        {
+            return error.InvalidWritingMode;
+        }
+        if (!std.mem.eql(u8, n.style.mathShift, "normal") and !std.mem.eql(u8, n.style.mathShift, "compact")) {
+            return error.InvalidMathShift;
+        }
+        if (!std.mem.eql(u8, n.style.printColorAdjust, "economy") and !std.mem.eql(u8, n.style.printColorAdjust, "exact")) {
+            return error.InvalidPrintColorAdjust;
+        }
+        if (!std.mem.eql(u8, n.style.textAutospace, "normal") and !std.mem.eql(u8, n.style.textAutospace, "no-autospace")) {
+            return error.InvalidTextAutospace;
+        }
+        if (n.style.textDecoration.len > 0) {
+            var tokens = @import("css_syntax.zig").Tokens{ .input = n.style.textDecoration, .separators = " \t\r\n" };
+            while (tokens.next()) |token| {
+                if (std.ascii.eqlIgnoreCase(token, "none") or
+                    std.ascii.eqlIgnoreCase(token, "underline") or
+                    std.ascii.eqlIgnoreCase(token, "overline") or
+                    std.ascii.eqlIgnoreCase(token, "line-through") or
+                    std.ascii.eqlIgnoreCase(token, "spelling-error") or
+                    std.ascii.eqlIgnoreCase(token, "grammar-error"))
+                {
+                    n.style.textDecorationLine = token;
+                    if (std.ascii.eqlIgnoreCase(token, "spelling-error") or std.ascii.eqlIgnoreCase(token, "grammar-error")) {
+                        if (std.mem.eql(u8, n.style.textDecorationStyle, "solid")) n.style.textDecorationStyle = "wavy";
+                    }
+                } else if (std.ascii.eqlIgnoreCase(token, "solid") or
+                    std.ascii.eqlIgnoreCase(token, "double") or
+                    std.ascii.eqlIgnoreCase(token, "dotted") or
+                    std.ascii.eqlIgnoreCase(token, "dashed") or
+                    std.ascii.eqlIgnoreCase(token, "wavy"))
+                {
+                    n.style.textDecorationStyle = token;
+                } else if (std.ascii.eqlIgnoreCase(token, "auto") or std.ascii.eqlIgnoreCase(token, "from-font")) {
+                    n.style.textDecorationThickness = null;
+                } else if (std.fmt.parseFloat(f32, token) catch null) |val| {
+                    if (val >= 0) n.style.textDecorationThickness = val;
+                } else {
+                    var ctx = context;
+                    ctx.font_size = n.fontSize();
+                    if (sizing.resolve(token, ctx)) |resolved| {
+                        switch (resolved) {
+                            .length => |len| if (len >= 0) {
+                                n.style.textDecorationThickness = len;
+                            },
+                            else => {},
+                        }
+                    } else |_| {
+                        n.style.textDecorationColor = token;
+                    }
+                }
+            }
+        }
+        if (n.style.textDecorationThicknessCss) |css| {
+            var ctx = context;
+            ctx.font_size = n.fontSize();
+            if (sizing.resolve(css, ctx)) |resolved| {
+                switch (resolved) {
+                    .length => |len| if (len >= 0) {
+                        n.style.textDecorationThickness = len;
+                    },
+                    else => return error.InvalidLength,
+                }
+            } else |_| return error.InvalidLength;
+        }
+        if (n.style.scrollbarColor.len > 0 and !std.ascii.eqlIgnoreCase(n.style.scrollbarColor, "auto")) {
+            var tokens = @import("css_syntax.zig").Tokens{ .input = n.style.scrollbarColor, .separators = " \t\r\n" };
+            if (tokens.next()) |thumb| {
+                n.style.scrollbarThumbColor = thumb;
+                if (tokens.next()) |track| {
+                    n.style.scrollbarTrackColor = track;
+                }
+            }
+        }
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
-        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left" }) |name| {
+        if (n.style.perspectiveCss) |css| {
+            if (std.ascii.eqlIgnoreCase(std.mem.trim(u8, css, " \t\r\n"), "none")) {
+                n.style.perspective = null;
+            } else {
+                var ctx = context;
+                ctx.font_size = n.fontSize();
+                ctx.percentage = containing_height;
+                const res = sizing.resolve(css, ctx) catch null;
+                if (res) |r| {
+                    n.style.perspective = switch (r) {
+                        .length => |v| if (v > 0) v else null,
+                        else => null,
+                    };
+                }
+            }
+            n.style.perspectiveCss = null;
+        }
+        if (n.style.transformBox.len == 0) n.style.transformBox = "border-box";
+        if (n.style.touchAction.len == 0) n.style.touchAction = "auto";
+        if (n.style.backfaceVisibility.len == 0) n.style.backfaceVisibility = "visible";
+        if (n.style.transformStyle.len == 0) n.style.transformStyle = "flat";
+        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left", "scrollMarginTop", "scrollMarginRight", "scrollMarginBottom", "scrollMarginLeft", "scrollPaddingTop", "scrollPaddingRight", "scrollPaddingBottom", "scrollPaddingLeft" }) |name| {
             const is_inset = std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "right") or std.mem.eql(u8, name, "bottom") or std.mem.eql(u8, name, "left");
-            const allow_negative = std.mem.startsWith(u8, name, "margin") or is_inset;
+            const is_scroll_margin = std.mem.startsWith(u8, name, "scrollMargin");
+            const is_scroll_padding = std.mem.startsWith(u8, name, "scrollPadding");
+            const allow_negative = std.mem.startsWith(u8, name, "margin") or is_inset or is_scroll_margin;
             if (@field(n.style, name)) |number| {
                 if (!std.math.isFinite(number) or (number < 0 and !allow_negative)) return error.InvalidLength;
             }
-            if ((!is_inset or n.isPositioned()) and (if (@field(n.style, name ++ "Css")) |value| value.len > 0 else false)) {
+            if ((!is_inset or n.isPositioned() or is_scroll_margin or is_scroll_padding) and (if (@field(n.style, name ++ "Css")) |value| value.len > 0 else false)) {
                 const css = @field(n.style, name ++ "Css").?;
                 // Older bridge snapshots encoded an absent optional CSS value as "".
 
                 if (std.mem.startsWith(u8, name, "border") and std.mem.indexOfScalar(u8, css, '%') != null) return error.InvalidLength;
                 var ctx = context;
                 ctx.font_size = n.fontSize();
-                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap") or std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "bottom")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap") or std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right")) containing_width else inline_size;
+                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap") or std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "bottom") or std.mem.endsWith(u8, name, "Top") or std.mem.endsWith(u8, name, "Bottom")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap") or std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right") or std.mem.endsWith(u8, name, "Left") or std.mem.endsWith(u8, name, "Right")) containing_width else inline_size;
                 if (std.mem.eql(u8, name, "lineHeight")) ctx.percentage = n.fontSize();
                 const is_fit_function = std.mem.startsWith(u8, css, "fit-content(") and std.mem.endsWith(u8, css, ")");
                 const value: sizing.Resolution = if (is_fit_function) .{ .keyword = .fit_content } else try sizing.resolve(css, ctx);
@@ -446,7 +815,10 @@ pub const Scene = struct {
                         @field(n.style, name) = number;
                     },
                     .keyword => |keyword| {
-                        if (keyword == .auto and (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "height") or std.mem.startsWith(u8, name, "min"))) {
+                        if (keyword == .auto and (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "height") or std.mem.startsWith(u8, name, "min") or is_scroll_padding)) {
+                            @field(n.style, name) = null;
+                        } else if (keyword == .auto and is_inset) {
+                            if (comptime @hasField(Style, name ++ "Auto")) @field(n.style, name ++ "Auto") = true;
                             @field(n.style, name) = null;
                         } else if (keyword == .none and std.mem.startsWith(u8, name, "max")) {
                             @field(n.style, name) = null;
@@ -490,11 +862,58 @@ pub const Scene = struct {
                 }
             }
         }
+        inline for (.{ "cx", "cy", "r", "rx", "ry", "x", "y", "shapeMargin", "strokeWidth" }) |name| {
+            if (@field(n.style, name ++ "Css")) |css| {
+                if (css.len > 0) {
+                    var ctx = context;
+                    ctx.font_size = n.fontSize();
+                    ctx.percentage = if (std.mem.eql(u8, name, "cy") or std.mem.eql(u8, name, "ry") or std.mem.eql(u8, name, "y")) containing_height else containing_width;
+                    if (sizing.resolve(css, ctx)) |res| {
+                        switch (res) {
+                            .length => |len| @field(n.style, name) = len,
+                            else => {},
+                        }
+                    } else |_| {}
+                }
+            }
+        }
         if (n.style.padding) |value| if (!std.math.isFinite(value) or value < 0) return error.InvalidLength;
         if (!std.math.isFinite(n.style.margin) or !std.math.isFinite(n.style.borderWidth) or n.style.borderWidth < 0) return error.InvalidLength;
         if (n.style.flexBasis) |value| if (!std.math.isFinite(value) or value < 0) return error.InvalidLength;
         if (n.style.aspectRatio) |value| if (!std.math.isFinite(value) or value <= 0) return error.InvalidLength;
         if (n.intrinsicAspectRatio) |value| if (!std.math.isFinite(value) or value <= 0) return error.InvalidLength;
+
+        if (std.ascii.eqlIgnoreCase(n.style.rubyPosition, "under")) {
+            n.style.rubyPosition = "under";
+        } else {
+            n.style.rubyPosition = "over";
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.scrollBehavior, "smooth")) {
+            n.style.scrollBehavior = "smooth";
+        } else {
+            n.style.scrollBehavior = "auto";
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.scrollbarWidth, "none")) {
+            n.style.scrollbarWidth = "none";
+        } else if (std.ascii.eqlIgnoreCase(n.style.scrollbarWidth, "thin")) {
+            n.style.scrollbarWidth = "thin";
+        } else {
+            n.style.scrollbarWidth = "auto";
+        }
+        if (std.mem.indexOf(u8, n.style.scrollbarGutter, "stable") != null) {
+            if (std.mem.indexOf(u8, n.style.scrollbarGutter, "both-edges") != null) {
+                n.style.scrollbarGutter = "stable both-edges";
+            } else {
+                n.style.scrollbarGutter = "stable";
+            }
+        } else {
+            n.style.scrollbarGutter = "auto";
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.scrollSnapStop, "always")) {
+            n.style.scrollSnapStop = "always";
+        } else {
+            n.style.scrollSnapStop = "normal";
+        }
     }
 
     fn colorTokens(self: *Scene, input: []const u8, current: []const u8) ![]const u8 {
@@ -520,12 +939,33 @@ pub const Scene = struct {
     }
     fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) void {
         if (child.style.fontSize == 0 and child.style.fontSizeCss == null) child.style.fontSize = parent.fontSize();
-        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent" }, 0..) |field, bit| {
+        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, parent.style.writingMode, "horizontal-tb")) {
+            child.style.writingMode = parent.style.writingMode;
+        }
+        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, parent.style.direction, "ltr")) {
+            child.style.direction = parent.style.direction;
+        }
+        if (child.style.zoom == 1.0 and child.style.zoomCss == null) {
+            child.style.zoom = parent.style.zoom;
+        }
+        if (std.mem.eql(u8, child.style.fontFeatureSettings, "normal") and !std.mem.eql(u8, parent.style.fontFeatureSettings, "normal")) {
+            child.style.fontFeatureSettings = parent.style.fontFeatureSettings;
+        }
+        if (std.mem.eql(u8, parent.style.contentVisibility, "hidden")) {
+            child.style.contentVisibility = "hidden";
+        }
+        if (parent.style.activeViewTransition) {
+            child.style.activeViewTransition = true;
+        }
+        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse", "verticalAlign", "textOrientation", "textShadow", "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset", "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor", "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle", "rubyAlign" }, 0..) |field, bit| {
             const defaults: Style = .{};
             const at_default = if (comptime @TypeOf(@field(child.style, field)) == []const u8) std.mem.eql(u8, @field(child.style, field), @field(defaults, field)) else @field(child.style, field) == @field(defaults, field);
             if (child.style.typographySpecified & (@as(u32, 1) << bit) == 0 and at_default) {
                 @field(child.style, field) = @field(parent.style, field);
                 if (comptime std.mem.eql(u8, field, "tabSize")) child.style.tabSizeCss = parent.style.tabSizeCss;
+                if (comptime std.mem.eql(u8, field, "textStrokeWidth")) child.style.textStrokeWidthCss = parent.style.textStrokeWidthCss;
+                if (comptime std.mem.eql(u8, field, "textUnderlineOffset")) child.style.textUnderlineOffsetCss = parent.style.textUnderlineOffsetCss;
+                if (comptime std.mem.eql(u8, field, "textDecorationThickness")) child.style.textDecorationThicknessCss = parent.style.textDecorationThicknessCss;
             }
         }
         // Relative weight keywords resolve against the parent's computed weight.
@@ -535,12 +975,73 @@ pub const Scene = struct {
         inline for (.{ "visibility", "pointerEvents", "cursor" }, 0..) |field, bit| if (child.style.interactionSpecified & (@as(u32, 1) << bit) == 0 and std.mem.eql(u8, @field(child.style, field), @field(@as(Style, .{}), field))) {
             @field(child.style, field) = @field(parent.style, field);
         };
+        if (std.mem.eql(u8, child.style.mathShift, "normal") and !std.mem.eql(u8, parent.style.mathShift, "normal")) {
+            child.style.mathShift = parent.style.mathShift;
+        }
+        if (std.mem.eql(u8, child.style.printColorAdjust, "economy") and !std.mem.eql(u8, parent.style.printColorAdjust, "economy")) {
+            child.style.printColorAdjust = parent.style.printColorAdjust;
+        }
+        if (std.mem.eql(u8, child.style.textAutospace, "normal") and !std.mem.eql(u8, parent.style.textAutospace, "normal")) {
+            child.style.textAutospace = parent.style.textAutospace;
+        }
+        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, parent.style.writingMode, "horizontal-tb")) {
+            child.style.writingMode = parent.style.writingMode;
+        }
+        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, parent.style.direction, "ltr")) {
+            child.style.direction = parent.style.direction;
+        }
+        if (std.mem.eql(u8, child.style.scrollbarColor, "auto") and !std.mem.eql(u8, parent.style.scrollbarColor, "auto")) {
+            child.style.scrollbarColor = parent.style.scrollbarColor;
+            child.style.scrollbarThumbColor = parent.style.scrollbarThumbColor;
+            child.style.scrollbarTrackColor = parent.style.scrollbarTrackColor;
+        }
+        if (std.mem.eql(u8, child.style.quotes, "auto") and !std.mem.eql(u8, parent.style.quotes, "auto")) child.style.quotes = parent.style.quotes;
         if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (parent.style.color.len > 0) parent.style.color else "#ffffff";
-        inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow" }) |field| {
+        if (child.style.textDecorationColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textDecorationColor, "currentColor")) {
+            child.style.textDecorationColor = child.style.color;
+        }
+        inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow", "scrollbarThumbColor", "scrollbarTrackColor", "textShadow", "textFillColor", "textStrokeColor", "textDecorationColor" }) |field| {
             @field(child.style, field) = self.colorTokens(@field(child.style, field), child.style.color) catch @field(child.style, field);
         }
         if (child.style.borderColor.len == 0) child.style.borderColor = child.style.color;
         if (child.style.outlineColor.len == 0) child.style.outlineColor = child.style.color;
+
+        // Typography / text decoration / text emphasis / text combine upright inheritance
+        if (child.style.textDecorationLine.len == 0 or std.mem.eql(u8, child.style.textDecorationLine, "none")) {
+            child.style.textDecorationLine = parent.style.textDecorationLine;
+            child.style.textDecorationColor = parent.style.textDecorationColor;
+            child.style.textDecorationStyle = parent.style.textDecorationStyle;
+            child.style.textDecorationThickness = parent.style.textDecorationThickness;
+            child.style.textDecorationThicknessCss = parent.style.textDecorationThicknessCss;
+        }
+        if (std.mem.eql(u8, child.style.textDecorationSkipInk, "auto")) child.style.textDecorationSkipInk = parent.style.textDecorationSkipInk;
+        if (std.mem.eql(u8, child.style.textEmphasisStyle, "none")) {
+            child.style.textEmphasisStyle = parent.style.textEmphasisStyle;
+            child.style.textEmphasisColor = parent.style.textEmphasisColor;
+            child.style.textEmphasisPosition = parent.style.textEmphasisPosition;
+        }
+        if (std.mem.eql(u8, child.style.textCombineUpright, "none")) child.style.textCombineUpright = parent.style.textCombineUpright;
+
+        // Table property inheritance
+        if (std.mem.eql(u8, child.style.borderCollapse, "separate") and !std.mem.eql(u8, parent.style.borderCollapse, "separate")) child.style.borderCollapse = parent.style.borderCollapse;
+        if (child.style.borderSpacing == 0 and parent.style.borderSpacing > 0) {
+            child.style.borderSpacing = parent.style.borderSpacing;
+            child.style.borderSpacingX = parent.style.borderSpacingX;
+            child.style.borderSpacingY = parent.style.borderSpacingY;
+        }
+        if (std.mem.eql(u8, child.style.captionSide, "top") and !std.mem.eql(u8, parent.style.captionSide, "top")) child.style.captionSide = parent.style.captionSide;
+        if (std.mem.eql(u8, child.style.emptyCells, "show") and !std.mem.eql(u8, parent.style.emptyCells, "show")) child.style.emptyCells = parent.style.emptyCells;
+
+        // SVG filter inheritance
+        if (std.mem.eql(u8, child.style.colorInterpolationFilters, "auto") and !std.mem.eql(u8, parent.style.colorInterpolationFilters, "auto")) child.style.colorInterpolationFilters = parent.style.colorInterpolationFilters;
+        if (child.style.floodColor.len == 0 and parent.style.floodColor.len > 0) child.style.floodColor = parent.style.floodColor;
+        if (child.style.lightingColor.len == 0 and parent.style.lightingColor.len > 0) child.style.lightingColor = parent.style.lightingColor;
+
+        // currentColor resolution
+        if (child.style.textDecorationColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textDecorationColor, "currentColor")) child.style.textDecorationColor = child.style.color;
+        if (child.style.textEmphasisColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textEmphasisColor, "currentColor")) child.style.textEmphasisColor = child.style.color;
+        if (std.ascii.eqlIgnoreCase(child.style.floodColor, "currentColor")) child.style.floodColor = child.style.color;
+        if (std.ascii.eqlIgnoreCase(child.style.lightingColor, "currentColor")) child.style.lightingColor = child.style.color;
     }
 
     fn prepareChildren(self: *Scene, n: *Node, width: f32, height: ?f32) anyerror!void {
@@ -550,12 +1051,15 @@ pub const Scene = struct {
             const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
             const inline_size: ?f32 = if (vertical) height else width;
             self.inheritComputedStyle(child, n);
-            if (std.mem.eql(u8, child.type, "text") and std.mem.eql(u8, n.style.textOverflow, "ellipsis") and n.clipsX()) {
-                child.style.textOverflow = "ellipsis";
+            if (std.mem.eql(u8, child.type, "text") and std.mem.indexOf(u8, n.style.textOverflow, "ellipsis") != null and n.clipsX()) {
+                child.style.textOverflow = n.style.textOverflow;
                 child.style.overflowX = "clip";
             }
             var child_context = self.length_context;
             child_context.font_size = n.fontSize();
+            child_context.line_height = if (n.style.lineHeight) |h| (if (h > 0) h else self.textFor(n).lineHeight(n.fontSize())) else self.textFor(n).lineHeight(n.fontSize());
+            child_context.root_font_size = self.length_context.root_font_size;
+            child_context.root_line_height = self.length_context.root_line_height;
             try self.resolveStyle(child, child_context, width, height, inline_size);
             if (child.style.flexBasisCss) |css| {
                 const trimmed = std.mem.trim(u8, css, " \t\r\n");
@@ -625,11 +1129,16 @@ pub const Scene = struct {
         scene.length_context.viewport_width = scene.length_context.viewport_width orelse width;
         scene.length_context.viewport_height = scene.length_context.viewport_height orelse height;
         scene.length_context.root_font_size = scene.length_context.root_font_size orelse root.fontSize();
+        const root_default_lh = scene.textFor(root).lineHeight(root.fontSize());
+        const root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else root_default_lh) else root_default_lh;
+        scene.length_context.root_line_height = scene.length_context.root_line_height orelse root_lh;
         const vertical = !std.mem.eql(u8, root.style.writingMode, "horizontal-tb");
         scene.length_context.viewport_inline = scene.length_context.viewport_inline orelse if (vertical) height else width;
         scene.length_context.viewport_block = scene.length_context.viewport_block orelse if (vertical) width else height;
         try scene.resolveStyle(root, scene.length_context, width, height, if (std.mem.eql(u8, root.style.writingMode, "horizontal-tb")) width else height);
         scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
+        const resolved_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else scene.textFor(root).lineHeight(root.fontSize())) else scene.textFor(root).lineHeight(root.fontSize());
+        scene.length_context.root_line_height = host_context.root_line_height orelse resolved_root_lh;
         scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
@@ -655,11 +1164,16 @@ pub const Scene = struct {
         scene.length_context.viewport_width = scene.length_context.viewport_width orelse width;
         scene.length_context.viewport_height = scene.length_context.viewport_height orelse height;
         scene.length_context.root_font_size = scene.length_context.root_font_size orelse root.fontSize();
+        const init_root_default_lh = scene.textFor(root).lineHeight(root.fontSize());
+        const init_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else init_root_default_lh) else init_root_default_lh;
+        scene.length_context.root_line_height = scene.length_context.root_line_height orelse init_root_lh;
         const vertical = !std.mem.eql(u8, root.style.writingMode, "horizontal-tb");
         scene.length_context.viewport_inline = scene.length_context.viewport_inline orelse if (vertical) height else width;
         scene.length_context.viewport_block = scene.length_context.viewport_block orelse if (vertical) width else height;
         try scene.resolveStyle(root, scene.length_context, width, height, if (std.mem.eql(u8, root.style.writingMode, "horizontal-tb")) width else height);
         scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
+        const init_resolved_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else scene.textFor(root).lineHeight(root.fontSize())) else scene.textFor(root).lineHeight(root.fontSize());
+        scene.length_context.root_line_height = host_context.root_line_height orelse init_resolved_root_lh;
         scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
@@ -693,6 +1207,8 @@ pub const Scene = struct {
         const inner_width = @max(0, border_width - frame_x);
         const grid = std.mem.eql(u8, n.style.display, "grid");
         if (grid) return n.constrain(frame_y + (@import("layout_grid.zig").measureHeight(self, n, inner_width) catch 0), false);
+        const table = std.mem.eql(u8, n.style.display, "table") or std.mem.eql(u8, n.type, "table");
+        if (table) return n.constrain(frame_y + @import("layout_table.zig").measureHeight(self, n, inner_width), false);
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         const block = std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root");
         var total: f32 = 0;
@@ -822,6 +1338,14 @@ pub const Scene = struct {
     pub fn layout(self: *Scene, source: *const Node, bounds_in: Rect, parent_id: ?u32) anyerror!void {
         const n = try self.arena.allocator().create(Node);
         n.* = source.*;
+        // Retained scene styles must outlive bridge tree replacement.
+        inline for (@typeInfo(Style).@"struct".field_names, @typeInfo(Style).@"struct".field_types) |field_name, field_type| {
+            if (field_type == []const u8) {
+                @field(n.style, field_name) = try self.arena.allocator().dupe(u8, @field(source.style, field_name));
+            } else if (field_type == ?[]const u8) {
+                @field(n.style, field_name) = if (@field(source.style, field_name)) |value| try self.arena.allocator().dupe(u8, value) else null;
+            }
+        }
         var b = bounds_in;
         const frame_x = n.padding().horizontal() + n.border().horizontal();
         const frame_y = n.padding().vertical() + n.border().vertical();
@@ -846,8 +1370,9 @@ pub const Scene = struct {
             }
         };
         if (std.mem.eql(u8, n.style.position, "relative")) {
-            const dx = if (n.style.left) |l| l else if (n.style.right) |r| -r else 0;
-            const dy = if (n.style.top) |t| t else if (n.style.bottom) |btm| -btm else 0;
+            const rtl = std.mem.eql(u8, n.style.direction, "rtl");
+            const dx = if ((!n.style.leftAuto and n.style.left != null) and (!n.style.rightAuto and n.style.right != null)) (if (rtl) -n.style.right.? else n.style.left.?) else if (n.style.left) |l| l else if (n.style.right) |r| -r else 0;
+            const dy = if (n.style.top != null and n.style.bottom != null) n.style.top.? else if (n.style.top) |t| t else if (n.style.bottom) |btm| -btm else 0;
             b.x += dx;
             b.y += dy;
         }
@@ -860,12 +1385,15 @@ pub const Scene = struct {
 
         const pad = n.padding();
         const bd = n.border();
-        const inset_x = pad.horizontal() + bd.horizontal();
+        const gutter = n.scrollbarGutterReserved();
+        const inset_x = pad.horizontal() + bd.horizontal() + gutter.horizontal();
         const inner_width = @max(0, bounds.width - inset_x);
-        const inner_height = @max(0, bounds.height - (pad.vertical() + bd.vertical()));
+        const inner_height = @max(0, bounds.height - (pad.vertical() + bd.vertical() + gutter.vertical()));
 
         if (std.mem.eql(u8, n.style.display, "grid")) {
             try @import("layout_grid.zig").layout(self, n, bounds, inner_width, inner_height);
+        } else if (std.mem.eql(u8, n.style.display, "table") or std.mem.eql(u8, n.type, "table")) {
+            try @import("layout_table.zig").layout(self, n, bounds, inner_width, inner_height);
         } else if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
             try @import("layout_block.zig").layout(self, n, bounds, inner_width);
         } else {
@@ -908,7 +1436,7 @@ pub const Scene = struct {
             var w: f32 = undefined;
             if (child.style.width) |specified_w| {
                 w = child.constrain(child.borderSize(specified_w, child_frame_x), true);
-            } else if (child.style.left != null and child.style.right != null) {
+            } else if (child.style.left != null and child.style.right != null and !child.style.leftAuto and !child.style.rightAuto) {
                 w = child.constrain(@max(0, cb.width - child.style.left.? - child.style.right.? - child_mg.horizontal()), true);
             } else {
                 w = child.constrain(self.intrinsicWidthFor(child, .{ .definite = @max(0, cb.width - child_mg.horizontal()) }), true);
@@ -918,7 +1446,7 @@ pub const Scene = struct {
             var h: f32 = undefined;
             if (child.style.height) |specified_h| {
                 h = child.constrain(child.borderSize(specified_h, child_frame_y), false);
-            } else if (child.style.top != null and child.style.bottom != null) {
+            } else if (child.style.top != null and child.style.bottom != null and !child.style.topAuto and !child.style.bottomAuto) {
                 h = child.constrain(@max(0, cb.height - child.style.top.? - child.style.bottom.? - child_mg.vertical()), false);
             } else {
                 h = child.constrain(self.naturalHeightForWidth(child, w), false);
@@ -926,17 +1454,25 @@ pub const Scene = struct {
 
             // Placement
             var x: f32 = cb.x + child_mg.left;
-            if (child.style.left) |left_val| {
-                x = cb.x + left_val + child_mg.left;
-            } else if (child.style.right) |right_val| {
-                x = cb.right() - right_val - w - child_mg.right;
+            if (!child.style.leftAuto and child.style.left != null) {
+                x = cb.x + child.style.left.? + child_mg.left;
+            } else if (!child.style.rightAuto and child.style.right != null) {
+                x = cb.right() - child.style.right.? - w - child_mg.right;
             }
 
             var y: f32 = cb.y + child_mg.top;
-            if (child.style.top) |top_val| {
-                y = cb.y + top_val + child_mg.top;
-            } else if (child.style.bottom) |bottom_val| {
-                y = cb.bottom() - bottom_val - h - child_mg.bottom;
+            if (!child.style.topAuto and child.style.top != null) {
+                y = cb.y + child.style.top.? + child_mg.top;
+            } else if (!child.style.bottomAuto and child.style.bottom != null) {
+                y = cb.bottom() - child.style.bottom.? - h - child_mg.bottom;
+            }
+
+            if (child.style.offsetPath.len > 0) {
+                if (@import("path_shape.zig").parseCssPath(self.arena.allocator(), child.style.offsetPath)) |path_obj| {
+                    const pt = path_obj.pointAtDistance(child.style.offsetDistance);
+                    x = cb.x + pt.point.x;
+                    y = cb.y + pt.point.y;
+                } else |_| {}
             }
 
             // Auto margins and self alignment operate in the inset-modified containing block.
@@ -955,10 +1491,28 @@ pub const Scene = struct {
             const justify = child.style.justifySelf;
             const align_self = child.style.alignSelf;
             if (!child.style.marginLeftAuto and !child.style.marginRightAuto) {
-                if (std.mem.eql(u8, justify, "center")) x = cb.x + left + free_x / 2 + child_mg.left else if (std.mem.eql(u8, justify, "end") or std.mem.eql(u8, justify, "right")) x = cb.x + left + free_x + child_mg.left;
+                if (std.mem.eql(u8, justify, "center")) {
+                    x = cb.x + left + free_x / 2 + child_mg.left;
+                } else if (std.mem.eql(u8, justify, "end") or std.mem.eql(u8, justify, "self-end") or std.mem.eql(u8, justify, "flex-end") or std.mem.eql(u8, justify, "right")) {
+                    x = cb.x + left + free_x + child_mg.left;
+                } else if (std.mem.eql(u8, justify, "start") or std.mem.eql(u8, justify, "self-start") or std.mem.eql(u8, justify, "flex-start") or std.mem.eql(u8, justify, "left")) {
+                    x = cb.x + left + child_mg.left;
+                } else if (std.mem.eql(u8, justify, "stretch") and child.style.width == null and child.style.left != null and child.style.right != null) {
+                    w = child.constrain(@max(0, cb.width - left - right - child_mg.horizontal()), true);
+                    x = cb.x + left + child_mg.left;
+                }
             }
             if (!child.style.marginTopAuto and !child.style.marginBottomAuto) {
-                if (std.mem.eql(u8, align_self, "center")) y = cb.y + top + free_y / 2 + child_mg.top else if (std.mem.eql(u8, align_self, "end") or std.mem.eql(u8, align_self, "flex-end")) y = cb.y + top + free_y + child_mg.top;
+                if (std.mem.eql(u8, align_self, "center")) {
+                    y = cb.y + top + free_y / 2 + child_mg.top;
+                } else if (std.mem.eql(u8, align_self, "end") or std.mem.eql(u8, align_self, "self-end") or std.mem.eql(u8, align_self, "flex-end") or std.mem.eql(u8, align_self, "bottom")) {
+                    y = cb.y + top + free_y + child_mg.top;
+                } else if (std.mem.eql(u8, align_self, "start") or std.mem.eql(u8, align_self, "self-start") or std.mem.eql(u8, align_self, "flex-start") or std.mem.eql(u8, align_self, "top")) {
+                    y = cb.y + top + child_mg.top;
+                } else if (std.mem.eql(u8, align_self, "stretch") and child.style.height == null and child.style.top != null and child.style.bottom != null) {
+                    h = child.constrain(@max(0, cb.height - top - bottom - child_mg.vertical()), false);
+                    y = cb.y + top + child_mg.top;
+                }
             }
             try self.layout(child, .{ .x = x, .y = y, .width = w, .height = h }, n.id);
         }
@@ -994,6 +1548,11 @@ pub const Scene = struct {
                 clip.height = @max(0, bottom - new_y);
             }
             parent_id = parent.parent_id;
+        }
+        if (item.node.style.clipPath.len > 0) {
+            if (@import("paint.zig").parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize())) |shape| {
+                clip = clip.intersect(shape.box);
+            }
         }
         return clip;
     }
@@ -1045,6 +1604,85 @@ pub const Scene = struct {
         };
     }
 
+    pub fn snapToNearest(self: *const Scene, viewport_id: u32, offset: ScrollOffset) ScrollOffset {
+        const viewport = self.find(viewport_id) orelse return offset;
+        const snap_type = viewport.node.style.scrollSnapType;
+        if (std.mem.eql(u8, snap_type, "none") or snap_type.len == 0) return offset;
+
+        const is_x = std.mem.indexOf(u8, snap_type, "x") != null or std.mem.indexOf(u8, snap_type, "both") != null or (std.mem.indexOf(u8, snap_type, "inline") != null and std.mem.eql(u8, viewport.node.style.writingMode, "horizontal-tb"));
+        const is_y = std.mem.indexOf(u8, snap_type, "y") != null or std.mem.indexOf(u8, snap_type, "both") != null or std.mem.indexOf(u8, snap_type, "block") != null;
+
+        const port = viewport.node.paddingBox(viewport.bounds);
+        const pad = viewport.node.scrollPadding();
+        const snapport_top = port.y + pad.top;
+        const snapport_bottom = port.bottom() - pad.bottom;
+        const snapport_left = port.x + pad.left;
+        const snapport_right = port.right() - pad.right;
+
+        const extent = self.scrollExtent(viewport_id);
+
+        var best_x = offset.x;
+        var best_y = offset.y;
+        var min_dist_x: f32 = std.math.floatMax(f32);
+        var min_dist_y: f32 = std.math.floatMax(f32);
+
+        for (self.items.items) |child| {
+            if (child.parent_id != viewport_id) continue;
+            const align_str = child.node.style.scrollSnapAlign;
+            if (std.mem.eql(u8, align_str, "none") or align_str.len == 0) continue;
+
+            const margin = child.node.scrollMargin();
+            // Snap area in container space
+            const area_top = child.bounds.y - margin.top + offset.y;
+            const area_bottom = child.bounds.bottom() + margin.bottom + offset.y;
+            const area_left = child.bounds.x - margin.left + offset.x;
+            const area_right = child.bounds.right() + margin.right + offset.x;
+
+            if (is_y) {
+                var candidate_y: f32 = offset.y;
+                if (std.mem.indexOf(u8, align_str, "start") != null) {
+                    candidate_y = area_top - snapport_top;
+                } else if (std.mem.indexOf(u8, align_str, "end") != null) {
+                    candidate_y = area_bottom - snapport_bottom;
+                } else if (std.mem.indexOf(u8, align_str, "center") != null) {
+                    candidate_y = (area_top + area_bottom) * 0.5 - (snapport_top + snapport_bottom) * 0.5;
+                }
+                candidate_y = std.math.clamp(candidate_y, 0, extent.max_scroll_y);
+                const dist = @abs(candidate_y - offset.y);
+                if (dist < min_dist_y) {
+                    min_dist_y = dist;
+                    best_y = candidate_y;
+                }
+            }
+
+            if (is_x) {
+                var candidate_x: f32 = offset.x;
+                if (std.mem.indexOf(u8, align_str, "start") != null) {
+                    candidate_x = area_left - snapport_left;
+                } else if (std.mem.indexOf(u8, align_str, "end") != null) {
+                    candidate_x = area_right - snapport_right;
+                } else if (std.mem.indexOf(u8, align_str, "center") != null) {
+                    candidate_x = (area_left + area_right) * 0.5 - (snapport_left + snapport_right) * 0.5;
+                }
+                candidate_x = std.math.clamp(candidate_x, 0, extent.max_scroll_x);
+                const dist = @abs(candidate_x - offset.x);
+                if (dist < min_dist_x) {
+                    min_dist_x = dist;
+                    best_x = candidate_x;
+                }
+            }
+        }
+
+        const is_proximity = std.mem.indexOf(u8, snap_type, "proximity") != null;
+        const threshold_x = port.width * 0.5;
+        const threshold_y = port.height * 0.5;
+
+        return .{
+            .x = if (is_proximity and min_dist_x > threshold_x) offset.x else best_x,
+            .y = if (is_proximity and min_dist_y > threshold_y) offset.y else best_y,
+        };
+    }
+
     pub fn applyScrollOffsets(self: *Scene, offsets: *std.AutoHashMap(u32, ScrollOffset)) void {
         const a = self.arena.allocator();
         const original = a.alloc(Rect, self.items.items.len) catch return;
@@ -1054,6 +1692,8 @@ pub const Scene = struct {
             const extent = self.scrollExtent(item.node.id);
             off.x = if (item.node.isScrollContainerX()) std.math.clamp(off.x, 0, extent.max_scroll_x) else 0;
             off.y = if (item.node.isScrollContainerY()) std.math.clamp(off.y, 0, extent.max_scroll_y) else 0;
+            const snapped = self.snapToNearest(item.node.id, off.*);
+            off.* = snapped;
         };
         for (self.items.items, 0..) |*item, i| {
             var dx: f32 = 0;
@@ -1095,11 +1735,28 @@ pub const Scene = struct {
             if (item.node.style.bottom) |v| target.y = @min(target.y, port.bottom() - v - target.height);
             if (item.node.style.left) |v| target.x = @max(target.x, port.x + v);
             if (item.node.style.right) |v| target.x = @min(target.x, port.right() - v - target.width);
-            if (item.parent_id) |pid| if (self.find(pid)) |p| {
-                const box = p.node.contentBox(p.bounds);
-                target.x = @max(item.bounds.x, @min(target.x, box.right() - target.width));
-                target.y = @max(item.bounds.y, @min(target.y, box.bottom() - target.height));
-            };
+            if (item.parent_id) |pid| {
+                var container = self.find(pid);
+                const is_table_elem = std.mem.eql(u8, item.node.type, "th") or
+                    std.mem.eql(u8, item.node.type, "td") or
+                    std.mem.eql(u8, item.node.type, "tr") or
+                    std.mem.startsWith(u8, item.node.style.display, "table-");
+                if (is_table_elem) {
+                    var cur_parent = container;
+                    while (cur_parent) |cp| {
+                        if (std.mem.eql(u8, cp.node.type, "table") or std.mem.eql(u8, cp.node.style.display, "table")) {
+                            container = cp;
+                            break;
+                        }
+                        cur_parent = if (cp.parent_id) |p_id| self.find(p_id) else null;
+                    }
+                }
+                if (container) |p| {
+                    const box = p.node.contentBox(p.bounds);
+                    target.x = @max(item.bounds.x, @min(target.x, box.right() - target.width));
+                    target.y = @max(item.bounds.y, @min(target.y, box.bottom() - target.height));
+                }
+            }
             const dx = target.x - item.bounds.x;
             const dy = target.y - item.bounds.y;
             self.items.items[i].bounds = target;
@@ -1235,8 +1892,17 @@ pub const Scene = struct {
     }
 
     pub fn establishesContext(self: *const Scene, item: Item) bool {
+        if (item.node.popoverOpen) return true;
         const st = item.node.style;
         if (std.mem.eql(u8, st.isolation, "isolate")) return true;
+        if (st.willChange.len > 0 and !std.mem.eql(u8, st.willChange, "auto")) {
+            if (std.mem.indexOf(u8, st.willChange, "transform") != null or
+                std.mem.indexOf(u8, st.willChange, "opacity") != null or
+                std.mem.indexOf(u8, st.willChange, "filter") != null or
+                std.mem.indexOf(u8, st.willChange, "isolation") != null or
+                std.mem.indexOf(u8, st.willChange, "scroll-position") != null or
+                std.mem.indexOf(u8, st.willChange, "contents") != null) return true;
+        }
         if (item.parent_id == null or st.opacity < 1 or (st.transform.len > 0 and !std.mem.eql(u8, st.transform, "none"))) return true;
         if (std.mem.eql(u8, st.position, "fixed") or std.mem.eql(u8, st.position, "sticky")) return true;
         if (st.zIndex != null) {
@@ -1260,15 +1926,20 @@ pub const Scene = struct {
     }
 
     fn appendContext(self: *const Scene, a: std.mem.Allocator, out: *std.ArrayList(usize), root_index: usize) anyerror!void {
-        try out.append(a, root_index);
-        const context_id = self.items.items[root_index].node.id;
+        const root_item = self.items.items[root_index];
+        const skip_descendants = root_item.node.skipsContents(self.viewport, root_item.bounds);
+
+        const context_id = root_item.node.id;
         var participants: std.ArrayList(usize) = .empty;
         defer participants.deinit(a);
-        for (self.items.items, 0..) |item, i| if (self.contextOwner(item) == context_id) try participants.append(a, i);
+        if (!skip_descendants) {
+            for (self.items.items, 0..) |item, i| if (self.contextOwner(item) == context_id) try participants.append(a, i);
+        }
         const Ctx = struct {
             scene: *const Scene,
             fn key(c: @This(), i: usize) i64 {
                 const item = c.scene.items.items[i];
+                if (item.node.popoverOpen) return 1_000_000_000;
                 if (c.scene.establishesContext(item)) return item.node.style.zIndex orelse 0;
                 return 0;
             }
@@ -1281,7 +1952,15 @@ pub const Scene = struct {
         };
         std.mem.sort(usize, participants.items, Ctx{ .scene = self }, Ctx.less);
         for (participants.items) |i| {
-            if (self.establishesContext(self.items.items[i])) try self.appendContext(a, out, i) else try out.append(a, i);
+            if ((Ctx{ .scene = self }).key(i) < 0) {
+                if (self.establishesContext(self.items.items[i])) try self.appendContext(a, out, i) else try out.append(a, i);
+            }
+        }
+        try out.append(a, root_index);
+        for (participants.items) |i| {
+            if ((Ctx{ .scene = self }).key(i) >= 0) {
+                if (self.establishesContext(self.items.items[i])) try self.appendContext(a, out, i) else try out.append(a, i);
+            }
         }
     }
 
@@ -1293,27 +1972,60 @@ pub const Scene = struct {
     }
 
     pub fn localTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
-        _ = self;
-        const mat = transform_mod.parseTransformSized(item.node.style.transform, item.bounds.width, item.bounds.height) catch transform_mod.Matrix2D.identity;
-        const o = transform_mod.parseTransformOrigin(item.node.style.transformOrigin, item.bounds.width, item.bounds.height);
-        const x = item.bounds.x + o.x;
-        const y = item.bounds.y + o.y;
-        return transform_mod.Matrix2D.makeTranslate(x, y).multiply(mat).multiply(transform_mod.Matrix2D.makeTranslate(-x, -y));
+        return self.localTransform4x4(item).to2D();
     }
 
-    pub fn worldTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
-        const own = self.localTransform(item);
-        if (item.parent_id) |pid| if (self.find(pid)) |p| return self.worldTransform(p).multiply(own);
+    pub fn localTransform4x4(self: *const Scene, item: Item) transform_mod.Matrix4x4 {
+        _ = self;
+        const is_content = std.ascii.eqlIgnoreCase(item.node.style.transformBox, "content-box");
+        const ref_box = if (is_content) item.node.contentBox(item.bounds) else item.bounds;
+
+        const mat = transform_mod.parseTransformSized4x4(item.node.style.transform, ref_box.width, ref_box.height) catch transform_mod.Matrix4x4.identity;
+        const o = transform_mod.parseTransformOrigin3D(item.node.style.transformOrigin, ref_box.width, ref_box.height);
+        const x = ref_box.x + o.x;
+        const y = ref_box.y + o.y;
+        const z = o.z;
+
+        const t_origin = transform_mod.Matrix4x4.makeTranslate3D(x, y, z);
+        const t_inv_origin = transform_mod.Matrix4x4.makeTranslate3D(-x, -y, -z);
+        return t_origin.multiply(mat).multiply(t_inv_origin);
+    }
+
+    pub fn worldTransform4x4(self: *const Scene, item: Item) transform_mod.Matrix4x4 {
+        var own = self.localTransform4x4(item);
+        if (item.parent_id) |pid| if (self.find(pid)) |p| {
+            if (p.node.style.perspective) |persp| if (persp > 0) {
+                const po = transform_mod.parsePerspectiveOrigin(p.node.style.perspectiveOrigin, p.bounds.width, p.bounds.height);
+                const px = p.bounds.x + po.x;
+                const py = p.bounds.y + po.y;
+                const persp_mat = transform_mod.Matrix4x4.makeTranslate3D(px, py, 0)
+                    .multiply(transform_mod.Matrix4x4.makePerspective(persp))
+                    .multiply(transform_mod.Matrix4x4.makeTranslate3D(-px, -py, 0));
+                own = persp_mat.multiply(own);
+            };
+            return self.worldTransform4x4(p).multiply(own);
+        };
         return own;
     }
 
+    pub fn worldTransform(self: *const Scene, item: Item) transform_mod.Matrix2D {
+        return self.worldTransform4x4(item).to2D();
+    }
+
     pub fn localPoint(self: *const Scene, item: Item, x: f32, y: f32) ?transform_mod.Point {
-        const inv = self.worldTransform(item).inverse() orelse return null;
-        return inv.transformPoint(.{ .x = x, .y = y });
+        const inv = self.worldTransform4x4(item).inverse() orelse return null;
+        const p = inv.transformPoint3D(.{ .x = x, .y = y, .z = 0 });
+        return .{ .x = p.x, .y = p.y };
     }
 
     pub fn pointVisible(self: *const Scene, item: Item, x: f32, y: f32) bool {
         if (!self.viewport.contains(x, y)) return false;
+        if (item.node.style.clipPath.len > 0) {
+            if (@import("paint.zig").parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize())) |shape| {
+                const point = self.localPoint(item, x, y) orelse return false;
+                if (!shape.contains(point.x, point.y)) return false;
+            }
+        }
         var parent_id = item.parent_id;
         while (parent_id) |pid| {
             const p = self.find(pid) orelse return false;
@@ -1326,6 +2038,11 @@ pub const Scene = struct {
             if (p.node.clipsX() and (point.x < box.x or point.x >= box.right())) return false;
             if (p.node.clipsY() and (point.y < box.y or point.y >= box.bottom())) return false;
             if (p.node.clipsX() and p.node.clipsY() and !@import("paint.zig").ellipticalContains(box, @import("paint.zig").paddingRadii(p.node, p.bounds), point.x, point.y)) return false;
+            if (p.node.style.clipPath.len > 0) {
+                if (@import("paint.zig").parseBasicShape(p.node.style.clipPath, p.bounds, p.node.fontSize())) |shape| {
+                    if (!shape.contains(point.x, point.y)) return false;
+                }
+            }
             parent_id = p.parent_id;
         }
         return true;
@@ -1341,7 +2058,19 @@ pub const Scene = struct {
             const item = self.items.items[order[i]];
             if (!@import("interaction.zig").acceptsPointer(item.node) or std.mem.eql(u8, item.node.type, "__layout_root")) continue;
             const point = self.localPoint(item, x, y) orelse continue;
-            if (@import("paint.zig").ellipticalContains(item.bounds, @import("paint.zig").resolvedRadii(item.node, item.bounds.width, item.bounds.height), point.x, point.y) and self.pointVisible(item, x, y)) return item.node.id;
+            if (item.node.style.clipPath.len > 0) {
+                if (@import("paint.zig").parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize())) |shape| {
+                    if (!shape.contains(point.x, point.y)) continue;
+                }
+            }
+            const in_border_box = @import("paint.zig").ellipticalContains(item.bounds, @import("paint.zig").resolvedRadii(item.node, item.bounds.width, item.bounds.height), point.x, point.y);
+            if (!in_border_box) continue;
+            const pe = item.node.style.pointerEvents;
+            const pad_box = item.node.paddingBox(item.bounds);
+            const in_pad_box = @import("paint.zig").ellipticalContains(pad_box, @import("paint.zig").paddingRadii(item.node, item.bounds), point.x, point.y);
+            if ((std.ascii.eqlIgnoreCase(pe, "stroke") or std.ascii.eqlIgnoreCase(pe, "visibleStroke")) and in_pad_box) continue;
+            if ((std.ascii.eqlIgnoreCase(pe, "fill") or std.ascii.eqlIgnoreCase(pe, "visibleFill")) and !in_pad_box) continue;
+            if (self.pointVisible(item, x, y)) return item.node.id;
         }
         return null;
     }

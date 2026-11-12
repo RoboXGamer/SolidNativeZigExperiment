@@ -1,0 +1,12 @@
+pnpm run test:native
+exit_code=0
+$ zig build test-native
+PASS native: native shaping metrics for Latin Indic Arabic
+PASS native: native shaped glyph raster upload
+PASS native: intermediate gradient stop
+PASS native: radial center and edge
+PASS native: conic angular colors
+PASS native: subtree opacity composited once
+PASS native: rounded descendant clipping
+PASS native: world transform applies to children and content
+Native framebuffer regressions passed

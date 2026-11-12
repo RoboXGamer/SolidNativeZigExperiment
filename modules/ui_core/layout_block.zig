@@ -56,6 +56,7 @@ pub fn collapsePair(a: f32, b: f32) f32 {
 /// - overflow: visible and overflow: clip do NOT establish a BFC.
 pub fn establishesBfc(n: *const Node) bool {
     if (std.mem.eql(u8, n.style.display, "flow-root")) return true;
+    if (root.layout_multicol.isMulticolContainer(n)) return true;
     const ox = n.effectiveOverflowX();
     const oy = n.effectiveOverflowY();
     const is_bfc_val = struct {
@@ -178,6 +179,7 @@ pub fn computeBlockLayout(
             }
 
             if (!in_inline_run) {
+                const is_first_content = !has_in_flow_content;
                 if (!has_in_flow_content) {
                     if (!parent_can_collapse_top) {
                         cursor_y += margin_strut.resolve();
@@ -189,7 +191,7 @@ pub fn computeBlockLayout(
                 margin_strut = CollapsibleMarginSet.zero;
                 in_inline_run = true;
                 line_start = i;
-                line_x = 0;
+                line_x = if (is_first_content) (n.style.textIndent orelse 0) else 0;
                 line_h = 0;
             }
 
@@ -358,19 +360,70 @@ pub fn computeBlockLayout(
 pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anyerror!void {
     const pad = n.padding();
     const bd = n.border();
-    const content_top = bounds.y + pad.top + bd.top;
-    const content_left = bounds.x + pad.left + bd.left;
+    const gutter = n.scrollbarGutterReserved();
+    const content_top = bounds.y + pad.top + bd.top + gutter.top;
+    const content_left = bounds.x + pad.left + bd.left + gutter.left;
 
     const count = n.children.len;
     if (count == 0) return;
 
+    if (root.layout_multicol.isMulticolContainer(n)) {
+        const gap = root.layout_multicol.resolveMulticolGap(n, inner_width);
+        const multicol = root.layout_multicol.resolveColumnCountAndWidth(inner_width, n.style.columnCount, n.style.columnWidth, gap);
+        if (multicol.num_columns > 1) {
+            const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
+            _ = computeBlockLayout(self, n, multicol.column_width, child_layouts);
+
+            var total_h: f32 = 0;
+            for (n.children, 0..) |*child, i| {
+                if (!child.isOutOfFlow()) {
+                    total_h += child_layouts[i].height + child_layouts[i].used_margin.vertical();
+                }
+            }
+            const target_col_h = @max(1, total_h / @as(f32, @floatFromInt(multicol.num_columns)));
+
+            var col_idx: u32 = 0;
+            var col_y: f32 = 0;
+
+            for (n.children, 0..) |*child, i| {
+                if (child.isOutOfFlow()) continue;
+                const cl = child_layouts[i];
+                const item_h = cl.height + cl.used_margin.vertical();
+                if (col_y > 0 and col_y + item_h > target_col_h and col_idx + 1 < multicol.num_columns) {
+                    col_idx += 1;
+                    col_y = 0;
+                }
+                const col_x = @as(f32, @floatFromInt(col_idx)) * (multicol.column_width + multicol.column_gap);
+                const child_rect = Rect{
+                    .x = content_left + col_x + cl.x,
+                    .y = content_top + col_y + cl.used_margin.top,
+                    .width = cl.width,
+                    .height = cl.height,
+                };
+                try self.layout(child, child_rect, n.id);
+                self.setUsedMargin(child.id, cl.used_margin);
+                col_y += item_h;
+            }
+            return;
+        }
+    }
+
     const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
     _ = computeBlockLayout(self, n, inner_width, child_layouts);
+
+    const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
+    const is_v_rl = std.mem.eql(u8, n.style.writingMode, "vertical-rl");
+    const content_width = bounds.width - pad.horizontal() - bd.horizontal();
 
     for (n.children, 0..) |*child, i| {
         if (child.isOutOfFlow()) continue;
         const cl = child_layouts[i];
-        const child_rect = Rect{
+        const child_rect = if (vertical) Rect{
+            .x = if (is_v_rl) content_left + @max(0, content_width - cl.y - cl.height) else content_left + cl.y,
+            .y = content_top + cl.x,
+            .width = cl.height,
+            .height = cl.width,
+        } else Rect{
             .x = content_left + cl.x,
             .y = content_top + cl.y,
             .width = cl.width,

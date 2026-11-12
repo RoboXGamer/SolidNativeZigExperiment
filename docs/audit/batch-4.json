@@ -1,0 +1,220 @@
+{
+    "date": "2026-11-12",
+    "scope": "CSS 2024 Batch 4 (10 issues)",
+    "validationPaused": true,
+    "issues": [
+        {
+            "issue": 271,
+            "feature": "user-action-pseudos",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.selectors.active",
+                "css.selectors.active.non_a_elements",
+                "css.selectors.focus",
+                "css.selectors.hover",
+                "css.selectors.hover.a_elements",
+                "css.selectors.hover.all_elements"
+            ],
+            "implementationOwner": "src/windows.zig; modules/solid_bridge/root.zig; packages/solid-zig/src/native.js; modules/ui_core/tree.zig; modules/ui_core/scene.zig",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 270,
+            "feature": "update",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.at-rules.media.update"
+            ],
+            "implementationOwner": "modules/ui_core/sizing.zig; packages/solid-zig/src/native.js",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 269,
+            "feature": "unset-value",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.types.global_keywords.unset"
+            ],
+            "implementationOwner": "packages/solid-zig/src/native.js; modules/ui_core/scene.zig",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 268,
+            "feature": "two-value-display",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.properties.display.multi-keyword_values"
+            ],
+            "implementationOwner": "packages/solid-zig/src/native.js; modules/ui_core/scene.zig",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 266,
+            "feature": "transitions",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.properties.transition",
+                "css.properties.transition-delay",
+                "css.properties.transition-duration",
+                "css.properties.transition-property",
+                "css.properties.transition-property.IDENT_value",
+                "css.properties.transition-property.all",
+                "css.properties.transition-property.none",
+                "css.properties.transition-timing-function",
+                "css.properties.transition-timing-function.ease",
+                "css.properties.transition-timing-function.ease-in",
+                "css.properties.transition-timing-function.ease-in-out",
+                "css.properties.transition-timing-function.ease-out",
+                "css.properties.transition-timing-function.jump",
+                "css.properties.transition-timing-function.linear",
+                "css.properties.transition-timing-function.step-end",
+                "css.properties.transition-timing-function.step-start",
+                "css.properties.transition.all",
+                "css.properties.transition.ease",
+                "css.properties.transition.ease-in",
+                "css.properties.transition.ease-in-out",
+                "css.properties.transition.ease-out",
+                "css.properties.transition.linear",
+                "css.properties.transition.none",
+                "css.properties.transition.step-end",
+                "css.properties.transition.step-start"
+            ],
+            "implementationOwner": "modules/ui_core/transitions.zig; modules/ui_core/style.zig; packages/solid-zig/src/native.js",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 265,
+            "feature": "transition-behavior",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.properties.transition.transition-behavior"
+            ],
+            "implementationOwner": "modules/ui_core/style.zig; modules/ui_core/transitions.zig; packages/solid-zig/src/native.js",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 264,
+            "feature": "transforms3d",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.properties.backface-visibility",
+                "css.properties.backface-visibility.hidden",
+                "css.properties.backface-visibility.visible",
+                "css.properties.perspective",
+                "css.properties.perspective-origin",
+                "css.properties.perspective-origin.bottom",
+                "css.properties.perspective-origin.center",
+                "css.properties.perspective-origin.left",
+                "css.properties.perspective-origin.right",
+                "css.properties.perspective-origin.top",
+                "css.properties.perspective.none",
+                "css.properties.transform-style",
+                "css.properties.transform-style.flat",
+                "css.properties.transform-style.preserve-3d",
+                "css.properties.transform.3d",
+                "css.types.transform-function.matrix3d",
+                "css.types.transform-function.perspective",
+                "css.types.transform-function.perspective.none",
+                "css.types.transform-function.rotate3d",
+                "css.types.transform-function.rotateX",
+                "css.types.transform-function.rotateY",
+                "css.types.transform-function.rotateZ",
+                "css.types.transform-function.scale3d",
+                "css.types.transform-function.scaleZ",
+                "css.types.transform-function.translate3d",
+                "css.types.transform-function.translateZ"
+            ],
+            "implementationOwner": "modules/ui_core/style.zig; modules/ui_core/transform.zig; modules/ui_core/scene.zig; src/renderer.zig; packages/solid-zig/src/native.js",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 263,
+            "feature": "transforms2d",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.properties.transform",
+                "css.properties.transform-origin",
+                "css.properties.transform-origin.bottom",
+                "css.properties.transform-origin.center",
+                "css.properties.transform-origin.left",
+                "css.properties.transform-origin.right",
+                "css.properties.transform-origin.three_value_syntax",
+                "css.properties.transform-origin.top",
+                "css.properties.transform.none",
+                "css.types.angle",
+                "css.types.angle-percentage",
+                "css.types.angle.deg",
+                "css.types.angle.grad",
+                "css.types.angle.rad",
+                "css.types.angle.turn",
+                "css.types.position",
+                "css.types.position.four_value_syntax",
+                "css.types.position.keyword_value_syntax",
+                "css.types.transform-function",
+                "css.types.transform-function.matrix",
+                "css.types.transform-function.rotate",
+                "css.types.transform-function.scale",
+                "css.types.transform-function.scaleX",
+                "css.types.transform-function.scaleY",
+                "css.types.transform-function.skew",
+                "css.types.transform-function.skewX",
+                "css.types.transform-function.skewY",
+                "css.types.transform-function.translate",
+                "css.types.transform-function.translateX",
+                "css.types.transform-function.translateY"
+            ],
+            "implementationOwner": "modules/ui_core/transform.zig; modules/ui_core/scene.zig; packages/solid-zig/src/native.js",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 262,
+            "feature": "transform-box",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.properties.transform-box",
+                "css.properties.transform-box.border-box",
+                "css.properties.transform-box.content-box",
+                "css.properties.transform-box.fill-box",
+                "css.properties.transform-box.stroke-box",
+                "css.properties.transform-box.view-box"
+            ],
+            "implementationOwner": "modules/ui_core/style.zig; modules/ui_core/scene.zig; packages/solid-zig/src/native.js",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        },
+        {
+            "issue": 261,
+            "feature": "touch-action",
+            "baseline": 2024,
+            "compatibilityKeys": [
+                "css.properties.touch-action",
+                "css.properties.touch-action.manipulation",
+                "css.properties.touch-action.none",
+                "css.properties.touch-action.pan-x",
+                "css.properties.touch-action.pan-y",
+                "css.properties.touch-action.pinch-zoom"
+            ],
+            "implementationOwner": "modules/ui_core/style.zig; modules/ui_core/interaction.zig; src/windows.zig; packages/solid-zig/src/native.js",
+            "status": "implemented-unverified",
+            "validation": "Not run: user explicitly paused builds and tests",
+            "browserConformance": "Not certified"
+        }
+    ]
+}

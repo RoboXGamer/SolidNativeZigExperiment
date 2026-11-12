@@ -8,20 +8,16 @@ export interface NativeEvent {
 }
 
 export interface NativeInputEvent extends NativeEvent {
-  type: "input";
-  target: { id: number; value: string };
 }
 
 export interface NativeChangeEvent extends NativeEvent {
-  type: "change";
-  target: { id: number; value: string };
 }
 
 export type NativeLength = number | string;
 
 export interface NativeStyle {
   display?: "block" | "flow-root" | "flex" | "grid" | "none" | "contents" | "inline-flex" | "inline" | "inline-block";
-  writingMode?: "horizontal-tb" | "vertical-rl" | "vertical-lr";
+  writingMode?: "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-lr" | "sideways-rl";
   direction?: "ltr" | "rtl";
   flexDirection?: "row" | "column" | "row-reverse" | "column-reverse";
   flexWrap?: "nowrap" | "wrap" | "wrap-reverse";
@@ -85,11 +81,60 @@ export interface NativeStyle {
   wordSpacing?: NativeLength;
   tabSize?: NativeLength;
   textIndent?: NativeLength;
-  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
-  textOverflow?: "clip" | "ellipsis";
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize" | string;
+  textOverflow?: "clip" | "ellipsis" | string;
   textAlignLast?: "auto" | "start" | "end" | "left" | "right" | "center" | "justify";
+  wordBreak?: "normal" | "break-all" | "keep-all" | string;
+  whiteSpaceCollapse?: "collapse" | "preserve" | "preserve-breaks" | "break-spaces" | string;
+  verticalAlign?: "baseline" | "sub" | "super" | "top" | "text-top" | "middle" | "bottom" | "text-bottom" | NativeLength;
+  willChange?: "auto" | "scroll-position" | "contents" | "transform" | "opacity" | string;
+  ":user-valid"?: NativeStyle;
+  ":user-invalid"?: NativeStyle;
+  ":where"?: Record<string, NativeStyle>;
+  "::cue"?: NativeStyle;
+  textOrientation?: "mixed" | "upright" | "sideways" | string;
+  textShadow?: string;
+  webkitTextFillColor?: string;
+  textFillColor?: string;
+  webkitTextStroke?: string;
+  textStroke?: string;
+  webkitTextStrokeColor?: string;
+  textStrokeColor?: string;
+  webkitTextStrokeWidth?: NativeLength;
+  textStrokeWidth?: NativeLength;
+  textUnderlineOffset?: NativeLength;
+  textUnderlinePosition?: "auto" | "from-font" | "under" | "left" | "right" | string;
+  textDecoration?: string;
+  textDecorationLine?: "none" | "underline" | "line-through" | "overline" | string;
+  textDecorationColor?: string;
+  textDecorationThickness?: NativeLength;
+  textWrap?: "wrap" | "nowrap" | "balance" | "stable" | "pretty" | string;
+  textWrapMode?: "wrap" | "nowrap" | string;
+  textWrapStyle?: "auto" | "balance" | "stable" | "pretty" | string;
+  textDecorationStyle?: "solid" | "double" | "dotted" | "dashed" | "wavy";
+  textDecorationSkipInk?: "auto" | "none" | "all";
+  textEmphasis?: string;
+  textEmphasisStyle?: "none" | "circle" | "dot" | "double-circle" | "triangle" | "sesame" | "filled" | "open" | string;
+  textEmphasisColor?: string;
+  textEmphasisPosition?: "over" | "under" | "over right" | "over left" | "under right" | "under left" | string;
+  textCombineUpright?: "none" | "all" | string;
+  borderCollapse?: "collapse" | "separate";
+  borderSpacing?: NativeLength;
+  captionSide?: "top" | "bottom";
+  emptyCells?: "show" | "hide";
+  tableLayout?: "auto" | "fixed";
+  colorInterpolationFilters?: "auto" | "linearRGB" | "sRGB";
+  floodColor?: string;
+  floodOpacity?: number | string;
+  lightingColor?: string;
+  ":target"?: NativeStyle;
+  "::target-text"?: NativeStyle;
+  rubyAlign?: "start" | "center" | "space-between" | "space-around";
+  [key: `--${string}`]: any;
+  quotes?: "auto" | "none" | string;
+  clipPath?: string;
   visibility?: "visible" | "hidden" | "collapse";
-  pointerEvents?: string;
+  pointerEvents?: "auto" | "none" | "visiblePainted" | "visibleFill" | "visibleStroke" | "visible" | "painted" | "fill" | "stroke" | "all" | string;
   cursor?: string;
   outline?: string;
   outlineStyle?: string;
@@ -123,8 +168,23 @@ export interface NativeStyle {
   overflow?: "visible" | "hidden" | "clip" | "auto" | "scroll" | string;
   overflowX?: "visible" | "hidden" | "clip" | "auto" | "scroll";
   overflowY?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  overflowBlock?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  overflowInline?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  fontFeatureSettings?: string;
+  contentVisibility?: "visible" | "auto" | "hidden";
+  containIntrinsicSize?: NativeLength;
+  containIntrinsicWidth?: NativeLength;
+  containIntrinsicHeight?: NativeLength;
+  zoom?: number | string;
   scrollbarGutter?: string;
   scrollbarWidth?: "auto" | "thin" | "none";
+  scrollbarColor?: "auto" | string;
+  textAutospace?: "normal" | "no-autospace";
+  textDecorationStyle?: "solid" | "double" | "dotted" | "dashed" | "wavy";
+  mathShift?: "normal" | "compact";
+  printColorAdjust?: "economy" | "exact";
+  viewTransitionName?: "none" | "match-element" | "auto" | string;
+  viewTransitionClass?: "none" | string;
   outlineWidth?: NativeLength;
   outlineColor?: string;
   boxShadow?: string;
@@ -134,10 +194,17 @@ export interface NativeStyle {
   bottom?: NativeLength;
   left?: NativeLength;
   inset?: NativeLength;
-  zIndex?: number;
+  zIndex?: number | string;
+  detailsContent?: NativeStyle;
+  activeViewTransition?: NativeStyle;
   gridTemplateRows?: string | Array<number | string>;
   gridAutoFlow?: "row" | "column" | "row dense" | "column dense" | string;
   gridTemplateAreas?: string;
+  ":read-only"?: NativeStyle;
+  ":read-write"?: NativeStyle;
+  ":popover-open"?: NativeStyle;
+  "::backdrop"?: NativeStyle;
+  [mediaOrSelector: `@media ${string}`]: NativeStyle | undefined;
   gridColumn?: string;
   gridRow?: string;
   gridArea?: string;
@@ -154,6 +221,15 @@ export interface NativeStyle {
   backgroundImage?: string;
   opacity?: number | string;
   isolation?: "auto" | "isolate";
+  objectFit?: "fill" | "contain" | "cover" | "none" | "scale-down";
+  objectPosition?: string;
+  columnCount?: number | "auto";
+  columnWidth?: NativeLength;
+  columns?: string | number;
+  columnRule?: string;
+  columnRuleWidth?: NativeLength;
+  columnRuleStyle?: "none" | "hidden" | "dotted" | "dashed" | "solid" | "double" | "groove" | "ridge" | "inset" | "outset";
+  columnRuleColor?: string;
   transform?: string;
   transformOrigin?: string;
   transition?: string;
@@ -161,11 +237,104 @@ export interface NativeStyle {
   transitionDuration?: number | string;
   transitionTimingFunction?: string;
   transitionDelay?: number | string;
+  rubyPosition?: "over" | "under" | string;
+  scrollBehavior?: "auto" | "smooth";
+  scrollSnapType?: string;
+  scrollSnapAlign?: string;
+  scrollSnapStop?: "normal" | "always";
+  scrollMargin?: NativeLength;
+  scrollMarginTop?: NativeLength;
+  scrollMarginRight?: NativeLength;
+  scrollMarginBottom?: NativeLength;
+  scrollMarginLeft?: NativeLength;
+  scrollMarginInline?: NativeLength;
+  scrollMarginBlock?: NativeLength;
+  scrollMarginInlineStart?: NativeLength;
+  scrollMarginInlineEnd?: NativeLength;
+  scrollMarginBlockStart?: NativeLength;
+  scrollMarginBlockEnd?: NativeLength;
+  scrollPadding?: NativeLength;
+  scrollPaddingTop?: NativeLength;
+  scrollPaddingRight?: NativeLength;
+  scrollPaddingBottom?: NativeLength;
+  scrollPaddingLeft?: NativeLength;
+  scrollPaddingInline?: NativeLength;
+  scrollPaddingBlock?: NativeLength;
+  scrollPaddingInlineStart?: NativeLength;
+  scrollPaddingInlineEnd?: NativeLength;
+  scrollPaddingBlockStart?: NativeLength;
+  scrollPaddingBlockEnd?: NativeLength;
+  [nestedOrCustom: string]: any;
+  transitionBehavior?: "normal" | "allow-discrete" | string;
+  transformBox?: "border-box" | "content-box" | "fill-box" | "stroke-box" | "view-box";
+  backfaceVisibility?: "visible" | "hidden";
+  transformStyle?: "flat" | "preserve-3d";
+  perspective?: NativeLength;
+  perspectiveOrigin?: string;
+  touchAction?: "auto" | "none" | "pan-x" | "pan-y" | "pinch-zoom" | "manipulation" | string;
+  ":hover"?: NativeStyle;
+  ":active"?: NativeStyle;
+  ":focus"?: NativeStyle;
+  "_hover"?: NativeStyle;
+  "_active"?: NativeStyle;
+  "_focus"?: NativeStyle;
+  shapeOutside?: string;
+  shapeMargin?: NativeLength;
+  shapeImageThreshold?: number;
+  clipRule?: "nonzero" | "evenodd" | string;
+  colorInterpolation?: "auto" | "sRGB" | "linearRGB" | string;
+  shapeRendering?: "auto" | "optimizeSpeed" | "crispEdges" | "geometricPrecision" | string;
+  textRendering?: "auto" | "optimizeSpeed" | "optimizeLegibility" | "geometricPrecision" | string;
+  vectorEffect?: "none" | "non-scaling-stroke" | string;
+  cx?: NativeLength;
+  cy?: NativeLength;
+  r?: NativeLength;
+  rx?: NativeLength;
+  ry?: NativeLength;
+  x?: NativeLength;
+  y?: NativeLength;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: NativeLength;
+  float?: "none" | "left" | "right";
+  clear?: "none" | "left" | "right" | "both";
+  startingStyle?: NativeStyle;
+  "@starting-style"?: NativeStyle;
+  overflowWrap?: "normal" | "break-word" | "anywhere" | string;
+  wordWrap?: "normal" | "break-word" | "anywhere" | string;
+  paintOrder?: "normal" | "fill" | "stroke" | "markers" | string;
+  offsetPath?: string;
+  offsetDistance?: NativeLength;
+  offsetRotate?: string;
+  page?: string;
+  breakBefore?: "auto" | "avoid" | "avoid-page" | "page" | "left" | "right" | "recto" | "verso" | "column" | "avoid-column" | string;
+  breakAfter?: "auto" | "avoid" | "avoid-page" | "page" | "left" | "right" | "recto" | "verso" | "column" | "avoid-column" | string;
+  breakInside?: "auto" | "avoid" | "avoid-page" | "avoid-column" | string;
+  pageBreakBefore?: string;
+  pageBreakAfter?: string;
+  pageBreakInside?: string;
+  placeholderColor?: string;
+  placeholderOpacity?: number;
+  ":placeholder-shown"?: NativeStyle;
+  "::placeholder"?: NativeStyle;
+  placeholderStyle?: NativeStyle;
+  placeholderShownStyle?: NativeStyle;
 }
 
 export interface NativeNode {
   readonly id: number;
   readonly type: string;
+  readonly children?: NativeNode[];
+  readonly parent?: NativeNode | null;
+  getAttribute(name: string): string | null;
+  setAttribute(name: string, value: string): void;
+  hasAttribute(name: string): boolean;
+  matches(selector: string): boolean;
+  querySelector(selector: string): NativeNode | null;
+  querySelectorAll(selector: string): NativeNode[];
+  closest(selector: string): NativeNode | null;
+  scrollTo?(options: { left?: number; top?: number; behavior?: "auto" | "smooth" } | number, top?: number): void;
+  scrollBy?(options: { left?: number; top?: number; behavior?: "auto" | "smooth" } | number, top?: number): void;
 }
 
 export interface NativeProps {
@@ -175,13 +344,39 @@ export interface NativeProps {
   onClick?: (event: NativeEvent) => void;
   onInput?: (event: NativeInputEvent | NativeChangeEvent) => void;
   onChange?: (event: NativeChangeEvent) => void;
+  ":hover"?: NativeStyle;
+  ":active"?: NativeStyle;
+  ":focus"?: NativeStyle;
+  "_hover"?: NativeStyle;
+  "_active"?: NativeStyle;
+  "_focus"?: NativeStyle;
   value?: string | number;
+  placeholder?: string;
+  placeholderStyle?: NativeStyle;
+  placeholderShownStyle?: NativeStyle;
   disabled?: boolean;
   readOnly?: boolean;
+  readonly?: boolean;
+  contentEditable?: boolean | "true" | "false";
+  contenteditable?: boolean | "true" | "false";
+  popover?: "auto" | "manual" | "hint" | boolean | string;
+  popoverTarget?: string;
+  popovertarget?: string;
+  popoverTargetAction?: "toggle" | "show" | "hide";
   tabIndex?: number;
   focusable?: boolean;
   selected?: boolean;
+  states?: Set<string> | string[] | Record<string, boolean>;
+  state?: string;
+  slot?: string;
+  name?: string;
 }
+
+export class CustomStateSet extends Set<string> {}
+
+export const CSS: {
+  supports(first: string, second?: string): boolean;
+};
 
 export namespace JSX {
   type Element = SolidElement;
@@ -194,14 +389,98 @@ export namespace JSX {
     text: NativeProps;
     button: NativeProps;
     input: NativeProps;
+    textarea: NativeProps;
     grid: NativeProps;
     select: NativeProps;
     option: NativeProps;
     optgroup: NativeProps;
+    cue: NativeProps;
+    track: NativeProps;
+    slot: NativeProps;
+    svg: NativeProps;
+    circle: NativeProps;
+    ellipse: NativeProps;
+    rect: NativeProps;
+    path: NativeProps;
+    line: NativeProps;
+    polyline: NativeProps;
+    polygon: NativeProps;
+    g: NativeProps;
+    q: NativeProps;
   }
 }
 
+export function checkValidity(node: any): boolean;
+export function matches(node: any, selector: string): boolean;
+export function specificity(selector: string): [number, number, number];
+export function splitSelectorList(input: string): string[];
+export function parseComplexSelector(str: string): any[];
+export function parseCompoundSelector(str: string): any[];
+export function compileStyleSheet(rules: Array<{ selector: string; style: NativeStyle }>): any[];
+export function applySelectorStyles(node: any, rules: any[]): NativeStyle;
+
+export interface PropertyDefinition {
+  name: string;
+  syntax?: string;
+  inherits?: boolean;
+  initialValue?: string;
+}
+
+export function registerProperty(definition: PropertyDefinition): void;
+export function matchMedia(query: string, context?: { resolution?: number; devicePixelRatio?: number }): { matches: boolean; media: string };
 export function dispatchClick(id: number): void;
 export function dispatchInput(id: number, value: string): void;
 export function dispatchKey(id: number, key: string): void;
 export function mountApp(component: Component): void;
+export function matchMedia(query: string): {
+  readonly matches: boolean;
+  readonly media: string;
+  addEventListener(type: string, listener: (e: any) => void): void;
+  removeEventListener(type: string, listener: (e: any) => void): void;
+};
+export function getEnvironmentVariable(name: string): string | undefined;
+export function setEnvironmentVariable(name: string, value: string): void;
+
+export interface ViewTransition {
+  readonly finished: Promise<void>;
+  readonly ready: Promise<void>;
+  readonly updateCallbackDone: Promise<void>;
+  skipTransition(): void;
+}
+
+export function startViewTransition(updateCallback?: () => void | Promise<void>): ViewTransition;
+
+export interface ScopeOptions {
+  root?: string;
+  limit?: string;
+}
+
+export function createScope<T extends Record<string, any>>(options: ScopeOptions, styles: T): T;
+
+
+export class NamespaceRegistry {
+  register(prefix: string, url: string): void;
+  parseAtRule(atRuleStr: string): boolean;
+  get(prefix: string): string | null;
+}
+export function parseAnPlusB(expr: string | number): { a: number; b: number; matches(index: number): boolean } | null;
+export function matchesSelector(node: any, selector: string, context?: any): boolean;
+export function querySelectorAll(rootNode: any, selector: string, context?: any): any[];
+export function expandNesting(parentSelector: string, nestedSelector: string): string;
+export function resolveNestedStyles(node: any, styleObj: any, context?: any): any;
+export function computeObjectFit(fit: string, containerWidth: number, containerHeight: number, intrinsicWidth: number, intrinsicHeight: number): { width: number; height: number };
+export function computeObjectPosition(position: string, containerWidth: number, containerHeight: number, objectWidth: number, objectHeight: number): { x: number; y: number };
+export function computeObjectRect(container: { x?: number; y?: number; width: number; height: number }, intrinsicWidth: number, intrinsicHeight: number, fit?: string, position?: string): { x: number; y: number; width: number; height: number };
+export function getPreferences(): { colorScheme: "light" | "dark"; contrast: string; reducedMotion: string };
+export function setPreferences(prefs: Partial<{ colorScheme: "light" | "dark"; contrast: string; reducedMotion: string }>): void;
+export function showPopover(node: any): void;
+export function hidePopover(node: any): void;
+export function togglePopover(node: any, force?: boolean): void;
+export function isPopoverOpen(node: any): boolean;
+export function isReadOnly(node: any): boolean;
+export function isReadWrite(node: any): boolean;
+export function resolveQuotes(quotes?: string, lang?: string, depth?: number): { open: string; close: string } | null;
+export function isPlaceholderShown(node: any): boolean;
+export function pageSetup(input?: any): any;
+export function paginate(nodes?: any[], setup?: any): any[];
+export function parsePathShape(pathStr: string): any;

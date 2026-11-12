@@ -28,12 +28,21 @@ pub const ScrollExtent = scene.ScrollExtent;
 pub const layout_block = @import("layout_block.zig");
 pub const layout_flex = @import("layout_flex.zig");
 pub const layout_grid = @import("layout_grid.zig");
+pub const layout_multicol = @import("layout_multicol.zig");
+pub const selectors = @import("selectors.zig");
+pub const layout_table = @import("layout_table.zig");
 pub const transform = @import("transform.zig");
 pub const gradient = @import("gradient.zig");
 pub const paint = @import("paint.zig");
 pub const interaction = @import("interaction.zig");
 pub const animation = @import("animation.zig");
 pub const transitions = @import("transitions.zig");
+pub const media = @import("media.zig");
+pub const css_scope = @import("css_scope.zig");
+pub const view_transitions = @import("view_transitions.zig");
+pub const path_shape = @import("path_shape.zig");
+pub const page = @import("page.zig");
+pub const media_query = @import("media_query.zig");
 
 test {
     std.testing.refAllDecls(@import("tests.zig"));

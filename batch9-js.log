@@ -1,0 +1,15 @@
+$ pnpm run test:features && pnpm run test:bridge && pnpm run test:refresh && pnpm run test:tree && pnpm run test:select && pnpm run test:packages
+$ node --conditions=browser tests/features_probe.mjs
+Solid API surface test passed
+$ node --conditions=browser --conditions=development tests/bridge_probe.mjs
+JS bridge display/flexDirection defaults test passed
+$ node --conditions=browser --conditions=development tests/refresh_probe.mjs
+Solid Refresh universal renderer smoke test passed
+$ node --conditions=browser --conditions=development tests/tree_probe.mjs
+Solid renderer tree and control-flow test passed
+$ node --conditions=browser --conditions=development packages/solid-zig/tests/select-control.mjs
+All select-control and async race guard tests passed successfully!
+$ node packages/solid-zig/tests/text-overflow.mjs && node packages/solid-zig/tests/box-style.mjs && node packages/solid-zig/tests/flex-block.mjs && node packages/solid-zig/tests/phase-e-css.mjs
+Phase D text-overflow tests passed
+Flex and block style bridge tests passed!
+Phase E CSS bridge tests passed successfully!

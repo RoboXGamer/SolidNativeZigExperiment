@@ -1,0 +1,192 @@
+{
+  "date": "2026-11-12",
+  "scope": "native Solid/Zig consumer paths",
+  "validationPaused": true,
+  "issues": [
+    {
+      "issue": 168,
+      "feature": "multi-column",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.properties.column-count",
+        "css.properties.column-count.auto",
+        "css.properties.column-gap",
+        "css.properties.column-gap.multicol_context",
+        "css.properties.column-gap.multicol_context.calc_values",
+        "css.properties.column-gap.multicol_context.percentage_values",
+        "css.properties.column-gap.normal",
+        "css.properties.column-rule",
+        "css.properties.column-rule-color",
+        "css.properties.column-rule-color.currentColor",
+        "css.properties.column-rule-color.transparent",
+        "css.properties.column-rule-style",
+        "css.properties.column-rule-style.dashed",
+        "css.properties.column-rule-style.dotted",
+        "css.properties.column-rule-style.double",
+        "css.properties.column-rule-style.groove",
+        "css.properties.column-rule-style.hidden",
+        "css.properties.column-rule-style.inset",
+        "css.properties.column-rule-style.none",
+        "css.properties.column-rule-style.outset",
+        "css.properties.column-rule-style.ridge",
+        "css.properties.column-rule-style.solid",
+        "css.properties.column-rule-width",
+        "css.properties.column-rule-width.medium",
+        "css.properties.column-rule-width.thick",
+        "css.properties.column-rule-width.thin",
+        "css.properties.column-rule.currentColor",
+        "css.properties.column-rule.dashed",
+        "css.properties.column-rule.dotted",
+        "css.properties.column-rule.double",
+        "css.properties.column-rule.groove",
+        "css.properties.column-rule.hidden",
+        "css.properties.column-rule.inset",
+        "css.properties.column-rule.medium",
+        "css.properties.column-rule.none",
+        "css.properties.column-rule.outset",
+        "css.properties.column-rule.ridge",
+        "css.properties.column-rule.solid",
+        "css.properties.column-rule.thick",
+        "css.properties.column-rule.thin",
+        "css.properties.column-rule.transparent",
+        "css.properties.column-width",
+        "css.properties.column-width.auto",
+        "css.properties.columns",
+        "css.properties.columns.auto",
+        "css.properties.gap.multicol_context"
+      ],
+      "implementationOwner": "modules/ui_core/layout_multicol.zig; modules/ui_core/layout_block.zig; modules/ui_core/paint.zig; packages/solid-zig/src/native.js",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 170,
+      "feature": "namespace",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.at-rules.namespace",
+        "css.selectors.namespace"
+      ],
+      "implementationOwner": "packages/solid-zig/src/selectors.js; modules/ui_core/selectors.zig",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 171,
+      "feature": "nesting",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.selectors.nesting"
+      ],
+      "implementationOwner": "packages/solid-zig/src/selectors.js; packages/solid-zig/src/native.js",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 172,
+      "feature": "not",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.selectors.not",
+        "css.selectors.not.selector_list"
+      ],
+      "implementationOwner": "packages/solid-zig/src/selectors.js; modules/ui_core/selectors.zig",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 173,
+      "feature": "nth-child",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.selectors.first-child",
+        "css.selectors.last-child",
+        "css.selectors.nth-child",
+        "css.selectors.nth-last-child",
+        "css.selectors.only-child",
+        "css.selectors.only-child.no_parent_required"
+      ],
+      "implementationOwner": "packages/solid-zig/src/selectors.js; modules/ui_core/selectors.zig",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 174,
+      "feature": "nth-child-of",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.selectors.nth-child.of_syntax",
+        "css.selectors.nth-last-child.of_syntax"
+      ],
+      "implementationOwner": "packages/solid-zig/src/selectors.js; modules/ui_core/selectors.zig",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 175,
+      "feature": "nth-of-type",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.selectors.first-of-type",
+        "css.selectors.last-of-type",
+        "css.selectors.nth-last-of-type",
+        "css.selectors.nth-of-type",
+        "css.selectors.only-of-type"
+      ],
+      "implementationOwner": "packages/solid-zig/src/selectors.js; modules/ui_core/selectors.zig",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 176,
+      "feature": "object-fit",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.properties.object-fit",
+        "css.properties.object-fit.contain",
+        "css.properties.object-fit.cover",
+        "css.properties.object-fit.fill",
+        "css.properties.object-fit.none",
+        "css.properties.object-fit.scale-down"
+      ],
+      "implementationOwner": "modules/ui_core/geometry.zig; packages/solid-zig/src/native.js",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 177,
+      "feature": "object-position",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.properties.object-position"
+      ],
+      "implementationOwner": "modules/ui_core/geometry.zig; packages/solid-zig/src/native.js",
+      "status": "implemented-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    },
+    {
+      "issue": 178,
+      "feature": "oklab",
+      "baseline": 2024,
+      "compatibilityKeys": [
+        "css.types.color.oklab",
+        "css.types.color.oklab.mixed_type_parameters",
+        "css.types.color.oklch",
+        "css.types.color.oklch.mixed_type_parameters"
+      ],
+      "implementationOwner": "modules/ui_core/colors.zig",
+      "status": "partial-unverified",
+      "validation": "Not run: user explicitly paused builds and tests",
+      "browserConformance": "Not certified"
+    }
+  ]
+}

@@ -129,6 +129,8 @@ export interface NativeStyle {
   lightingColor?: string;
   ":target"?: NativeStyle;
   "::target-text"?: NativeStyle;
+  rubyAlign?: "start" | "center" | "space-between" | "space-around";
+  [key: `--${string}`]: any;
   visibility?: "visible" | "hidden" | "collapse";
   pointerEvents?: string;
   cursor?: string;
@@ -379,6 +381,15 @@ export function parseCompoundSelector(str: string): any[];
 export function compileStyleSheet(rules: Array<{ selector: string; style: NativeStyle }>): any[];
 export function applySelectorStyles(node: any, rules: any[]): NativeStyle;
 
+export interface PropertyDefinition {
+  name: string;
+  syntax?: string;
+  inherits?: boolean;
+  initialValue?: string;
+}
+
+export function registerProperty(definition: PropertyDefinition): void;
+export function matchMedia(query: string, context?: { resolution?: number; devicePixelRatio?: number }): { matches: boolean; media: string };
 export function dispatchClick(id: number): void;
 export function dispatchInput(id: number, value: string): void;
 export function dispatchKey(id: number, key: string): void;

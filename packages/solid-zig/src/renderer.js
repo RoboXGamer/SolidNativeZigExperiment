@@ -73,3 +73,5 @@ export function getTarget() { return currentTargetId; }
 export function getTargetText() { return currentTargetText; }
 
 
+export const matchesSelector = matches;
+

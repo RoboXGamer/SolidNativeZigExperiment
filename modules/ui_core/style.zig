@@ -99,6 +99,7 @@ pub const Style = struct {
     verticalAlignCss: ?[]const u8 = null,
     textAlign: []const u8 = "left",
     textAlignLast: []const u8 = "auto",
+    rubyAlign: []const u8 = "space-around",
     textOverflow: []const u8 = "clip",
     textTransform: []const u8 = "none",
     textOrientation: []const u8 = "mixed",

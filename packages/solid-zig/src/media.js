@@ -1,3 +1,42 @@
+function resolutionMedia(query, context = {}) {
+  const currentDppx = context.resolution ?? context.devicePixelRatio ?? 1.0;
+  let q = String(query).trim();
+  if (q.startsWith("(") && q.endsWith(")")) q = q.slice(1, -1).trim();
+
+  // -webkit-device-pixel-ratio compatibility prefixes
+  const webkitMatch = q.match(/^(-webkit-(?:min-|max-)?device-pixel-ratio)\s*:\s*([\d\.\/]+)$/i);
+  if (webkitMatch) {
+    const name = webkitMatch[1].toLowerCase();
+    const valStr = webkitMatch[2];
+    let val = 1.0;
+    if (valStr.includes("/")) {
+      const [num, den] = valStr.split("/");
+      val = Number(num) / Number(den);
+    } else {
+      val = Number(valStr);
+    }
+    if (name === "-webkit-device-pixel-ratio") return { matches: Math.abs(currentDppx - val) < 1e-4, media: query };
+    if (name === "-webkit-min-device-pixel-ratio") return { matches: currentDppx >= val - 1e-4, media: query };
+    if (name === "-webkit-max-device-pixel-ratio") return { matches: currentDppx <= val + 1e-4, media: query };
+  }
+
+  // resolution media queries
+  const resMatch = q.match(/^(min-|max-)?resolution\s*:\s*([\d\.]+)(dpi|dpcm|dppx|x)$/i);
+  if (resMatch) {
+    const prefix = (resMatch[1] || "").toLowerCase();
+    const val = Number(resMatch[2]);
+    const unit = resMatch[3].toLowerCase();
+    let reqDppx = val;
+    if (unit === "dpi") reqDppx = val / 96.0;
+    else if (unit === "dpcm") reqDppx = val * 2.54 / 96.0;
+    if (prefix === "min-") return { matches: currentDppx >= reqDppx - 1e-4, media: query };
+    if (prefix === "max-") return { matches: currentDppx <= reqDppx + 1e-4, media: query };
+    return { matches: Math.abs(currentDppx - reqDppx) < 1e-4, media: query };
+  }
+
+  return { matches: false, media: query };
+}
+
 /**
  * CSS Media Queries evaluator for Solid Native Zig.
  * Implements @media (scripting: none | initial-only | enabled)
@@ -36,6 +75,7 @@ export function evaluateMediaQuery(queryString, env = {}) {
   const scripting = env.scripting || globalScriptingState;
 
   if (/^update(?:\s*:|$)/i.test(q)) { const value = q.includes(":") ? q.slice(q.indexOf(":") + 1).trim().toLowerCase() : null; const actual = env.update || "fast"; const result = value ? value === actual : actual !== "none"; return negated ? !result : result; }
+  if (/resolution|device-pixel-ratio/i.test(q)) { const result = resolutionMedia(q, env).matches; return negated ? !result : result; }
   // Check for scripting media feature
   if (/^scripting/i.test(q)) {
     const colonIdx = q.indexOf(":");
@@ -61,11 +101,11 @@ export function evaluateMediaQuery(queryString, env = {}) {
   return negated ? true : false;
 }
 
-export function matchMedia(query) {
+export function matchMedia(query, context = {}) {
   const listeners = new Set();
   const mql = {
     get matches() {
-      return evaluateMediaQuery(query);
+      return evaluateMediaQuery(query, context);
     },
     media: query,
     addEventListener(type, listener) {

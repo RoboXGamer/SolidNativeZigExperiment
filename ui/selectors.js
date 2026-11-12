@@ -80,6 +80,7 @@ function parseCompound(str) {
     s = s.replace(partMatch[0], "");
   }
 
+  if (s.includes(":root")) { result.isRoot = true; s = s.replace(/:root/g, ""); }
   // :scope
   if (s.includes(":scope")) {
     result.isScope = true;
@@ -273,6 +274,7 @@ export function getNodeAttr(node, name) {
 }
 
 export function matchCompound(node, compound, scopeNode = null) {
+  if (compound.isRoot && node.type !== "root" && node.parent != null) return false;
   if (!node) return false;
 
   // :scope

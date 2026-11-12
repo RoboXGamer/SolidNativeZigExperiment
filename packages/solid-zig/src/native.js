@@ -1,6 +1,7 @@
 import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
+
 import { createModuleHost } from "./module-runtime.js";
 import { matchMedia, evaluateMediaQuery, setScriptingState, getScriptingState } from "./media.js";
 import { matches, querySelector, querySelectorAll, closest, calculateSpecificity } from "./selectors.js";
@@ -156,11 +157,116 @@ function boxSides(value, options) {
   return { t: parts[0], r: parts[1], b: parts[2], l: parts[3] };
 }
 
+export const propertyRegistry = new Map();
+
+export function registerProperty(definition) {
+  if (!definition || !definition.name || !definition.name.startsWith("--")) {
+    throw Error("Invalid custom property name");
+  }
+  propertyRegistry.set(definition.name, {
+    name: definition.name,
+    syntax: definition.syntax ?? "*",
+    inherits: definition.inherits ?? true,
+    initialValue: definition.initialValue != null ? String(definition.initialValue) : undefined,
+  });
+}
+
+if (typeof globalThis !== "undefined") {
+  globalThis.CSS = globalThis.CSS || {};
+  globalThis.CSS.registerProperty = registerProperty;
+}
+
+function resolutionMedia(query, context = {}) {
+  const currentDppx = context.resolution ?? context.devicePixelRatio ?? 1.0;
+  let q = String(query).trim();
+  if (q.startsWith("(") && q.endsWith(")")) q = q.slice(1, -1).trim();
+
+  // -webkit-device-pixel-ratio compatibility prefixes
+  const webkitMatch = q.match(/^(-webkit-(?:min-|max-)?device-pixel-ratio)\s*:\s*([\d\.\/]+)$/i);
+  if (webkitMatch) {
+    const name = webkitMatch[1].toLowerCase();
+    const valStr = webkitMatch[2];
+    let val = 1.0;
+    if (valStr.includes("/")) {
+      const [num, den] = valStr.split("/");
+      val = Number(num) / Number(den);
+    } else {
+      val = Number(valStr);
+    }
+    if (name === "-webkit-device-pixel-ratio") return { matches: Math.abs(currentDppx - val) < 1e-4, media: query };
+    if (name === "-webkit-min-device-pixel-ratio") return { matches: currentDppx >= val - 1e-4, media: query };
+    if (name === "-webkit-max-device-pixel-ratio") return { matches: currentDppx <= val + 1e-4, media: query };
+  }
+
+  // resolution media queries
+  const resMatch = q.match(/^(min-|max-)?resolution\s*:\s*([\d\.]+)(dpi|dpcm|dppx|x)$/i);
+  if (resMatch) {
+    const prefix = (resMatch[1] || "").toLowerCase();
+    const val = Number(resMatch[2]);
+    const unit = resMatch[3].toLowerCase();
+    let reqDppx = val;
+    if (unit === "dpi") reqDppx = val / 96.0;
+    else if (unit === "dpcm") reqDppx = val * 2.54 / 96.0;
+    if (prefix === "min-") return { matches: currentDppx >= reqDppx - 1e-4, media: query };
+    if (prefix === "max-") return { matches: currentDppx <= reqDppx + 1e-4, media: query };
+    return { matches: Math.abs(currentDppx - reqDppx) < 1e-4, media: query };
+  }
+
+  return { matches: false, media: query };
+}
+
+if (typeof globalThis !== "undefined") {
+  globalThis.matchMedia = globalThis.matchMedia || matchMedia;
+}
+
+const inheritedProperties = new Set([
+  "color", "fontSize", "fontFamily", "fontWeight", "fontStyle", "language",
+  "letterSpacing", "wordSpacing", "tabSize", "textIndent", "textTransform",
+  "textAlignLast", "textAlign", "whiteSpace", "rubyAlign", "visibility",
+  "cursor", "pointerEvents", "direction", "writingMode", "lineHeight"
+]);
+
+function resolveVariablesInString(str, varsMap) {
+  if (typeof str !== "string" || !str.includes("var(")) return str;
+  return str.replace(/var\(\s*(--[a-zA-Z0-9-_]+)\s*(?:,\s*([^)]+))?\)/g, (match, name, fallback) => {
+    if (varsMap.has(name)) {
+      return resolveVariablesInString(varsMap.get(name), varsMap);
+    }
+    if (fallback != null) {
+      return resolveVariablesInString(fallback.trim(), varsMap);
+    }
+    return match;
+  });
+}
+
+function resolveNodeVariables(nodeStyle, inheritedVars = new Map()) {
+  const currentVars = new Map();
+  for (const [k, v] of inheritedVars.entries()) {
+    const reg = propertyRegistry.get(k);
+    if (reg && reg.inherits === false) {
+      if (reg.initialValue !== undefined) currentVars.set(k, reg.initialValue);
+    } else {
+      currentVars.set(k, v);
+    }
+  }
+  for (const [k, reg] of propertyRegistry.entries()) {
+    if (!currentVars.has(k) && reg.initialValue !== undefined) {
+      currentVars.set(k, reg.initialValue);
+    }
+  }
+  for (const [k, v] of Object.entries(nodeStyle)) {
+    if (k.startsWith("--") && v != null) {
+      currentVars.set(k, String(v));
+    }
+  }
+  return currentVars;
+}
+
 function isLengthOrKeyword(val) {
   if (typeof val !== "string") return false;
   const s = val.trim();
   if (s === "auto" || s === "content" || s === "min-content" || s === "max-content" || s === "fit-content") return true;
-  if (/px|%|em|rem|vw|vh|vmin|vmax|calc\(|min\(|max\(|clamp\(/i.test(s)) return true;
+  if (/px|%|em|rem|lh|rlh|vw|vh|vmin|vmax|calc\(|min\(|max\(|clamp\(/i.test(s)) return true;
   return isNaN(Number(s));
 }
 
@@ -227,7 +333,7 @@ function flexValues(style) {
 // Inline object declarations are applied in insertion order. Logical and
 // physical declarations targeting the same side therefore obey last-declared
 // precedence; the mode and direction are computed for the whole style object.
-export function physicalStyle(style, inherited = {}) {
+export function physicalStyle(style, inherited = {}, currentVars = new Map()) {
   const mode = style.writingMode ?? inherited.writingMode ?? "horizontal-tb";
   const direction = style.direction ?? inherited.direction ?? "ltr";
   if (!["horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"].includes(mode) || !["ltr", "rtl"].includes(direction)) throw Error("Unsupported writing mode or direction");
@@ -242,8 +348,19 @@ export function physicalStyle(style, inherited = {}) {
     minInlineSize: vertical ? "minHeight" : "minWidth", minBlockSize: vertical ? "minWidth" : "minHeight",
     maxInlineSize: vertical ? "maxHeight" : "maxWidth", maxBlockSize: vertical ? "maxWidth" : "maxHeight" };
   const result = { writingMode: mode, direction };
-  for (const [key, value] of Object.entries(style)) {
+  for (let [key, value] of Object.entries(style)) {
     if (value == null) continue;
+    if (value === "revert") {
+      if (inheritedProperties.has(key)) {
+        value = inherited[key] ?? null;
+        if (value == null) continue;
+      } else {
+        continue;
+      }
+    }
+    if (typeof value === "string") {
+      value = resolveVariablesInString(value, currentVars);
+    }
     if (key === "flexFlow" && typeof value === "string") {
       const parts = splitSpacing(value.trim());
       for (const part of parts) {
@@ -697,7 +814,7 @@ export function resolveUnsetValues(style, inherited = {}) {
   return resolved;
 }
 
-export function snapshot(node, inherited = {}) {
+export function snapshot(node, inherited = {}, inheritedVars = new Map()) {
   let authored = resolveUnsetValues(node.props.style || {}, inherited);
   const nodeStates = node.states || (node.props?.states instanceof Set ? node.props.states : (Array.isArray(node.props?.states) ? new Set(node.props.states) : (typeof node.props?.states === "object" ? new Set(Object.keys(node.props.states).filter(k => node.props.states[k])) : new Set())));
   if (node.props?.state) nodeStates.add(String(node.props.state));
@@ -783,7 +900,9 @@ export function snapshot(node, inherited = {}) {
   if (activeViewTransition && effectivePropsStyle.activeViewTransition) {
     Object.assign(effectivePropsStyle, effectivePropsStyle.activeViewTransition);
   }
-  const style = physicalStyle(resolveNestedStyles(node, effectivePropsStyle), inherited);
+  const nestedStyle = resolveNestedStyles(node, effectivePropsStyle);
+  const currentVars = resolveNodeVariables(nestedStyle, inheritedVars);
+  const style = physicalStyle(nestedStyle, inherited, currentVars);
 
   const activeTarget = renderer.getTarget ? renderer.getTarget() : "";
   const isTarget = Boolean(node.props.target || (node.props.id && String(node.props.id) === activeTarget));
@@ -894,7 +1013,7 @@ export function snapshot(node, inherited = {}) {
     "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse", "verticalAlign", "textOrientation", "textShadow",
     "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset",
     "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor",
-    "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle"
+    "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle", "rubyAlign"
   ];
   const typographySpecified = authoredMask(style, typographyNames) | (node.props.lang != null ? 1 << 3 : 0);
   const interactionSpecified = authoredMask(style, ["visibility", "pointerEvents", "cursor", "willChange"]);
@@ -1027,6 +1146,7 @@ export function snapshot(node, inherited = {}) {
     textWrap: style.textWrap ?? inherited.textWrap ?? "wrap",
     textWrapMode: style.textWrapMode ?? inherited.textWrapMode ?? "wrap",
     textWrapStyle: style.textWrapStyle ?? inherited.textWrapStyle ?? "auto",
+    rubyAlign: style.rubyAlign ?? inherited.rubyAlign ?? "space-around",
     cursor: style.cursor ?? inherited.cursor ?? "auto",
     visibility: style.visibility ?? inherited.visibility ?? "visible",
     contentVisibility: style.contentVisibility ?? inherited.contentVisibility ?? "visible",
@@ -1040,6 +1160,8 @@ export function snapshot(node, inherited = {}) {
     mathShift: style.mathShift ?? inherited.mathShift ?? "normal",
     printColorAdjust: style.printColorAdjust ?? inherited.printColorAdjust ?? "economy",
     scrollbarColor: style.scrollbarColor ?? inherited.scrollbarColor ?? "auto",
+    rootFontSize: inherited.rootFontSize ?? (typeof style.fontSize === "number" ? style.fontSize : 20),
+    rootLineHeight: inherited.rootLineHeight ?? (typeof style.lineHeight === "number" ? style.lineHeight : 24),
   };
   const containIntrinsicWidth = styleLength(style.containIntrinsicWidth ?? style.containIntrinsicSize);
   const containIntrinsicHeight = styleLength(style.containIntrinsicHeight ?? style.containIntrinsicSize);
@@ -1372,7 +1494,7 @@ export function snapshot(node, inherited = {}) {
         };
         childrenNodes = summaryChild ? [summaryChild, contentBox] : [contentBox];
       }
-      return childrenNodes.map(child => snapshot(child, textStyle));
+      return childrenNodes.map(child => snapshot(child, textStyle, currentVars));
     })(),
   };
 }

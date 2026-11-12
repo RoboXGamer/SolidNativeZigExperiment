@@ -124,6 +124,7 @@ pub const Typography = struct {
     text_emphasis_position: []const u8 = "over right",
     text_decoration_skip_ink: []const u8 = "auto",
     text_combine_upright: []const u8 = "none",
+    ruby_align: []const u8 = "space-around",
 };
 
 pub fn emphasisMark(style_str: []const u8) []const u8 {

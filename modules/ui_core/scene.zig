@@ -248,6 +248,7 @@ pub const Node = struct {
             .text_emphasis_position = self.style.textEmphasisPosition,
             .text_decoration_skip_ink = self.style.textDecorationSkipInk,
             .text_combine_upright = self.style.textCombineUpright,
+            .ruby_align = self.style.rubyAlign,
         };
         return result;
     }
@@ -640,6 +641,14 @@ pub const Scene = struct {
             }
             if (!any_tok or !all_tok_valid) return error.InvalidWillChange;
         }
+        var valid_ruby_align = false;
+        inline for (.{ "start", "center", "space-between", "space-around" }) |val| {
+            if (std.ascii.eqlIgnoreCase(n.style.rubyAlign, val)) {
+                n.style.rubyAlign = val;
+                valid_ruby_align = true;
+            }
+        }
+        if (!valid_ruby_align) return error.InvalidTypography;
         if (std.ascii.eqlIgnoreCase(n.style.isolation, "auto")) n.style.isolation = "auto" else if (std.ascii.eqlIgnoreCase(n.style.isolation, "isolate")) n.style.isolation = "isolate" else return error.InvalidIsolation;
         var valid_position = false;
         inline for (.{ "static", "relative", "absolute", "fixed", "sticky" }) |position| if (std.ascii.eqlIgnoreCase(n.style.position, position)) {
@@ -920,7 +929,7 @@ pub const Scene = struct {
         if (parent.style.activeViewTransition) {
             child.style.activeViewTransition = true;
         }
-        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse", "verticalAlign", "textOrientation", "textShadow", "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset", "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor", "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle" }, 0..) |field, bit| {
+        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse", "verticalAlign", "textOrientation", "textShadow", "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset", "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor", "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle", "rubyAlign" }, 0..) |field, bit| {
             const defaults: Style = .{};
             const at_default = if (comptime @TypeOf(@field(child.style, field)) == []const u8) std.mem.eql(u8, @field(child.style, field), @field(defaults, field)) else @field(child.style, field) == @field(defaults, field);
             if (child.style.typographySpecified & (@as(u32, 1) << bit) == 0 and at_default) {
@@ -1019,6 +1028,9 @@ pub const Scene = struct {
             }
             var child_context = self.length_context;
             child_context.font_size = n.fontSize();
+            child_context.line_height = if (n.style.lineHeight) |h| (if (h > 0) h else self.textFor(n).lineHeight(n.fontSize())) else self.textFor(n).lineHeight(n.fontSize());
+            child_context.root_font_size = self.length_context.root_font_size;
+            child_context.root_line_height = self.length_context.root_line_height;
             try self.resolveStyle(child, child_context, width, height, inline_size);
             if (child.style.flexBasisCss) |css| {
                 const trimmed = std.mem.trim(u8, css, " \t\r\n");
@@ -1088,11 +1100,16 @@ pub const Scene = struct {
         scene.length_context.viewport_width = scene.length_context.viewport_width orelse width;
         scene.length_context.viewport_height = scene.length_context.viewport_height orelse height;
         scene.length_context.root_font_size = scene.length_context.root_font_size orelse root.fontSize();
+        const root_default_lh = scene.textFor(root).lineHeight(root.fontSize());
+        const root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else root_default_lh) else root_default_lh;
+        scene.length_context.root_line_height = scene.length_context.root_line_height orelse root_lh;
         const vertical = !std.mem.eql(u8, root.style.writingMode, "horizontal-tb");
         scene.length_context.viewport_inline = scene.length_context.viewport_inline orelse if (vertical) height else width;
         scene.length_context.viewport_block = scene.length_context.viewport_block orelse if (vertical) width else height;
         try scene.resolveStyle(root, scene.length_context, width, height, if (std.mem.eql(u8, root.style.writingMode, "horizontal-tb")) width else height);
         scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
+        const resolved_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else scene.textFor(root).lineHeight(root.fontSize())) else scene.textFor(root).lineHeight(root.fontSize());
+        scene.length_context.root_line_height = host_context.root_line_height orelse resolved_root_lh;
         scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
@@ -1118,11 +1135,16 @@ pub const Scene = struct {
         scene.length_context.viewport_width = scene.length_context.viewport_width orelse width;
         scene.length_context.viewport_height = scene.length_context.viewport_height orelse height;
         scene.length_context.root_font_size = scene.length_context.root_font_size orelse root.fontSize();
+        const init_root_default_lh = scene.textFor(root).lineHeight(root.fontSize());
+        const init_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else init_root_default_lh) else init_root_default_lh;
+        scene.length_context.root_line_height = scene.length_context.root_line_height orelse init_root_lh;
         const vertical = !std.mem.eql(u8, root.style.writingMode, "horizontal-tb");
         scene.length_context.viewport_inline = scene.length_context.viewport_inline orelse if (vertical) height else width;
         scene.length_context.viewport_block = scene.length_context.viewport_block orelse if (vertical) width else height;
         try scene.resolveStyle(root, scene.length_context, width, height, if (std.mem.eql(u8, root.style.writingMode, "horizontal-tb")) width else height);
         scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
+        const init_resolved_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else scene.textFor(root).lineHeight(root.fontSize())) else scene.textFor(root).lineHeight(root.fontSize());
+        scene.length_context.root_line_height = host_context.root_line_height orelse init_resolved_root_lh;
         scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
@@ -1319,8 +1341,9 @@ pub const Scene = struct {
             }
         };
         if (std.mem.eql(u8, n.style.position, "relative")) {
-            const dx = if (n.style.left) |l| l else if (n.style.right) |r| -r else 0;
-            const dy = if (n.style.top) |t| t else if (n.style.bottom) |btm| -btm else 0;
+            const rtl = std.mem.eql(u8, n.style.direction, "rtl");
+            const dx = if (n.style.left != null and n.style.right != null) (if (rtl) -n.style.right.? else n.style.left.?) else if (n.style.left) |l| l else if (n.style.right) |r| -r else 0;
+            const dy = if (n.style.top != null and n.style.bottom != null) n.style.top.? else if (n.style.top) |t| t else if (n.style.bottom) |btm| -btm else 0;
             b.x += dx;
             b.y += dy;
         }

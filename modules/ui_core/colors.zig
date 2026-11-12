@@ -1,11 +1,75 @@
 //! Context-free CSS Color 4 parsing, converted to the renderer's 8-bit sRGB.
 //! Syntax and conversion constants: https://www.w3.org/TR/css-color-4/.
-//! Out-of-gamut channels are clipped. Relative colors, var(), system
+//! Oklab/OKLCH use CSS local-MINDE mapping to framebuffer sRGB. var(), system
 //! colors, and currentColor require style context and deliberately return null.
 const std = @import("std");
 const ws = " \t\r\n\x0c";
 const Vec = [3]f64;
 const Mat = [3]Vec;
+
+test "CSS local MINDE independent Color.js 0.5.2 reference vectors" {
+    const inputs = [_][]const u8{ "oklch(0.7 0.4 30 / 50%)", "oklch(70% 100% 150deg)", "oklch(0.5 0.4 0.75turn)", "oklab(0.6 100% -0.2)", "oklab(0.5 none none)", "oklch(1 0.4 30)", "oklch(0 0.4 30)" };
+    const expected = [_][4]u8{ .{ 255, 88, 67, 128 }, .{ 0, 194, 72, 255 }, .{ 52, 37, 255, 255 }, .{ 218, 0, 198, 255 }, .{ 99, 99, 99, 255 }, .{ 255, 255, 255, 255 }, .{ 0, 0, 0, 255 } };
+    for (inputs, expected) |input, want| {
+        const got = parseColor(input) orelse return error.InvalidColor;
+        for (got, want) |a, b| try std.testing.expect(@abs(@as(i16, a) - @as(i16, b)) <= 1);
+    }
+    for ([_][]const u8{ "oklab(0.5, 0, 0)", "oklch(50% 0.2 20%)", "oklab(0.5 0)", "oklch(0.5 0.2 30 / nope)" }) |input| try std.testing.expect(parseColor(input) == null);
+}
+
+fn inGamut(rgb: Vec) bool {
+    for (rgb) |v| if (!std.math.isFinite(v) or v < 0 or v > 1) return false;
+    return true;
+}
+
+fn clippedRgb(rgb: Vec) Vec {
+    var out = rgb;
+    for (&out) |*v| v.* = std.math.clamp(v.*, 0, 1);
+    return out;
+}
+
+// CSS Color 4, 13 February 2024, section 13.2.1: local MINDE.
+fn gamutMapOk(lab: Vec) Vec {
+    if (lab[0] >= 1) return .{ 1, 1, 1 };
+    if (lab[0] <= 0) return .{ 0, 0, 0 };
+    const original = labToRgb(lab, true);
+    if (inGamut(original)) return original;
+    const chroma = std.math.hypot(lab[1], lab[2]);
+    if (chroma == 0) return clippedRgb(original);
+    var low: f64 = 0;
+    var high = chroma;
+    var min_in_gamut = true;
+    var current = lab;
+    var clipped = clippedRgb(original);
+    var first = true;
+    // Bisection also handles very large finite CSS coordinates without overflow.
+    while (first or high - low > 0.0001) {
+        if (!first) {
+            const c = low + (high - low) / 2;
+            current = .{ lab[0], (lab[1] / chroma) * c, (lab[2] / chroma) * c };
+            const rgb = labToRgb(current, true);
+            if (min_in_gamut and inGamut(rgb)) {
+                low = c;
+                continue;
+            }
+            clipped = clippedRgb(rgb);
+        }
+        const back = floatRgbToOklab(clipped);
+        var distance: f64 = 0;
+        for (back, current) |a, b| distance += (a - b) * (a - b);
+        const delta = @sqrt(distance);
+        if (first and delta < 0.02) return clipped;
+        if (!first) {
+            if (delta < 0.02) {
+                if (0.02 - delta < 0.0001) return clipped;
+                min_in_gamut = false;
+                low = std.math.hypot(current[1], current[2]);
+            } else high = std.math.hypot(current[1], current[2]);
+        }
+        first = false;
+    }
+    return clipped;
+}
 
 fn eq(a: []const u8, b: []const u8) bool {
     return std.ascii.eqlIgnoreCase(a, b);
@@ -270,9 +334,12 @@ fn rgbToHwb(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
 }
 
 fn rgbToOklab(r_u8: u8, g_u8: u8, b_u8: u8) Vec {
-    const r = linearize(@as(f64, @floatFromInt(r_u8)) / 255.0);
-    const g = linearize(@as(f64, @floatFromInt(g_u8)) / 255.0);
-    const b = linearize(@as(f64, @floatFromInt(b_u8)) / 255.0);
+    return floatRgbToOklab(.{ @as(f64, @floatFromInt(r_u8)) / 255, @as(f64, @floatFromInt(g_u8)) / 255, @as(f64, @floatFromInt(b_u8)) / 255 });
+}
+fn floatRgbToOklab(rgb: Vec) Vec {
+    const r = linearize(rgb[0]);
+    const g = linearize(rgb[1]);
+    const b = linearize(rgb[2]);
     const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
     const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
     const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
@@ -371,20 +438,40 @@ fn parseRelativeColor(name: []const u8, body: []const u8) ?[4]u8 {
     if (rgb) {
         orig_c = .{ @floatFromInt(origin_rgba[0]), @floatFromInt(origin_rgba[1]), @floatFromInt(origin_rgba[2]) };
     } else if (hsl) {
-        n0 = "h"; n1 = "s"; n2 = "l";
+        n0 = "h";
+        n1 = "s";
+        n2 = "l";
         orig_c = rgbToHsl(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
     } else if (hwb) {
-        n0 = "h"; n1 = "w"; n2 = "b";
+        n0 = "h";
+        n1 = "w";
+        n2 = "b";
         orig_c = rgbToHwb(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
     } else if (lab) {
         const ok = eq(name, "oklab") or eq(name, "oklch");
         const polar = eq(name, "lch") or eq(name, "oklch");
         if (ok) {
             orig_c = if (polar) rgbToOklch(origin_rgba[0], origin_rgba[1], origin_rgba[2]) else rgbToOklab(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
-            if (polar) { n0 = "l"; n1 = "c"; n2 = "h"; } else { n0 = "l"; n1 = "a"; n2 = "b"; }
+            if (polar) {
+                n0 = "l";
+                n1 = "c";
+                n2 = "h";
+            } else {
+                n0 = "l";
+                n1 = "a";
+                n2 = "b";
+            }
         } else {
             orig_c = if (polar) rgbToLch(origin_rgba[0], origin_rgba[1], origin_rgba[2]) else rgbToLab(origin_rgba[0], origin_rgba[1], origin_rgba[2]);
-            if (polar) { n0 = "l"; n1 = "c"; n2 = "h"; } else { n0 = "l"; n1 = "a"; n2 = "b"; }
+            if (polar) {
+                n0 = "l";
+                n1 = "c";
+                n2 = "h";
+            } else {
+                n0 = "l";
+                n1 = "a";
+                n2 = "b";
+            }
         }
     } else {
         orig_c = .{ @as(f64, @floatFromInt(origin_rgba[0])) / 255.0, @as(f64, @floatFromInt(origin_rgba[1])) / 255.0, @as(f64, @floatFromInt(origin_rgba[2])) / 255.0 };
@@ -411,10 +498,7 @@ fn parseRelativeColor(name: []const u8, body: []const u8) ?[4]u8 {
                         while (p < tok.len and std.ascii.isAlphanumeric(tok[p])) : (p += 1) {}
                         const id = tok[id_start..p];
                         var val: ?f64 = null;
-                        if (eq(id, name0)) val = c_vals[0]
-                        else if (eq(id, name1)) val = c_vals[1]
-                        else if (eq(id, name2)) val = c_vals[2]
-                        else if (eq(id, "alpha")) val = a_val;
+                        if (eq(id, name0)) val = c_vals[0] else if (eq(id, name1)) val = c_vals[1] else if (eq(id, name2)) val = c_vals[2] else if (eq(id, "alpha")) val = a_val;
                         if (val) |v| {
                             const formatted = std.fmt.bufPrint(buf[out_len..], "{d:.4}", .{v}) catch return null;
                             out_len += formatted.len;
@@ -473,7 +557,7 @@ fn parseRelativeColor(name: []const u8, body: []const u8) ?[4]u8 {
             a = chroma * @cos(radians);
             b = chroma * @sin(radians);
         }
-        return pack(labToRgb(.{ l, a, b }, ok), resolved_alpha);
+        return pack(if (ok) gamutMapOk(.{ l, a, b }) else labToRgb(.{ l, a, b }, false), resolved_alpha);
     }
     return pack(explicitSpace(space, resolved_c) orelse return null, resolved_alpha);
 }
@@ -550,7 +634,7 @@ pub fn parseColor(input: []const u8) ?[4]u8 {
                 a = chroma * @cos(radians);
                 b = chroma * @sin(radians);
             }
-            return pack(labToRgb(.{ l, a, b }, ok), alpha);
+            return pack(if (ok) gamutMapOk(.{ l, a, b }) else labToRgb(.{ l, a, b }, false), alpha);
         }
         return pack(explicitSpace(space, .{
             component(c[0], 1, true) orelse return null,

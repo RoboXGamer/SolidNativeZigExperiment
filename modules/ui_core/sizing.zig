@@ -373,3 +373,25 @@ const Parser = struct {
         return error.UnsupportedUnit;
     }
 };
+
+pub const UpdateFrequency = enum {
+    none,
+    slow,
+    fast,
+};
+
+/// Evaluates the CSS update frequency media query feature: (update: fast | slow | none) or (update)
+pub fn evaluateUpdateMediaQuery(query: []const u8, current_frequency: UpdateFrequency) bool {
+    const trimmed = std.mem.trim(u8, query, " \t\r\n()");
+    if (std.ascii.eqlIgnoreCase(trimmed, "update")) {
+        return current_frequency != .none;
+    }
+    if (std.ascii.startsWithIgnoreCase(trimmed, "update:")) {
+        const val = std.mem.trim(u8, trimmed[7..], " \t\r\n");
+        if (std.ascii.eqlIgnoreCase(val, "fast")) return current_frequency == .fast;
+        if (std.ascii.eqlIgnoreCase(val, "slow")) return current_frequency == .slow;
+        if (std.ascii.eqlIgnoreCase(val, "none")) return current_frequency == .none;
+    }
+    return false;
+}
+

@@ -36,3 +36,37 @@ pub fn cursorResource(value: []const u8) ?[]const u8 {
     }
     return null;
 }
+
+/// Touch action query: checks if horizontal scrolling/panning is permitted.
+pub fn touchActionAllowsPanX(value: []const u8) bool {
+    const v = std.mem.trim(u8, value, " \t\r\n");
+    if (v.len == 0 or std.ascii.eqlIgnoreCase(v, "auto") or std.ascii.eqlIgnoreCase(v, "manipulation")) return true;
+    if (std.ascii.eqlIgnoreCase(v, "none") or std.ascii.eqlIgnoreCase(v, "pan-y")) return false;
+    if (std.ascii.indexOfIgnoreCase(v, "pan-x") != null) return true;
+    return false;
+}
+
+/// Touch action query: checks if vertical scrolling/panning is permitted.
+pub fn touchActionAllowsPanY(value: []const u8) bool {
+    const v = std.mem.trim(u8, value, " \t\r\n");
+    if (v.len == 0 or std.ascii.eqlIgnoreCase(v, "auto") or std.ascii.eqlIgnoreCase(v, "manipulation")) return true;
+    if (std.ascii.eqlIgnoreCase(v, "none") or std.ascii.eqlIgnoreCase(v, "pan-x")) return false;
+    if (std.ascii.indexOfIgnoreCase(v, "pan-y") != null) return true;
+    return false;
+}
+
+/// Touch action query: checks if pinch-to-zoom is permitted.
+pub fn touchActionAllowsPinchZoom(value: []const u8) bool {
+    const v = std.mem.trim(u8, value, " \t\r\n");
+    if (v.len == 0 or std.ascii.eqlIgnoreCase(v, "auto") or std.ascii.eqlIgnoreCase(v, "manipulation")) return true;
+    if (std.ascii.eqlIgnoreCase(v, "none")) return false;
+    if (std.ascii.indexOfIgnoreCase(v, "pinch-zoom") != null) return true;
+    return false;
+}
+
+pub const UserActionState = struct {
+    hovered: bool = false,
+    active: bool = false,
+    focused: bool = false,
+};
+

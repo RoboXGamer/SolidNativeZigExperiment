@@ -228,6 +228,19 @@ export interface NativeStyle {
   scrollPaddingBlockStart?: NativeLength;
   scrollPaddingBlockEnd?: NativeLength;
   [nestedOrCustom: string]: any;
+  transitionBehavior?: "normal" | "allow-discrete" | string;
+  transformBox?: "border-box" | "content-box" | "fill-box" | "stroke-box" | "view-box";
+  backfaceVisibility?: "visible" | "hidden";
+  transformStyle?: "flat" | "preserve-3d";
+  perspective?: NativeLength;
+  perspectiveOrigin?: string;
+  touchAction?: "auto" | "none" | "pan-x" | "pan-y" | "pinch-zoom" | "manipulation" | string;
+  ":hover"?: NativeStyle;
+  ":active"?: NativeStyle;
+  ":focus"?: NativeStyle;
+  "_hover"?: NativeStyle;
+  "_active"?: NativeStyle;
+  "_focus"?: NativeStyle;
 }
 
 export interface NativeNode {
@@ -253,6 +266,12 @@ export interface NativeProps {
   onClick?: (event: NativeEvent) => void;
   onInput?: (event: NativeInputEvent | NativeChangeEvent) => void;
   onChange?: (event: NativeChangeEvent) => void;
+  ":hover"?: NativeStyle;
+  ":active"?: NativeStyle;
+  ":focus"?: NativeStyle;
+  "_hover"?: NativeStyle;
+  "_active"?: NativeStyle;
+  "_focus"?: NativeStyle;
   value?: string | number;
   disabled?: boolean;
   readOnly?: boolean;

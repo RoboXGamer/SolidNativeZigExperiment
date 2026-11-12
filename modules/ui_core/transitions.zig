@@ -3,11 +3,12 @@ const std = @import("std");
 const ui = @import("root.zig");
 const anim = @import("animation.zig");
 const Tokens = @import("css_syntax.zig").Tokens;
-pub const Value = union(enum) { number: f32, color: [4]u8, matrix: ui.transform.Matrix2D };
+pub const Value = union(enum) { number: f32, color: [4]u8, matrix: ui.transform.Matrix2D, discrete: []const u8 };
 const Config = struct {
     duration: f32 = 0,
     delay: f32 = 0,
     curve: anim.Timing = .{ .bezier = anim.CubicBezier.ease },
+    behavior: enum { normal, allow_discrete } = .normal,
 
     fn deinit(self: *Config, allocator: std.mem.Allocator) void {
         self.curve.deinit(allocator);
@@ -27,10 +28,12 @@ const Track = struct {
             .number => |v| .{ .number = anim.interpolateNumber(v, t.to.number, p) },
             .color => |v| .{ .color = anim.interpolateColor(v, t.to.color, p) },
             .matrix => |v| .{ .matrix = anim.interpolateMatrix(v, t.to.matrix, p) },
+            .discrete => |v| if (p < 0.5) .{ .discrete = v } else .{ .discrete = t.to.discrete },
         };
     }
 };
 fn matches(css: []const u8, field: []const u8) bool {
+    if (std.ascii.eqlIgnoreCase(css, "none")) return false;
     if (std.ascii.eqlIgnoreCase(css, "all")) return true;
     var i: usize = 0;
     for (css) |c| {
@@ -51,6 +54,7 @@ fn config(allocator: std.mem.Allocator, style: ui.Style, field: []const u8) !Con
     var result = Config{};
     errdefer result.deinit(allocator);
     if (style.transition.len > 0) {
+        if (std.ascii.eqlIgnoreCase(std.mem.trim(u8, style.transition, " \t\r\n"), "none")) return result;
         var layers = TransitionTokens{ .input = style.transition, .separator = .comma };
         while (try layers.next()) |layer| {
             var tokens = TransitionTokens{ .input = layer, .separator = .space };
@@ -61,7 +65,14 @@ fn config(allocator: std.mem.Allocator, style: ui.Style, field: []const u8) !Con
             defer c.deinit(allocator);
             var times: usize = 0;
             while (try tokens.next()) |token| {
-                if (time(token)) |v| {
+                if (std.ascii.eqlIgnoreCase(token, "allow-discrete")) {
+                    c.behavior = .allow_discrete;
+                } else if (std.ascii.eqlIgnoreCase(token, "normal")) {
+                    c.behavior = .normal;
+                } else if (std.ascii.eqlIgnoreCase(token, "none")) {
+                    property = "none";
+                    has_property = true;
+                } else if (time(token)) |v| {
                     if (!std.math.isFinite(v) or times == 2 or (times == 0 and v < 0)) return error.InvalidTransition;
                     if (times == 0) c.duration = v else c.delay = v;
                     times += 1;
@@ -91,12 +102,14 @@ fn config(allocator: std.mem.Allocator, style: ui.Style, field: []const u8) !Con
             }
         }
     } else {
+        if (std.ascii.eqlIgnoreCase(style.transitionProperty, "none")) return result;
         var properties = Tokens{ .input = style.transitionProperty, .separators = "," };
         while (properties.next()) |property| if (matches(property, field)) {
             if (!std.math.isFinite(style.transitionDuration) or !std.math.isFinite(style.transitionDelay) or style.transitionDuration < 0) return error.InvalidTransition;
             const curve = try anim.Timing.parseStrict(allocator, style.transitionTimingFunction);
             result.deinit(allocator);
-            result = .{ .duration = style.transitionDuration, .delay = style.transitionDelay, .curve = curve };
+            const behavior: @TypeOf(result.behavior) = if (std.ascii.eqlIgnoreCase(style.transitionBehavior, "allow-discrete")) .allow_discrete else .normal;
+            result = .{ .duration = style.transitionDuration, .delay = style.transitionDelay, .curve = curve, .behavior = behavior };
         };
     }
     return result;
@@ -109,7 +122,7 @@ fn propertyIdent(value: []const u8) bool {
         return false;
     }
     // Reserved easing words must never be reinterpreted as property names.
-    return !std.ascii.eqlIgnoreCase(value, "initial") and !std.ascii.eqlIgnoreCase(value, "inherit") and !std.ascii.eqlIgnoreCase(value, "unset") and !std.ascii.eqlIgnoreCase(value, "revert") and !std.ascii.eqlIgnoreCase(value, "revert-layer");
+    return !std.ascii.eqlIgnoreCase(value, "initial") and !std.ascii.eqlIgnoreCase(value, "inherit") and !std.ascii.eqlIgnoreCase(value, "unset") and !std.ascii.eqlIgnoreCase(value, "revert") and !std.ascii.eqlIgnoreCase(value, "revert-layer") and !std.ascii.eqlIgnoreCase(value, "normal") and !std.ascii.eqlIgnoreCase(value, "allow-discrete");
 }
 
 // Balanced, comment-aware tokenization for shorthand layers and components.
@@ -172,6 +185,7 @@ fn equal(a: Value, b: Value) bool {
         .number => |v| v == b.number,
         .color => |v| std.mem.eql(u8, &v, &b.color),
         .matrix => |v| std.meta.eql(v, b.matrix),
+        .discrete => |v| std.mem.eql(u8, v, b.discrete),
     };
 }
 pub const Timeline = struct {
@@ -181,7 +195,7 @@ pub const Timeline = struct {
         return .{ .allocator = a };
     }
     pub fn deinit(self: *Timeline) void {
-        for (self.tracks.items) |*t| t.config.deinit(self.allocator);
+        for (self.tracks.items) |*t| t.config.deinit(self.allocator);\
         self.tracks.deinit(self.allocator);
     }
     fn remove(self: *Timeline, index: usize) void {
@@ -206,6 +220,7 @@ pub const Timeline = struct {
             else => Config{},
         };
         defer c.deinit(self.allocator);
+        if (std.meta.activeTag(from) == .discrete and c.behavior != .allow_discrete) return;
         for (self.tracks.items, 0..) |*t, i| if (t.id == id and std.mem.eql(u8, t.field, field)) {
             if (equal(t.to, to) and c.duration > 0) return;
             const current = t.sample(now);
@@ -248,6 +263,12 @@ pub const Timeline = struct {
                     }
                 } else if (T == []const u8 and comptime std.mem.endsWith(u8, name, "Color")) {
                     if (ui.gradient.parseColor(@field(before, name))) |v| if (ui.gradient.parseColor(@field(after, name))) |next| try self.update(item.node.id, name, .{ .color = v }, .{ .color = next }, after, now);
+                } else if (T == []const u8 and !comptime std.mem.endsWith(u8, name, "Color")) {
+                    const before_str = @field(before, name);
+                    const after_str = @field(after, name);
+                    if (!std.mem.eql(u8, before_str, after_str)) {
+                        try self.update(item.node.id, name, .{ .discrete = before_str }, .{ .discrete = after_str }, after, now);
+                    }
                 }
             }
             const from = ui.transform.parseTransformSized(before.transform, previous.bounds.width, previous.bounds.height) catch ui.transform.Matrix2D.identity;
@@ -275,6 +296,11 @@ pub const Timeline = struct {
                     };
                 },
                 .matrix => |m| n.style.transform = try std.fmt.allocPrint(a, "matrix({d},{d},{d},{d},{d},{d})", .{ m.a, m.b, m.c, m.d, m.tx, m.ty }),
+                .discrete => |s| {
+                    inline for (@typeInfo(ui.Style).@"struct".field_names, @typeInfo(ui.Style).@"struct".field_types) |name, T| if (T == []const u8 and !comptime std.mem.endsWith(u8, name, "Color")) {
+                        if (std.mem.eql(u8, name, t.field)) @field(n.style, name) = s;
+                    };
+                },
             }
         };
         for (n.children) |*child| try self.applyNode(child, a, now);

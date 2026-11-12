@@ -365,13 +365,26 @@ pub fn run() void {
     var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer scratch.deinit();
     var smoke_frames: usize = 0;
+    var last_hovered: ?u32 = null;
+    var last_active: ?u32 = null;
+    var last_focused: ?u32 = null;
     while (!rl.windowShouldClose()) {
         _ = scratch.reset(.retain_capacity);
         runtime.tick() catch |err| std.log.err("Async UI job failed: {}", .{err});
         const wheel = rl.getMouseWheelMove();
         if (wheel != 0) {
             const mouse = rl.getMousePosition();
-            _ = scene.chainWheel(mouse.x, mouse.y, 0, -wheel * 40, &scroll_offsets);
+            var allow_scroll = true;
+            if (scene.pointerTarget(mouse.x, mouse.y)) |hit_id| {
+                if (scene.find(hit_id)) |hit_item| {
+                    if (!ui.interaction.touchActionAllowsPanY(hit_item.node.style.touchAction)) {
+                        allow_scroll = false;
+                    }
+                }
+            }
+            if (allow_scroll) {
+                _ = scene.chainWheel(mouse.x, mouse.y, 0, -wheel * 40, &scroll_offsets);
+            }
         }
         if (watching and ui_watch_changed() != 0) {
             if (runtime.reload()) {
@@ -478,6 +491,24 @@ pub fn run() void {
         };
         const pointer = rl.getMousePosition();
         const hovered = if (scene.pointerTarget(pointer.x, pointer.y)) |id| scene.find(id) else null;
+        const hovered_id = if (hovered) |h| h.node.id else null;
+        if (hovered_id != last_hovered) {
+            if (last_hovered) |old_id| runtime.hover(old_id, false) catch {};
+            if (hovered_id) |new_id| runtime.hover(new_id, true) catch {};
+            last_hovered = hovered_id;
+        }
+        const is_down = rl.isMouseButtonDown(.left);
+        const active_id: ?u32 = if (is_down) hovered_id else null;
+        if (active_id != last_active) {
+            if (last_active) |old_id| runtime.active(old_id, false) catch {};
+            if (active_id) |new_id| runtime.active(new_id, true) catch {};
+            last_active = active_id;
+        }
+        if (focused != last_focused) {
+            if (last_focused) |old_id| runtime.focus(old_id, false) catch {};
+            if (focused) |new_id| runtime.focus(new_id, true) catch {};
+            last_focused = focused;
+        }
         const cursor = if (hovered) |h| h.node.style.cursor else "auto";
         ui_cursor_update(cursor.ptr, cursor.len, if (hovered) |h| (if (std.mem.eql(u8, h.node.type, "input") or std.mem.eql(u8, h.node.type, "text")) 1 else 0) else 0, if (hovered) |h| (if (h.node.clickable) 1 else 0) else 0);
         rl.beginDrawing();

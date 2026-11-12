@@ -223,4 +223,12 @@ pub const Style = struct {
     scrollPaddingLeftCss: ?[]const u8 = null,
     viewTransitionName: []const u8 = "none",
     viewTransitionClass: []const u8 = "none",
+    transitionBehavior: []const u8 = "normal",
+    transformBox: []const u8 = "border-box",
+    backfaceVisibility: []const u8 = "visible",
+    transformStyle: []const u8 = "flat",
+    perspective: ?f32 = null,
+    perspectiveCss: ?[]const u8 = null,
+    perspectiveOrigin: []const u8 = "50% 50%",
+    touchAction: []const u8 = "auto",
 };

@@ -85,9 +85,39 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    text_autospace: []const u8 = "normal",
+    math_shift: []const u8 = "normal",
+    text_decoration_line: []const u8 = "none",
+    text_decoration_style: []const u8 = "solid",
+    text_decoration_color: []const u8 = "",
+    text_decoration_thickness: f32 = 0,
 };
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
+
+pub fn isIdeographic(cp: u21) bool {
+    return (cp >= 0x4E00 and cp <= 0x9FFF) or
+        (cp >= 0x3400 and cp <= 0x4DBF) or
+        (cp >= 0x20000 and cp <= 0x2A6DF) or
+        (cp >= 0xF900 and cp <= 0xFAFF) or
+        (cp >= 0x3040 and cp <= 0x309F) or
+        (cp >= 0x30A0 and cp <= 0x30FF) or
+        (cp >= 0xAC00 and cp <= 0xD7AF);
+}
+
+pub fn isNonIdeographic(cp: u21) bool {
+    return (cp >= 'a' and cp <= 'z') or
+        (cp >= 'A' and cp <= 'Z') or
+        (cp >= '0' and cp <= '9');
+}
+
+fn firstCodepoint(slice: []const u8) ?u21 {
+    if (slice.len == 0) return null;
+    if (std.unicode.Utf8View.init(slice)) |view| {
+        var it = view.iterator();
+        return it.nextCodepoint();
+    } else |_| return null;
+}
 
 pub const ShapedLine = struct {
     text: []const u8,
@@ -122,22 +152,55 @@ pub const Text = struct {
 
     pub fn measure(self: Text, content: []const u8, font_size: f32) Metrics {
         const px = size(font_size);
+        const is_compact = std.mem.eql(u8, self.typography.math_shift, "compact");
+        const compact_h_scale: f32 = if (is_compact) 0.9 else 1.0;
+        const compact_asc_scale: f32 = if (is_compact) 0.85 else 1.0;
         if (content.len == 0) {
-            const h = px * fallback_line_height_ratio;
-            const asc = px * fallback_ascent_ratio;
+            const h = px * fallback_line_height_ratio * compact_h_scale;
+            const asc = px * fallback_ascent_ratio * compact_asc_scale;
             const desc = px * fallback_descent_ratio;
             return .{ .width = 0, .height = h, .ascent = asc, .descent = desc, .leading = @max(0, h - (asc + desc)) };
         }
-        if (self.styled_measure_fn) |f| return f(self.ctx, content, px, self.typography);
+        if (self.styled_measure_fn) |f| {
+            var m = f(self.ctx, content, px, self.typography);
+            if (is_compact) {
+                m.height *= compact_h_scale;
+                m.ascent *= compact_asc_scale;
+            }
+            return m;
+        }
         var metrics = if (self.measure_fn) |f| f(self.ctx, content, px) else estimate(content, px);
+        if (is_compact) {
+            metrics.height *= compact_h_scale;
+            metrics.ascent *= compact_asc_scale;
+        }
         // Preserve legacy callbacks while giving their fallback spacing semantics.
         var offset: usize = 0;
         var advance: f32 = 0;
         const edit = @import("text_edit.zig");
         const space = if (self.measure_fn) |f| f(self.ctx, " ", px).width else estimate(" ", px).width;
+        const auto_space = std.mem.eql(u8, self.typography.text_autospace, "normal");
+        var prev_was_ideo: ?bool = null;
         while (offset < content.len) {
             const next = edit.nextGrapheme(content, offset);
             const cluster = content[offset..next];
+            const cp = firstCodepoint(cluster);
+            if (auto_space and cp != null) {
+                const cur_ideo = isIdeographic(cp.?);
+                const cur_non_ideo = isNonIdeographic(cp.?);
+                if (prev_was_ideo) |p_ideo| {
+                    if ((p_ideo and cur_non_ideo) or (!p_ideo and cur_ideo)) {
+                        advance += 0.125 * px;
+                    }
+                }
+                if (cur_ideo) {
+                    prev_was_ideo = true;
+                } else if (cur_non_ideo) {
+                    prev_was_ideo = false;
+                } else {
+                    prev_was_ideo = null;
+                }
+            }
             if (cluster.len == 1 and cluster[0] == '\t') {
                 const stop = if (self.typography.tab_size_is_length) self.typography.tab_size else self.typography.tab_size * (space + self.typography.letter_spacing + self.typography.word_spacing);
                 if (stop > 0) advance += stop - @mod(advance, stop);
@@ -147,7 +210,7 @@ pub const Text = struct {
             }
             offset = next;
         }
-        if (self.typography.letter_spacing != 0 or self.typography.word_spacing != 0 or std.mem.indexOfScalar(u8, content, '\t') != null) {
+        if (self.typography.letter_spacing != 0 or self.typography.word_spacing != 0 or auto_space or std.mem.indexOfScalar(u8, content, '\t') != null) {
             metrics.width = @max(0, advance);
         }
         return metrics;

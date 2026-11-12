@@ -164,6 +164,12 @@ pub const Node = struct {
             .tab_size = self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
             .text_indent = self.style.textIndent orelse 0,
+            .text_autospace = self.style.textAutospace,
+            .math_shift = self.style.mathShift,
+            .text_decoration_line = self.style.textDecorationLine,
+            .text_decoration_style = self.style.textDecorationStyle,
+            .text_decoration_color = self.style.textDecorationColor,
+            .text_decoration_thickness = self.style.textDecorationThickness orelse 0,
         };
         return result;
     }
@@ -422,6 +428,85 @@ pub const Scene = struct {
         }
         if (std.math.isNan(n.style.opacity)) n.style.opacity = 0;
         n.style.opacity = std.math.clamp(n.style.opacity, 0, 1);
+        if (!std.mem.eql(u8, n.style.writingMode, "horizontal-tb") and
+            !std.mem.eql(u8, n.style.writingMode, "vertical-rl") and
+            !std.mem.eql(u8, n.style.writingMode, "vertical-lr") and
+            !std.mem.eql(u8, n.style.writingMode, "sideways-rl") and
+            !std.mem.eql(u8, n.style.writingMode, "sideways-lr"))
+        {
+            return error.InvalidWritingMode;
+        }
+        if (!std.mem.eql(u8, n.style.mathShift, "normal") and !std.mem.eql(u8, n.style.mathShift, "compact")) {
+            return error.InvalidMathShift;
+        }
+        if (!std.mem.eql(u8, n.style.printColorAdjust, "economy") and !std.mem.eql(u8, n.style.printColorAdjust, "exact")) {
+            return error.InvalidPrintColorAdjust;
+        }
+        if (!std.mem.eql(u8, n.style.textAutospace, "normal") and !std.mem.eql(u8, n.style.textAutospace, "no-autospace")) {
+            return error.InvalidTextAutospace;
+        }
+        if (n.style.textDecoration.len > 0) {
+            var tokens = @import("css_syntax.zig").Tokens{ .input = n.style.textDecoration, .separators = " \t\r\n" };
+            while (tokens.next()) |token| {
+                if (std.ascii.eqlIgnoreCase(token, "none") or
+                    std.ascii.eqlIgnoreCase(token, "underline") or
+                    std.ascii.eqlIgnoreCase(token, "overline") or
+                    std.ascii.eqlIgnoreCase(token, "line-through") or
+                    std.ascii.eqlIgnoreCase(token, "spelling-error") or
+                    std.ascii.eqlIgnoreCase(token, "grammar-error"))
+                {
+                    n.style.textDecorationLine = token;
+                    if (std.ascii.eqlIgnoreCase(token, "spelling-error") or std.ascii.eqlIgnoreCase(token, "grammar-error")) {
+                        if (std.mem.eql(u8, n.style.textDecorationStyle, "solid")) n.style.textDecorationStyle = "wavy";
+                    }
+                } else if (std.ascii.eqlIgnoreCase(token, "solid") or
+                    std.ascii.eqlIgnoreCase(token, "double") or
+                    std.ascii.eqlIgnoreCase(token, "dotted") or
+                    std.ascii.eqlIgnoreCase(token, "dashed") or
+                    std.ascii.eqlIgnoreCase(token, "wavy"))
+                {
+                    n.style.textDecorationStyle = token;
+                } else if (std.ascii.eqlIgnoreCase(token, "auto") or std.ascii.eqlIgnoreCase(token, "from-font")) {
+                    n.style.textDecorationThickness = null;
+                } else if (std.fmt.parseFloat(f32, token)) |val| {
+                    if (val >= 0) n.style.textDecorationThickness = val;
+                } else {
+                    var ctx = context;
+                    ctx.font_size = n.fontSize();
+                    if (sizing.resolve(token, ctx)) |resolved| {
+                        switch (resolved) {
+                            .length => |len| if (len >= 0) {
+                                n.style.textDecorationThickness = len;
+                            },
+                            else => {},
+                        }
+                    } else |_| {
+                        n.style.textDecorationColor = token;
+                    }
+                }
+            }
+        }
+        if (n.style.textDecorationThicknessCss) |css| {
+            var ctx = context;
+            ctx.font_size = n.fontSize();
+            if (sizing.resolve(css, ctx)) |resolved| {
+                switch (resolved) {
+                    .length => |len| if (len >= 0) {
+                        n.style.textDecorationThickness = len;
+                    },
+                    else => return error.InvalidLength,
+                }
+            } else |_| return error.InvalidLength;
+        }
+        if (n.style.scrollbarColor.len > 0 and !std.ascii.eqlIgnoreCase(n.style.scrollbarColor, "auto")) {
+            var tokens = @import("css_syntax.zig").Tokens{ .input = n.style.scrollbarColor, .separators = " \t\r\n" };
+            if (tokens.next()) |thumb| {
+                n.style.scrollbarThumbColor = thumb;
+                if (tokens.next()) |track| {
+                    n.style.scrollbarTrackColor = track;
+                }
+            }
+        }
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
         inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left" }) |name| {
             const is_inset = std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "right") or std.mem.eql(u8, name, "bottom") or std.mem.eql(u8, name, "left");
@@ -535,8 +620,31 @@ pub const Scene = struct {
         inline for (.{ "visibility", "pointerEvents", "cursor" }, 0..) |field, bit| if (child.style.interactionSpecified & (@as(u32, 1) << bit) == 0 and std.mem.eql(u8, @field(child.style, field), @field(@as(Style, .{}), field))) {
             @field(child.style, field) = @field(parent.style, field);
         };
+        if (std.mem.eql(u8, child.style.mathShift, "normal") and !std.mem.eql(u8, parent.style.mathShift, "normal")) {
+            child.style.mathShift = parent.style.mathShift;
+        }
+        if (std.mem.eql(u8, child.style.printColorAdjust, "economy") and !std.mem.eql(u8, parent.style.printColorAdjust, "economy")) {
+            child.style.printColorAdjust = parent.style.printColorAdjust;
+        }
+        if (std.mem.eql(u8, child.style.textAutospace, "normal") and !std.mem.eql(u8, parent.style.textAutospace, "normal")) {
+            child.style.textAutospace = parent.style.textAutospace;
+        }
+        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, parent.style.writingMode, "horizontal-tb")) {
+            child.style.writingMode = parent.style.writingMode;
+        }
+        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, parent.style.direction, "ltr")) {
+            child.style.direction = parent.style.direction;
+        }
+        if (std.mem.eql(u8, child.style.scrollbarColor, "auto") and !std.mem.eql(u8, parent.style.scrollbarColor, "auto")) {
+            child.style.scrollbarColor = parent.style.scrollbarColor;
+            child.style.scrollbarThumbColor = parent.style.scrollbarThumbColor;
+            child.style.scrollbarTrackColor = parent.style.scrollbarTrackColor;
+        }
         if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (parent.style.color.len > 0) parent.style.color else "#ffffff";
-        inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow" }) |field| {
+        if (child.style.textDecorationColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textDecorationColor, "currentColor")) {
+            child.style.textDecorationColor = child.style.color;
+        }
+        inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow", "textDecorationColor", "scrollbarThumbColor", "scrollbarTrackColor" }) |field| {
             @field(child.style, field) = self.colorTokens(@field(child.style, field), child.style.color) catch @field(child.style, field);
         }
         if (child.style.borderColor.len == 0) child.style.borderColor = child.style.color;

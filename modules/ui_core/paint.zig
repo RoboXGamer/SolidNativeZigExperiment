@@ -395,3 +395,21 @@ pub fn shadowBitmapElliptical(a: std.mem.Allocator, w: usize, h: usize, radius: 
     }
     return .{ .width = bw, .height = bh, .pixels = pixels, .x = (if (s.inset) @as(f32, 0) else s.x) - pad, .y = (if (s.inset) @as(f32, 0) else s.y) - pad };
 }
+
+/// Adjust color according to CSS print-color-adjust (economy vs exact).
+/// In "economy" mode, heavily saturated or dark background fills are lightened
+/// or clamped to preserve ink/toner. In "exact" mode, the author's color is untouched.
+pub fn adjustPrintColor(color: Color, mode: []const u8) Color {
+    if (std.mem.eql(u8, mode, "exact")) return color;
+    // Economy mode: lighten dark colors so excessive ink is not used
+    var c = color;
+    const lum = 0.2126 * @as(f32, @floatFromInt(c[0])) + 0.7152 * @as(f32, @floatFromInt(c[1])) + 0.0722 * @as(f32, @floatFromInt(c[2]));
+    if (lum < 60 and c[3] > 0) {
+        const factor: f32 = 0.5;
+        c[0] = @intFromFloat(@min(255, @as(f32, @floatFromInt(c[0])) * factor + 128));
+        c[1] = @intFromFloat(@min(255, @as(f32, @floatFromInt(c[1])) * factor + 128));
+        c[2] = @intFromFloat(@min(255, @as(f32, @floatFromInt(c[2])) * factor + 128));
+    }
+    return c;
+}
+

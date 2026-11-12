@@ -157,12 +157,13 @@ function flexValues(style) {
 export function physicalStyle(style, inherited = {}) {
   const mode = style.writingMode ?? inherited.writingMode ?? "horizontal-tb";
   const direction = style.direction ?? inherited.direction ?? "ltr";
-  if (!["horizontal-tb", "vertical-rl", "vertical-lr"].includes(mode) || !["ltr", "rtl"].includes(direction)) throw Error("Unsupported writing mode or direction");
+  if (!["horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"].includes(mode) || !["ltr", "rtl"].includes(direction)) throw Error("Unsupported writing mode or direction");
   const vertical = mode !== "horizontal-tb";
-  const inlineStart = vertical ? (direction === "ltr" ? "Top" : "Bottom") : (direction === "ltr" ? "Left" : "Right");
-  const inlineEnd = vertical ? (direction === "ltr" ? "Bottom" : "Top") : (direction === "ltr" ? "Right" : "Left");
-  const blockStart = vertical ? (mode === "vertical-rl" ? "Right" : "Left") : "Top";
-  const blockEnd = vertical ? (mode === "vertical-rl" ? "Left" : "Right") : "Bottom";
+  const isSidewaysLr = mode === "sideways-lr";
+  const inlineStart = vertical ? (isSidewaysLr ? (direction === "ltr" ? "Bottom" : "Top") : (direction === "ltr" ? "Top" : "Bottom")) : (direction === "ltr" ? "Left" : "Right");
+  const inlineEnd = vertical ? (isSidewaysLr ? (direction === "ltr" ? "Top" : "Bottom") : (direction === "ltr" ? "Bottom" : "Top")) : (direction === "ltr" ? "Right" : "Left");
+  const blockStart = vertical ? ((mode === "vertical-rl" || mode === "sideways-rl") ? "Right" : "Left") : "Top";
+  const blockEnd = vertical ? ((mode === "vertical-rl" || mode === "sideways-rl") ? "Left" : "Right") : "Bottom";
   const logical = { InlineStart: inlineStart, InlineEnd: inlineEnd, BlockStart: blockStart, BlockEnd: blockEnd };
   const sizes = { inlineSize: vertical ? "height" : "width", blockSize: vertical ? "width" : "height",
     minInlineSize: vertical ? "minHeight" : "minWidth", minBlockSize: vertical ? "minWidth" : "minHeight",
@@ -370,8 +371,12 @@ export function snapshot(node, inherited = {}) {
     whiteSpace: style.whiteSpace ?? inherited.whiteSpace ?? "normal",
     textAlign: style.textAlign ?? inherited.textAlign ?? "left",
     lineHeight: style.lineHeight ?? inherited.lineHeight,
-    writingMode: style.writingMode,
-    direction: style.direction,
+    writingMode: style.writingMode ?? inherited.writingMode ?? "horizontal-tb",
+    direction: style.direction ?? inherited.direction ?? "ltr",
+    textAutospace: style.textAutospace ?? inherited.textAutospace ?? "normal",
+    mathShift: style.mathShift ?? inherited.mathShift ?? "normal",
+    printColorAdjust: style.printColorAdjust ?? inherited.printColorAdjust ?? "economy",
+    scrollbarColor: style.scrollbarColor ?? inherited.scrollbarColor ?? "auto",
   };
   let columns = [];
   let gridTemplateColumnsCss = null;
@@ -531,6 +536,18 @@ export function snapshot(node, inherited = {}) {
       overflowY,
       scrollbarGutter: typeof style.scrollbarGutter === "string" ? style.scrollbarGutter : "",
       scrollbarWidth: typeof style.scrollbarWidth === "string" ? style.scrollbarWidth : "",
+      scrollbarColor: typeof style.scrollbarColor === "string" ? style.scrollbarColor : (inherited.scrollbarColor ?? "auto"),
+      textAutospace: typeof style.textAutospace === "string" ? style.textAutospace : (inherited.textAutospace ?? "normal"),
+      textDecoration: typeof style.textDecoration === "string" ? style.textDecoration : "",
+      textDecorationLine: typeof style.textDecorationLine === "string" ? style.textDecorationLine : "none",
+      textDecorationStyle: typeof style.textDecorationStyle === "string" ? style.textDecorationStyle : "solid",
+      textDecorationColor: typeof style.textDecorationColor === "string" ? style.textDecorationColor : "",
+      textDecorationThickness: typeof style.textDecorationThickness === "number" ? style.textDecorationThickness : null,
+      textDecorationThicknessCss: typeof style.textDecorationThickness === "string" ? style.textDecorationThickness : null,
+      mathShift: typeof style.mathShift === "string" ? style.mathShift : (inherited.mathShift ?? "normal"),
+      printColorAdjust: typeof style.printColorAdjust === "string" ? style.printColorAdjust : (inherited.printColorAdjust ?? "economy"),
+      viewTransitionName: typeof style.viewTransitionName === "string" ? style.viewTransitionName : "none",
+      viewTransitionClass: typeof style.viewTransitionClass === "string" ? style.viewTransitionClass : "none",
       whiteSpace: typeof style.whiteSpace === "string" ? style.whiteSpace : (inherited.whiteSpace || "normal"),
       textAlign: typeof style.textAlign === "string" ? style.textAlign : (inherited.textAlign || "left"),
       lineHeight,
@@ -831,3 +848,56 @@ export function mountApp(Component) {
   };
   mount(Component);
 }
+
+export function startViewTransition(updateCallback) {
+  let finishedResolve, readyResolve, updateCallbackDoneResolve;
+  const finished = new Promise(resolve => { finishedResolve = resolve; });
+  const ready = new Promise(resolve => { readyResolve = resolve; });
+  const updateCallbackDone = new Promise(resolve => { updateCallbackDoneResolve = resolve; });
+
+  let skipped = false;
+  const vt = {
+    finished,
+    ready,
+    updateCallbackDone,
+    skipTransition() {
+      skipped = true;
+      updateCallbackDoneResolve();
+      readyResolve();
+      finishedResolve();
+    }
+  };
+
+  (async () => {
+    try {
+      if (typeof updateCallback === "function") {
+        await updateCallback();
+      }
+      updateCallbackDoneResolve();
+      readyResolve();
+      setTimeout(() => {
+        if (!skipped) finishedResolve();
+      }, 250);
+    } catch (err) {
+      updateCallbackDoneResolve();
+      readyResolve();
+      finishedResolve();
+    }
+  })();
+
+  return vt;
+}
+
+export function createScope(options = {}, styles = {}) {
+  const { root = null, limit = null } = options;
+  const scoped = {};
+  for (const [key, value] of Object.entries(styles)) {
+    scoped[key] = {
+      ...value,
+      _scopeRoot: root,
+      _scopeLimit: limit,
+    };
+  }
+  return scoped;
+}
+

@@ -154,6 +154,16 @@ export interface NativeStyle {
   backgroundImage?: string;
   opacity?: number | string;
   isolation?: "auto" | "isolate";
+  objectFit?: "fill" | "contain" | "cover" | "none" | "scale-down";
+  objectPosition?: string;
+  columnCount?: number | "auto";
+  columnWidth?: NativeLength;
+  columns?: string | number;
+  columnGap?: NativeLength;
+  columnRule?: string;
+  columnRuleWidth?: NativeLength;
+  columnRuleStyle?: "none" | "hidden" | "dotted" | "dashed" | "solid" | "double" | "groove" | "ridge" | "inset" | "outset";
+  columnRuleColor?: string;
   transform?: string;
   transformOrigin?: string;
   transition?: string;
@@ -161,6 +171,7 @@ export interface NativeStyle {
   transitionDuration?: number | string;
   transitionTimingFunction?: string;
   transitionDelay?: number | string;
+  [nestedOrCustom: string]: any;
 }
 
 export interface NativeNode {
@@ -205,3 +216,17 @@ export function dispatchClick(id: number): void;
 export function dispatchInput(id: number, value: string): void;
 export function dispatchKey(id: number, key: string): void;
 export function mountApp(component: Component): void;
+
+export class NamespaceRegistry {
+  register(prefix: string, url: string): void;
+  parseAtRule(atRuleStr: string): boolean;
+  get(prefix: string): string | null;
+}
+export function parseAnPlusB(expr: string | number): { a: number; b: number; matches(index: number): boolean } | null;
+export function matchesSelector(node: any, selector: string, context?: any): boolean;
+export function querySelectorAll(rootNode: any, selector: string, context?: any): any[];
+export function expandNesting(parentSelector: string, nestedSelector: string): string;
+export function resolveNestedStyles(node: any, styleObj: any, context?: any): any;
+export function computeObjectFit(fit: string, containerWidth: number, containerHeight: number, intrinsicWidth: number, intrinsicHeight: number): { width: number; height: number };
+export function computeObjectPosition(position: string, containerWidth: number, containerHeight: number, objectWidth: number, objectHeight: number): { x: number; y: number };
+export function computeObjectRect(container: { x?: number; y?: number; width: number; height: number }, intrinsicWidth: number, intrinsicHeight: number, fit?: string, position?: string): { x: number; y: number; width: number; height: number };

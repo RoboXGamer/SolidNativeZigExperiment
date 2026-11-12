@@ -56,6 +56,7 @@ pub fn collapsePair(a: f32, b: f32) f32 {
 /// - overflow: visible and overflow: clip do NOT establish a BFC.
 pub fn establishesBfc(n: *const Node) bool {
     if (std.mem.eql(u8, n.style.display, "flow-root")) return true;
+    if (root.layout_multicol.isMulticolContainer(n)) return true;
     const ox = n.effectiveOverflowX();
     const oy = n.effectiveOverflowY();
     const is_bfc_val = struct {
@@ -363,6 +364,47 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
 
     const count = n.children.len;
     if (count == 0) return;
+
+    if (root.layout_multicol.isMulticolContainer(n)) {
+        const gap = root.layout_multicol.resolveMulticolGap(n, inner_width);
+        const multicol = root.layout_multicol.resolveColumnCountAndWidth(inner_width, n.style.columnCount, n.style.columnWidth, gap);
+        if (multicol.num_columns > 1) {
+            const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
+            _ = computeBlockLayout(self, n, multicol.column_width, child_layouts);
+
+            var total_h: f32 = 0;
+            for (n.children, 0..) |*child, i| {
+                if (!child.isOutOfFlow()) {
+                    total_h += child_layouts[i].height + child_layouts[i].used_margin.vertical();
+                }
+            }
+            const target_col_h = @max(1, total_h / @as(f32, @floatFromInt(multicol.num_columns)));
+
+            var col_idx: u32 = 0;
+            var col_y: f32 = 0;
+
+            for (n.children, 0..) |*child, i| {
+                if (child.isOutOfFlow()) continue;
+                const cl = child_layouts[i];
+                const item_h = cl.height + cl.used_margin.vertical();
+                if (col_y > 0 and col_y + item_h > target_col_h and col_idx + 1 < multicol.num_columns) {
+                    col_idx += 1;
+                    col_y = 0;
+                }
+                const col_x = @as(f32, @floatFromInt(col_idx)) * (multicol.column_width + multicol.column_gap);
+                const child_rect = Rect{
+                    .x = content_left + col_x + cl.x,
+                    .y = content_top + col_y + cl.used_margin.top,
+                    .width = cl.width,
+                    .height = cl.height,
+                };
+                try self.layout(child, child_rect, n.id);
+                self.setUsedMargin(child.id, cl.used_margin);
+                col_y += item_h;
+            }
+            return;
+        }
+    }
 
     const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
     _ = computeBlockLayout(self, n, inner_width, child_layouts);

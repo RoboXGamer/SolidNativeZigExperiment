@@ -2,6 +2,14 @@ import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import { createModuleHost } from "./module-runtime.js";
+import {
+  NamespaceRegistry,
+  parseAnPlusB,
+  matchesSelector,
+  querySelectorAll,
+  expandNesting,
+  resolveNestedStyles,
+} from "./selectors.js";
 
 let root = renderer.node("root");
 let dispose;
@@ -189,6 +197,53 @@ export function physicalStyle(style, inherited = {}) {
         continue;
       }
     }
+    if (key === "columns") {
+      if (typeof value === "number") {
+        result.columnCount = value;
+        result.columnWidth = "auto";
+      } else if (typeof value === "string") {
+        const parts = splitSpacing(value.trim());
+        if (parts.length === 1) {
+          if (parts[0] === "auto") {
+            result.columnCount = "auto";
+            result.columnWidth = "auto";
+          } else if (/^\d+$/.test(parts[0])) {
+            result.columnCount = Number(parts[0]);
+            result.columnWidth = "auto";
+          } else {
+            result.columnWidth = parts[0];
+            result.columnCount = "auto";
+          }
+        } else if (parts.length === 2) {
+          if (/^\d+$/.test(parts[0])) {
+            result.columnCount = Number(parts[0]);
+            result.columnWidth = parts[1];
+          } else {
+            result.columnWidth = parts[0];
+            result.columnCount = /^\d+$/.test(parts[1]) ? Number(parts[1]) : parts[1];
+          }
+        }
+      }
+      continue;
+    }
+    if (key === "columnRule" && typeof value === "string") {
+      const tokens = splitSpacing(value.trim());
+      const ruleStyles = ["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"];
+      let width, styleName, color;
+      for (const token of tokens) {
+        if (ruleStyles.includes(token)) {
+          styleName = token;
+        } else if (["thin", "medium", "thick"].includes(token) || /^[+\-.\d]/.test(token) || /^(calc|min|max|clamp)\(/i.test(token)) {
+          width = token;
+        } else {
+          color = token;
+        }
+      }
+      result.columnRuleWidth = width ?? "medium";
+      result.columnRuleStyle = styleName ?? "none";
+      result.columnRuleColor = color ?? "currentColor";
+      continue;
+    }
     if (key === "placeContent" && typeof value === "string") {
       const parts = splitAlignment(value);
       result.alignContent = parts[0];
@@ -278,7 +333,8 @@ function styleLength(value,{normal=false,negative=false}={}) {
 }
 
 export function snapshot(node, inherited = {}) {
-  const style = physicalStyle(node.props.style || {}, inherited);
+  const resolvedAuthored = resolveNestedStyles(node, node.props.style || {});
+  const style = physicalStyle(resolvedAuthored, inherited);
   if(typeof style.outline==="string") {
     let width,kind,color;
     for(const token of splitSpacing(style.outline)) {
@@ -288,6 +344,33 @@ export function snapshot(node, inherited = {}) {
     }
     style.outlineWidth??=width??"medium"; style.outlineStyle??=kind??"none"; style.outlineColor??=color??"currentColor";
   }
+  const objectFit = ["fill", "contain", "cover", "none", "scale-down"].includes(style.objectFit) ? style.objectFit : "fill";
+  const objectPosition = typeof style.objectPosition === "string" && style.objectPosition.trim() ? style.objectPosition.trim() : "50% 50%";
+
+  let columnCount = null;
+  let columnCountCss = null;
+  if (typeof style.columnCount === "number") {
+    columnCount = Math.max(1, Math.trunc(style.columnCount));
+  } else if (typeof style.columnCount === "string") {
+    const trimmed = style.columnCount.trim().toLowerCase();
+    if (trimmed === "auto") {
+      columnCountCss = "auto";
+    } else if (/^\d+$/.test(trimmed)) {
+      columnCount = Math.max(1, parseInt(trimmed, 10));
+    } else {
+      columnCountCss = trimmed;
+    }
+  }
+
+  const columnWidthParsed = styleLength(style.columnWidth);
+  const columnWidth = columnWidthParsed.number;
+  let columnWidthCss = columnWidthParsed.css;
+  if (style.columnWidth === "auto") columnWidthCss = "auto";
+
+  const colRuleWidth = styleLength(style.columnRuleWidth);
+  const columnRuleStyle = style.columnRuleStyle ?? "none";
+  const columnRuleColor = typeof style.columnRuleColor === "string" ? style.columnRuleColor : "";
+
   const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent"]) | (node.props.lang != null ? 1 << 3 : 0);
   const interactionSpecified=authoredMask(style,["visibility","pointerEvents","cursor"]);
   const letterSpacing=styleLength(style.letterSpacing,{normal:true,negative:true});
@@ -559,6 +642,17 @@ export function snapshot(node, inherited = {}) {
       opacity: opacity.number,
       opacityCss: opacity.css,
       isolation,
+      objectFit,
+      objectPosition,
+      columnCount,
+      columnCountCss,
+      columnWidth,
+      columnWidthCss,
+      columnsCss: typeof style.columns === "string" ? style.columns : null,
+      columnRuleWidth: colRuleWidth.number ?? (style.columnRuleWidth === "thin" ? 1 : style.columnRuleWidth === "thick" ? 5 : (style.columnRuleStyle && style.columnRuleStyle !== "none" ? 3 : 0)),
+      columnRuleWidthCss: colRuleWidth.css ?? (typeof style.columnRuleWidth === "string" ? style.columnRuleWidth : null),
+      columnRuleStyle,
+      columnRuleColor,
       transform: typeof style.transform === "string" ? style.transform : "",
       transformOrigin: typeof style.transformOrigin === "string" ? style.transformOrigin : "50% 50%",
       transition: typeof style.transition === "string" ? style.transition : "",
@@ -831,3 +925,124 @@ export function mountApp(Component) {
   };
   mount(Component);
 }
+
+export function computeObjectFit(fit, containerWidth, containerHeight, intrinsicWidth, intrinsicHeight) {
+  const cw = Math.max(0, containerWidth);
+  const ch = Math.max(0, containerHeight);
+  const iw = Math.max(0, intrinsicWidth);
+  const ih = Math.max(0, intrinsicHeight);
+  if (iw <= 0 || ih <= 0 || cw <= 0 || ch <= 0) {
+    return { width: cw, height: ch };
+  }
+  const f = (fit || "fill").toLowerCase();
+  switch (f) {
+    case "fill":
+      return { width: cw, height: ch };
+    case "none":
+      return { width: iw, height: ih };
+    case "contain": {
+      const scale = Math.min(cw / iw, ch / ih);
+      return { width: iw * scale, height: ih * scale };
+    }
+    case "cover": {
+      const scale = Math.max(cw / iw, ch / ih);
+      return { width: iw * scale, height: ih * scale };
+    }
+    case "scale-down": {
+      const scale = Math.min(cw / iw, ch / ih);
+      if (scale < 1.0) {
+        return { width: iw * scale, height: ih * scale };
+      } else {
+        return { width: iw, height: ih };
+      }
+    }
+    default:
+      return { width: cw, height: ch };
+  }
+}
+
+export function computeObjectPosition(position, containerWidth, containerHeight, objectWidth, objectHeight) {
+  const cw = Math.max(0, containerWidth);
+  const ch = Math.max(0, containerHeight);
+  const ow = Math.max(0, objectWidth);
+  const oh = Math.max(0, objectHeight);
+  const tokens = splitSpacing(String(position || "50% 50%").trim());
+
+  let posX = 0.5, posY = 0.5;
+  let offsetX = 0, offsetY = 0;
+
+  function parseAxis(token, isVertical = false) {
+    if (token === "left") return { pos: 0, offset: 0 };
+    if (token === "right") return { pos: 1, offset: 0 };
+    if (token === "top") return { pos: 0, offset: 0 };
+    if (token === "bottom") return { pos: 1, offset: 0 };
+    if (token === "center") return { pos: 0.5, offset: 0 };
+    if (token.endsWith("%")) {
+      return { pos: parseFloat(token) / 100, offset: 0 };
+    }
+    if (token.endsWith("px") || /^[+-]?\d+(?:\.\d+)?$/.test(token)) {
+      return { pos: 0, offset: parseFloat(token) };
+    }
+    return { pos: isVertical ? 0.5 : 0.5, offset: 0 };
+  }
+
+  if (tokens.length === 1) {
+    if (["top", "bottom"].includes(tokens[0])) {
+      const v = parseAxis(tokens[0], true);
+      posY = v.pos; offsetY = v.offset;
+      posX = 0.5;
+    } else {
+      const h = parseAxis(tokens[0], false);
+      posX = h.pos; offsetX = h.offset;
+      posY = 0.5;
+    }
+  } else if (tokens.length === 2) {
+    const isFirstVert = ["top", "bottom"].includes(tokens[0]);
+    if (isFirstVert) {
+      const v = parseAxis(tokens[0], true);
+      const h = parseAxis(tokens[1], false);
+      posY = v.pos; offsetY = v.offset;
+      posX = h.pos; offsetX = h.offset;
+    } else {
+      const h = parseAxis(tokens[0], false);
+      const v = parseAxis(tokens[1], true);
+      posX = h.pos; offsetX = h.offset;
+      posY = v.pos; offsetY = v.offset;
+    }
+  } else if (tokens.length === 4) {
+    for (let i = 0; i < 4; i += 2) {
+      const edge = tokens[i];
+      const val = parseFloat(tokens[i + 1]) || 0;
+      if (edge === "left") { posX = 0; offsetX = val; }
+      else if (edge === "right") { posX = 1; offsetX = -val; }
+      else if (edge === "top") { posY = 0; offsetY = val; }
+      else if (edge === "bottom") { posY = 1; offsetY = -val; }
+    }
+  }
+
+  const x = (cw - ow) * posX + offsetX;
+  const y = (ch - oh) * posY + offsetY;
+  return { x, y };
+}
+
+export function computeObjectRect(container, intrinsicWidth, intrinsicHeight, fit, position) {
+  const cw = container.width ?? 0;
+  const ch = container.height ?? 0;
+  const size = computeObjectFit(fit, cw, ch, intrinsicWidth, intrinsicHeight);
+  const pos = computeObjectPosition(position, cw, ch, size.width, size.height);
+  return {
+    x: (container.x ?? 0) + pos.x,
+    y: (container.y ?? 0) + pos.y,
+    width: size.width,
+    height: size.height,
+  };
+}
+
+export {
+  NamespaceRegistry,
+  parseAnPlusB,
+  matchesSelector,
+  querySelectorAll,
+  expandNesting,
+  resolveNestedStyles,
+};

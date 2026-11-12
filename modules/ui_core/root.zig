@@ -36,6 +36,8 @@ pub const animation = @import("animation.zig");
 pub const transitions = @import("transitions.zig");
 pub const selectors = @import("selectors.zig");
 pub const media = @import("media.zig");
+pub const css_scope = @import("css_scope.zig");
+pub const view_transitions = @import("view_transitions.zig");
 
 test {
     std.testing.refAllDecls(@import("tests.zig"));

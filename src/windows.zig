@@ -30,6 +30,76 @@ fn colorWithOpacity(value: []const u8, fallback: rl.Color, opacity: f32) rl.Colo
 
 const text_backend = @import("text_backend.zig");
 const DrawContext = struct { focused: ?u32, editor: *ui.TextEdit, scroll_offsets: *std.AutoHashMap(u32, ui.ScrollOffset), text_cache: *text_backend.Cache };
+fn drawTextDecorations(sline: ui.text.ShapedLine, line_x: f32, line_y: f32, font_size: f32, ascent: f32, style: ui.Style, op: f32) void {
+    const line_type = style.textDecorationLine;
+    if (std.mem.eql(u8, line_type, "none") or line_type.len == 0) return;
+
+    const thickness = style.textDecorationThickness orelse @max(1.0, @round(font_size / 16.0));
+    var dec_color = rl.Color.white;
+    if (style.textDecorationColor.len > 0) {
+        dec_color = colorWithOpacity(style.textDecorationColor, .white, op);
+    } else if (std.ascii.indexOfIgnoreCase(line_type, "spelling-error") != null) {
+        dec_color = rl.Color.init(255, 50, 50, @intFromFloat(255 * op));
+    } else if (std.ascii.indexOfIgnoreCase(line_type, "grammar-error") != null) {
+        dec_color = rl.Color.init(46, 164, 79, @intFromFloat(255 * op));
+    } else {
+        dec_color = colorWithOpacity(style.color, .white, op);
+    }
+
+    const has_underline = std.ascii.indexOfIgnoreCase(line_type, "underline") != null or
+        std.ascii.indexOfIgnoreCase(line_type, "spelling-error") != null or
+        std.ascii.indexOfIgnoreCase(line_type, "grammar-error") != null;
+    const has_overline = std.ascii.indexOfIgnoreCase(line_type, "overline") != null;
+    const has_linethrough = std.ascii.indexOfIgnoreCase(line_type, "line-through") != null;
+
+    const dec_style = if (std.ascii.indexOfIgnoreCase(line_type, "spelling-error") != null or std.ascii.indexOfIgnoreCase(line_type, "grammar-error") != null)
+        (if (std.mem.eql(u8, style.textDecorationStyle, "solid")) "wavy" else style.textDecorationStyle)
+    else
+        style.textDecorationStyle;
+
+    const y_positions = [_]?f32{
+        if (has_underline) line_y + ascent + @max(1.0, thickness) else null,
+        if (has_overline) line_y else null,
+        if (has_linethrough) line_y + ascent * 0.58 else null,
+    };
+
+    for (y_positions) |pos| {
+        const y = pos orelse continue;
+        if (std.mem.eql(u8, dec_style, "double")) {
+            rl.drawRectangleRec(.{ .x = line_x, .y = y - thickness, .width = sline.width, .height = thickness }, dec_color);
+            rl.drawRectangleRec(.{ .x = line_x, .y = y + thickness, .width = sline.width, .height = thickness }, dec_color);
+        } else if (std.mem.eql(u8, dec_style, "dotted")) {
+            const dot_size = thickness;
+            const step = dot_size * 2;
+            var cur_x = line_x;
+            while (cur_x < line_x + sline.width) : (cur_x += step) {
+                rl.drawRectangleRec(.{ .x = cur_x, .y = y, .width = dot_size, .height = dot_size }, dec_color);
+            }
+        } else if (std.mem.eql(u8, dec_style, "dashed")) {
+            const dash_len = thickness * 3;
+            const gap = thickness * 2;
+            var cur_x = line_x;
+            while (cur_x < line_x + sline.width) : (cur_x += dash_len + gap) {
+                const w = @min(dash_len, line_x + sline.width - cur_x);
+                rl.drawRectangleRec(.{ .x = cur_x, .y = y, .width = w, .height = thickness }, dec_color);
+            }
+        } else if (std.mem.eql(u8, dec_style, "wavy")) {
+            const wave_w = @max(3.0, thickness * 2.5);
+            const wave_h = @max(2.0, thickness * 1.5);
+            var cur_x = line_x;
+            var up = true;
+            while (cur_x < line_x + sline.width) : (cur_x += wave_w) {
+                const p1 = rl.Vector2{ .x = cur_x, .y = y + if (up) -wave_h else wave_h };
+                const p2 = rl.Vector2{ .x = @min(cur_x + wave_w, line_x + sline.width), .y = y + if (up) wave_h else -wave_h };
+                rl.drawLineEx(p1, p2, thickness, dec_color);
+                up = !up;
+            }
+        } else {
+            rl.drawRectangleRec(.{ .x = line_x, .y = y, .width = sline.width, .height = thickness }, dec_color);
+        }
+    }
+}
+
 fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std.mem.Allocator) !void {
     const ctx: *DrawContext = @ptrCast(@alignCast(context));
     const focused = ctx.focused;
@@ -54,6 +124,9 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
             const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
 
             try ctx.text_cache.drawStyled(sline.text, line_x, line_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
+            if (!std.mem.eql(u8, n.style.textDecorationLine, "none") and n.style.textDecorationLine.len > 0) {
+                drawTextDecorations(sline, line_x, line_y, n.fontSize(), text.ascent(n.fontSize()), n.style, op);
+            }
         }
     }
     if (std.mem.eql(u8, n.type, "select")) {
@@ -91,28 +164,40 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
     if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {
         const extent = scene.scrollExtent(n.id);
         const track_thickness: f32 = if (std.mem.eql(u8, n.style.scrollbarWidth, "thin")) 4 else 8;
+        const default_track_c = rl.Color.init(0, 0, 0, 40);
+        const default_thumb_c = rl.Color.init(255, 255, 255, 100);
+        const track_color = if (n.style.scrollbarTrackColor.len > 0)
+            colorWithOpacity(n.style.scrollbarTrackColor, default_track_c, op)
+        else
+            default_track_c;
+        const thumb_color = if (n.style.scrollbarThumbColor.len > 0)
+            colorWithOpacity(n.style.scrollbarThumbColor, default_thumb_c, op)
+        else
+            default_thumb_c;
+
         if (extent.max_scroll_y > 0) {
             const track_w = track_thickness;
             const track_h = rect.height;
             const track_x = rect.x + rect.width - track_w;
             const track_y = rect.y;
-            rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, rl.Color.init(0, 0, 0, 40));
+            rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, track_color);
             const thumb_h = @max(16, track_h * (rect.height / extent.total_height));
             const cur_offset = if (scroll_offsets.get(n.id)) |so| so.y else 0;
             const thumb_y = track_y + (cur_offset / extent.max_scroll_y) * (track_h - thumb_h);
-            rl.drawRectangleRec(.{ .x = track_x, .y = thumb_y, .width = track_w, .height = thumb_h }, rl.Color.init(255, 255, 255, 100));
+            rl.drawRectangleRec(.{ .x = track_x, .y = thumb_y, .width = track_w, .height = thumb_h }, thumb_color);
         }
         if (extent.max_scroll_x > 0) {
-            const track_h = track_thickness;
+            const track_h: f32 = if (std.mem.eql(u8, n.style.scrollbarWidth, "thin")) 4 else 8;
             const track_w = rect.width;
             const track_x = rect.x;
             const track_y = rect.y + rect.height - track_h;
-            rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, rl.Color.init(0, 0, 0, 40));
+            rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, track_color);
             const thumb_w = @max(16, track_w * (rect.width / extent.total_width));
-            const cur_offset_x = if (scroll_offsets.get(n.id)) |so| so.x else 0;
-            const thumb_x = track_x + (cur_offset_x / extent.max_scroll_x) * (track_w - thumb_w);
-            rl.drawRectangleRec(.{ .x = thumb_x, .y = track_y, .width = thumb_w, .height = track_h }, rl.Color.init(255, 255, 255, 100));
+            const cur_offset = if (scroll_offsets.get(n.id)) |so| so.x else 0;
+            const thumb_x = track_x + (cur_offset / extent.max_scroll_x) * (track_w - thumb_w);
+            rl.drawRectangleRec(.{ .x = thumb_x, .y = track_y, .width = thumb_w, .height = track_h }, thumb_color);
         }
+
     }
     if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
 }

@@ -21,7 +21,7 @@ export type NativeLength = number | string;
 
 export interface NativeStyle {
   display?: "block" | "flow-root" | "flex" | "grid" | "none" | "contents" | "inline-flex" | "inline" | "inline-block";
-  writingMode?: "horizontal-tb" | "vertical-rl" | "vertical-lr";
+  writingMode?: "horizontal-tb" | "vertical-rl" | "vertical-lr" | "sideways-lr" | "sideways-rl";
   direction?: "ltr" | "rtl";
   flexDirection?: "row" | "column" | "row-reverse" | "column-reverse";
   flexWrap?: "nowrap" | "wrap" | "wrap-reverse";
@@ -125,6 +125,17 @@ export interface NativeStyle {
   overflowY?: "visible" | "hidden" | "clip" | "auto" | "scroll";
   scrollbarGutter?: string;
   scrollbarWidth?: "auto" | "thin" | "none";
+  scrollbarColor?: "auto" | string;
+  textAutospace?: "normal" | "no-autospace";
+  textDecoration?: string;
+  textDecorationLine?: "none" | "underline" | "overline" | "line-through" | "spelling-error" | "grammar-error" | string;
+  textDecorationStyle?: "solid" | "double" | "dotted" | "dashed" | "wavy";
+  textDecorationColor?: string;
+  textDecorationThickness?: NativeLength;
+  mathShift?: "normal" | "compact";
+  printColorAdjust?: "economy" | "exact";
+  viewTransitionName?: "none" | "match-element" | "auto" | string;
+  viewTransitionClass?: "none" | string;
   outlineWidth?: NativeLength;
   outlineColor?: string;
   boxShadow?: string;
@@ -251,4 +262,20 @@ export function matchMedia(query: string): {
 };
 export function getEnvironmentVariable(name: string): string | undefined;
 export function setEnvironmentVariable(name: string, value: string): void;
+
+export interface ViewTransition {
+  readonly finished: Promise<void>;
+  readonly ready: Promise<void>;
+  readonly updateCallbackDone: Promise<void>;
+  skipTransition(): void;
+}
+
+export function startViewTransition(updateCallback?: () => void | Promise<void>): ViewTransition;
+
+export interface ScopeOptions {
+  root?: string;
+  limit?: string;
+}
+
+export function createScope<T extends Record<string, any>>(options: ScopeOptions, styles: T): T;
 

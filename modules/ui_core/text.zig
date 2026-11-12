@@ -85,6 +85,7 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    ruby_position: []const u8 = "over",
 };
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
@@ -104,6 +105,16 @@ pub const Wrap = struct {
     widest: f32 = 0,
 };
 
+pub const RubyMetrics = struct {
+    base: Metrics,
+    annotation: Metrics,
+    position: []const u8 = "over",
+    total_width: f32,
+    total_height: f32,
+    base_y: f32,
+    annotation_y: f32,
+};
+
 pub const Text = struct {
     ctx: ?*anyopaque = null,
     measure_fn: ?MeasureFn = null,
@@ -111,6 +122,26 @@ pub const Text = struct {
     styled_measure_fn: ?StyledMeasureFn = null,
     styled_position_fn: ?StyledPositionFn = null,
     typography: Typography = .{},
+
+    pub fn measureRuby(self: Text, base_text: []const u8, annotation_text: []const u8, font_size: f32, ruby_pos: []const u8) RubyMetrics {
+        const base_m = self.measure(base_text, font_size);
+        const anno_font_size = @max(8, font_size * 0.5);
+        const anno_m = self.measure(annotation_text, anno_font_size);
+        const total_w = @max(base_m.width, anno_m.width);
+        const total_h = base_m.height + anno_m.height;
+        const is_under = std.ascii.eqlIgnoreCase(ruby_pos, "under");
+        const anno_y: f32 = if (is_under) base_m.height else 0;
+        const base_y: f32 = if (is_under) 0 else anno_m.height;
+        return .{
+            .base = base_m,
+            .annotation = anno_m,
+            .position = if (is_under) "under" else "over",
+            .total_width = total_w,
+            .total_height = total_h,
+            .base_y = base_y,
+            .annotation_y = anno_y,
+        };
+    }
 
     pub fn isMeasured(self: Text) bool {
         return self.measure_fn != null or self.styled_measure_fn != null;

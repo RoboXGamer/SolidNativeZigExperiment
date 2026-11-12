@@ -161,11 +161,49 @@ export interface NativeStyle {
   transitionDuration?: number | string;
   transitionTimingFunction?: string;
   transitionDelay?: number | string;
+  rubyPosition?: "over" | "under" | string;
+  scrollBehavior?: "auto" | "smooth";
+  scrollSnapType?: string;
+  scrollSnapAlign?: string;
+  scrollSnapStop?: "normal" | "always";
+  scrollMargin?: NativeLength;
+  scrollMarginTop?: NativeLength;
+  scrollMarginRight?: NativeLength;
+  scrollMarginBottom?: NativeLength;
+  scrollMarginLeft?: NativeLength;
+  scrollMarginInline?: NativeLength;
+  scrollMarginBlock?: NativeLength;
+  scrollMarginInlineStart?: NativeLength;
+  scrollMarginInlineEnd?: NativeLength;
+  scrollMarginBlockStart?: NativeLength;
+  scrollMarginBlockEnd?: NativeLength;
+  scrollPadding?: NativeLength;
+  scrollPaddingTop?: NativeLength;
+  scrollPaddingRight?: NativeLength;
+  scrollPaddingBottom?: NativeLength;
+  scrollPaddingLeft?: NativeLength;
+  scrollPaddingInline?: NativeLength;
+  scrollPaddingBlock?: NativeLength;
+  scrollPaddingInlineStart?: NativeLength;
+  scrollPaddingInlineEnd?: NativeLength;
+  scrollPaddingBlockStart?: NativeLength;
+  scrollPaddingBlockEnd?: NativeLength;
 }
 
 export interface NativeNode {
   readonly id: number;
   readonly type: string;
+  readonly children?: NativeNode[];
+  readonly parent?: NativeNode | null;
+  getAttribute(name: string): string | null;
+  setAttribute(name: string, value: string): void;
+  hasAttribute(name: string): boolean;
+  matches(selector: string): boolean;
+  querySelector(selector: string): NativeNode | null;
+  querySelectorAll(selector: string): NativeNode[];
+  closest(selector: string): NativeNode | null;
+  scrollTo?(options: { left?: number; top?: number; behavior?: "auto" | "smooth" } | number, top?: number): void;
+  scrollBy?(options: { left?: number; top?: number; behavior?: "auto" | "smooth" } | number, top?: number): void;
 }
 
 export interface NativeProps {
@@ -205,3 +243,12 @@ export function dispatchClick(id: number): void;
 export function dispatchInput(id: number, value: string): void;
 export function dispatchKey(id: number, key: string): void;
 export function mountApp(component: Component): void;
+export function matchMedia(query: string): {
+  readonly matches: boolean;
+  readonly media: string;
+  addEventListener(type: string, listener: (e: any) => void): void;
+  removeEventListener(type: string, listener: (e: any) => void): void;
+};
+export function getEnvironmentVariable(name: string): string | undefined;
+export function setEnvironmentVariable(name: string, value: string): void;
+

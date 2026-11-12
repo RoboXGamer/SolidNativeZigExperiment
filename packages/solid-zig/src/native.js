@@ -2,6 +2,31 @@ import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import { createModuleHost } from "./module-runtime.js";
+import { matchMedia, evaluateMediaQuery, setScriptingState, getScriptingState } from "./media.js";
+import { matches, querySelector, querySelectorAll, closest, calculateSpecificity } from "./selectors.js";
+
+const envVars = new Map([
+  ["safe-area-inset-top", "0px"],
+  ["safe-area-inset-right", "0px"],
+  ["safe-area-inset-bottom", "0px"],
+  ["safe-area-inset-left", "0px"],
+]);
+
+export function getEnvironmentVariable(name) {
+  return envVars.get(name);
+}
+
+export function setEnvironmentVariable(name, value) {
+  envVars.set(name, String(value));
+}
+
+export function resolveEnv(str) {
+  if (typeof str !== "string" || !str.includes("env(")) return str;
+  return str.replace(/env\(\s*([\w-]+)\s*(?:,\s*([^)]+))?\s*\)/g, (_, name, fallback) => {
+    if (envVars.has(name)) return envVars.get(name);
+    return fallback ? fallback.trim() : "0px";
+  });
+}
 
 let root = renderer.node("root");
 let dispose;
@@ -19,7 +44,7 @@ function mount(Component) {
 // Containers are flex boxes by default (the custom elements are flex
 // primitives); text nodes stay block leaves. The default direction has to match
 // the axis that height/width resolution assumes, otherwise boxes are sized for
-// one axis and their children laid out on the other.
+// one axis and their children laid out on the other directions.
 function flexDirectionOf(node, style) {
   if (typeof style.flexDirection === "string") return style.flexDirection;
   if (node.type === "select") return "column";
@@ -38,7 +63,10 @@ function displayOf(node, style) {
 
 function spacingValue(value, { auto = false, negative = false } = {}) {
   if (auto && value === "auto") return value;
-  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "string") {
+    const resolved = resolveEnv(value).trim();
+    if (resolved) return resolved;
+  }
   if (typeof value !== "number" || !Number.isFinite(value) || (!negative && value < 0)) throw Error(`Invalid length: ${value}`);
   return value;
 }
@@ -224,8 +252,8 @@ export function physicalStyle(style, inherited = {}) {
       result[vertical ? (mode === "vertical-rl" ? "left" : "right") : "bottom"] = parts[1] ?? parts[0];
       continue;
     }
-    if (key === "margin" || key === "padding" || key === "borderWidth" || key === "border") {
-      const options = key === "margin" ? { auto: true, negative: true } : {};
+    if (key === "margin" || key === "padding" || key === "borderWidth" || key === "border" || key === "scrollMargin" || key === "scrollPadding") {
+      const options = (key === "margin" || key === "scrollMargin") ? { auto: true, negative: true } : (key === "scrollPadding" ? { auto: true } : {});
       const sides = boxSides(value, options);
       const isBorder = key === "borderWidth" || key === "border";
       const prefix = isBorder ? "border" : key;
@@ -234,9 +262,9 @@ export function physicalStyle(style, inherited = {}) {
       continue;
     }
     if (sizes[key]) { result[sizes[key]] = value; continue; }
-    const edge = key.match(/^(margin|padding|border)(InlineStart|InlineEnd|BlockStart|BlockEnd)(Width)?$/);
+    const edge = key.match(/^(margin|padding|border|scrollMargin|scrollPadding)(InlineStart|InlineEnd|BlockStart|BlockEnd)(Width)?$/);
     if (edge) { result[edge[1] + logical[edge[2]] + (edge[3] ?? "")] = value; continue; }
-    const pair = key.match(/^(margin|padding|border)(Inline|Block)(Width)?$/);
+    const pair = key.match(/^(margin|padding|border|scrollMargin|scrollPadding)(Inline|Block)(Width)?$/);
     if (pair) {
       const parts = typeof value === "string" ? splitSpacing(value.trim()) : [value];
       if (parts.length < 1 || parts.length > 2) throw Error(`Invalid logical sides: ${value}`);
@@ -311,10 +339,16 @@ export function snapshot(node, inherited = {}) {
     lengths[key + "Css"] = typeof value === "string" ? value : null;
   }
   for (const key of ["width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight"]) emitLength(key, size(style[key]));
+  const scrollMarginBox = boxSides(style.scrollMargin, { auto: true, negative: true });
+  const scrollPaddingBox = boxSides(style.scrollPadding, { auto: true });
+  const scrollMarginSide = (key, side) => style[key] == null ? scrollMarginBox?.[side] : spacingValue(style[key], { auto: true, negative: true });
+  const scrollPaddingSide = (key, side) => style[key] == null ? scrollPaddingBox?.[side] : spacingValue(style[key], { auto: true });
   for (const [key, side] of [["Top", "t"], ["Right", "r"], ["Bottom", "b"], ["Left", "l"]]) {
     emitLength("padding" + key, paddingSide("padding" + key, side));
     emitLength("margin" + key, margin[side] === "auto" ? null : margin[side]);
     emitLength("border" + key + "Width", border(style["border" + key + "Width"]));
+    emitLength("scrollMargin" + key, scrollMarginSide("scrollMargin" + key, side));
+    emitLength("scrollPadding" + key, scrollPaddingSide("scrollPadding" + key, side));
   }
   for (const side of ["top", "right", "bottom", "left"]) {
     emitLength(side, style[side] == null ? null : spacingValue(style[side], { negative: true }));
@@ -529,8 +563,13 @@ export function snapshot(node, inherited = {}) {
       overflow,
       overflowX,
       overflowY,
-      scrollbarGutter: typeof style.scrollbarGutter === "string" ? style.scrollbarGutter : "",
-      scrollbarWidth: typeof style.scrollbarWidth === "string" ? style.scrollbarWidth : "",
+      scrollbarGutter: typeof style.scrollbarGutter === "string" ? style.scrollbarGutter : "auto",
+      scrollbarWidth: typeof style.scrollbarWidth === "string" ? style.scrollbarWidth : "auto",
+      rubyPosition: typeof style.rubyPosition === "string" ? style.rubyPosition : (inherited.rubyPosition || "over"),
+      scrollBehavior: typeof style.scrollBehavior === "string" ? style.scrollBehavior : "auto",
+      scrollSnapType: typeof style.scrollSnapType === "string" ? style.scrollSnapType : "none",
+      scrollSnapAlign: typeof style.scrollSnapAlign === "string" ? style.scrollSnapAlign : "none",
+      scrollSnapStop: typeof style.scrollSnapStop === "string" ? style.scrollSnapStop : "normal",
       whiteSpace: typeof style.whiteSpace === "string" ? style.whiteSpace : (inherited.whiteSpace || "normal"),
       textAlign: typeof style.textAlign === "string" ? style.textAlign : (inherited.textAlign || "left"),
       lineHeight,
@@ -831,3 +870,16 @@ export function mountApp(Component) {
   };
   mount(Component);
 }
+
+export {
+  matchMedia,
+  evaluateMediaQuery,
+  setScriptingState,
+  getScriptingState,
+  matches,
+  querySelector,
+  querySelectorAll,
+  closest,
+  calculateSpecificity,
+};
+

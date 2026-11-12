@@ -90,8 +90,9 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
     // Scrollbar rendering
     if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {
         const extent = scene.scrollExtent(n.id);
+        const track_thickness: f32 = if (std.mem.eql(u8, n.style.scrollbarWidth, "thin")) 4 else 8;
         if (extent.max_scroll_y > 0) {
-            const track_w: f32 = if (std.mem.eql(u8, n.style.scrollbarWidth, "thin")) 4 else 8;
+            const track_w = track_thickness;
             const track_h = rect.height;
             const track_x = rect.x + rect.width - track_w;
             const track_y = rect.y;
@@ -100,6 +101,17 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
             const cur_offset = if (scroll_offsets.get(n.id)) |so| so.y else 0;
             const thumb_y = track_y + (cur_offset / extent.max_scroll_y) * (track_h - thumb_h);
             rl.drawRectangleRec(.{ .x = track_x, .y = thumb_y, .width = track_w, .height = thumb_h }, rl.Color.init(255, 255, 255, 100));
+        }
+        if (extent.max_scroll_x > 0) {
+            const track_h = track_thickness;
+            const track_w = rect.width;
+            const track_x = rect.x;
+            const track_y = rect.y + rect.height - track_h;
+            rl.drawRectangleRec(.{ .x = track_x, .y = track_y, .width = track_w, .height = track_h }, rl.Color.init(0, 0, 0, 40));
+            const thumb_w = @max(16, track_w * (rect.width / extent.total_width));
+            const cur_offset_x = if (scroll_offsets.get(n.id)) |so| so.x else 0;
+            const thumb_x = track_x + (cur_offset_x / extent.max_scroll_x) * (track_w - thumb_w);
+            rl.drawRectangleRec(.{ .x = thumb_x, .y = track_y, .width = thumb_w, .height = track_h }, rl.Color.init(255, 255, 255, 100));
         }
     }
     if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);

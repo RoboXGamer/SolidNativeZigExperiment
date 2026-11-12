@@ -129,8 +129,46 @@ pub const Node = struct {
         return bounds.inset(self.border());
     }
 
+    pub fn scrollMargin(self: *const Node) Edges {
+        return .{
+            .top = self.style.scrollMarginTop orelse 0,
+            .right = self.style.scrollMarginRight orelse 0,
+            .bottom = self.style.scrollMarginBottom orelse 0,
+            .left = self.style.scrollMarginLeft orelse 0,
+        };
+    }
+
+    pub fn scrollPadding(self: *const Node) Edges {
+        return .{
+            .top = self.style.scrollPaddingTop orelse 0,
+            .right = self.style.scrollPaddingRight orelse 0,
+            .bottom = self.style.scrollPaddingBottom orelse 0,
+            .left = self.style.scrollPaddingLeft orelse 0,
+        };
+    }
+
+    pub fn scrollbarTrackWidth(self: *const Node) f32 {
+        if (std.mem.eql(u8, self.style.scrollbarWidth, "none")) return 0;
+        if (std.mem.eql(u8, self.style.scrollbarWidth, "thin")) return 4;
+        return 8;
+    }
+
+    pub fn scrollbarGutterReserved(self: *const Node) Edges {
+        if (!std.mem.startsWith(u8, self.style.scrollbarGutter, "stable")) return .{};
+        const track_w = self.scrollbarTrackWidth();
+        if (track_w == 0) return .{};
+        const both = std.mem.indexOf(u8, self.style.scrollbarGutter, "both-edges") != null;
+        if (both) {
+            return .{ .left = track_w, .right = track_w };
+        } else if (std.mem.eql(u8, self.style.direction, "rtl")) {
+            return .{ .left = track_w };
+        } else {
+            return .{ .right = track_w };
+        }
+    }
+
     pub fn contentBox(self: *const Node, bounds: Rect) Rect {
-        return self.paddingBox(bounds).inset(self.padding());
+        return self.paddingBox(bounds).inset(self.padding()).inset(self.scrollbarGutterReserved());
     }
 
     pub fn borderSize(self: *const Node, value: f32, frame: f32) f32 {
@@ -164,6 +202,7 @@ pub const Node = struct {
             .tab_size = self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
             .text_indent = self.style.textIndent orelse 0,
+            .ruby_position = self.style.rubyPosition,
         };
         return result;
     }
@@ -423,20 +462,22 @@ pub const Scene = struct {
         if (std.math.isNan(n.style.opacity)) n.style.opacity = 0;
         n.style.opacity = std.math.clamp(n.style.opacity, 0, 1);
         if (!std.mem.eql(u8, n.style.boxSizing, "content-box") and !std.mem.eql(u8, n.style.boxSizing, "border-box")) return error.InvalidBoxSizing;
-        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left" }) |name| {
+        inline for (.{ "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "rowGap", "columnGap", "lineHeight", "top", "right", "bottom", "left", "scrollMarginTop", "scrollMarginRight", "scrollMarginBottom", "scrollMarginLeft", "scrollPaddingTop", "scrollPaddingRight", "scrollPaddingBottom", "scrollPaddingLeft" }) |name| {
             const is_inset = std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "right") or std.mem.eql(u8, name, "bottom") or std.mem.eql(u8, name, "left");
-            const allow_negative = std.mem.startsWith(u8, name, "margin") or is_inset;
+            const is_scroll_margin = std.mem.startsWith(u8, name, "scrollMargin");
+            const is_scroll_padding = std.mem.startsWith(u8, name, "scrollPadding");
+            const allow_negative = std.mem.startsWith(u8, name, "margin") or is_inset or is_scroll_margin;
             if (@field(n.style, name)) |number| {
                 if (!std.math.isFinite(number) or (number < 0 and !allow_negative)) return error.InvalidLength;
             }
-            if ((!is_inset or n.isPositioned()) and (if (@field(n.style, name ++ "Css")) |value| value.len > 0 else false)) {
+            if ((!is_inset or n.isPositioned() or is_scroll_margin or is_scroll_padding) and (if (@field(n.style, name ++ "Css")) |value| value.len > 0 else false)) {
                 const css = @field(n.style, name ++ "Css").?;
                 // Older bridge snapshots encoded an absent optional CSS value as "".
 
                 if (std.mem.startsWith(u8, name, "border") and std.mem.indexOfScalar(u8, css, '%') != null) return error.InvalidLength;
                 var ctx = context;
                 ctx.font_size = n.fontSize();
-                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap") or std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "bottom")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap") or std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right")) containing_width else inline_size;
+                ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap") or std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "bottom") or std.mem.endsWith(u8, name, "Top") or std.mem.endsWith(u8, name, "Bottom")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap") or std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right") or std.mem.endsWith(u8, name, "Left") or std.mem.endsWith(u8, name, "Right")) containing_width else inline_size;
                 if (std.mem.eql(u8, name, "lineHeight")) ctx.percentage = n.fontSize();
                 const is_fit_function = std.mem.startsWith(u8, css, "fit-content(") and std.mem.endsWith(u8, css, ")");
                 const value: sizing.Resolution = if (is_fit_function) .{ .keyword = .fit_content } else try sizing.resolve(css, ctx);
@@ -446,7 +487,7 @@ pub const Scene = struct {
                         @field(n.style, name) = number;
                     },
                     .keyword => |keyword| {
-                        if (keyword == .auto and (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "height") or std.mem.startsWith(u8, name, "min"))) {
+                        if (keyword == .auto and (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "height") or std.mem.startsWith(u8, name, "min") or is_scroll_padding)) {
                             @field(n.style, name) = null;
                         } else if (keyword == .none and std.mem.startsWith(u8, name, "max")) {
                             @field(n.style, name) = null;
@@ -495,6 +536,38 @@ pub const Scene = struct {
         if (n.style.flexBasis) |value| if (!std.math.isFinite(value) or value < 0) return error.InvalidLength;
         if (n.style.aspectRatio) |value| if (!std.math.isFinite(value) or value <= 0) return error.InvalidLength;
         if (n.intrinsicAspectRatio) |value| if (!std.math.isFinite(value) or value <= 0) return error.InvalidLength;
+
+        if (std.ascii.eqlIgnoreCase(n.style.rubyPosition, "under")) {
+            n.style.rubyPosition = "under";
+        } else {
+            n.style.rubyPosition = "over";
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.scrollBehavior, "smooth")) {
+            n.style.scrollBehavior = "smooth";
+        } else {
+            n.style.scrollBehavior = "auto";
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.scrollbarWidth, "none")) {
+            n.style.scrollbarWidth = "none";
+        } else if (std.ascii.eqlIgnoreCase(n.style.scrollbarWidth, "thin")) {
+            n.style.scrollbarWidth = "thin";
+        } else {
+            n.style.scrollbarWidth = "auto";
+        }
+        if (std.mem.indexOf(u8, n.style.scrollbarGutter, "stable") != null) {
+            if (std.mem.indexOf(u8, n.style.scrollbarGutter, "both-edges") != null) {
+                n.style.scrollbarGutter = "stable both-edges";
+            } else {
+                n.style.scrollbarGutter = "stable";
+            }
+        } else {
+            n.style.scrollbarGutter = "auto";
+        }
+        if (std.ascii.eqlIgnoreCase(n.style.scrollSnapStop, "always")) {
+            n.style.scrollSnapStop = "always";
+        } else {
+            n.style.scrollSnapStop = "normal";
+        }
     }
 
     fn colorTokens(self: *Scene, input: []const u8, current: []const u8) ![]const u8 {
@@ -860,9 +933,10 @@ pub const Scene = struct {
 
         const pad = n.padding();
         const bd = n.border();
-        const inset_x = pad.horizontal() + bd.horizontal();
+        const gutter = n.scrollbarGutterReserved();
+        const inset_x = pad.horizontal() + bd.horizontal() + gutter.horizontal();
         const inner_width = @max(0, bounds.width - inset_x);
-        const inner_height = @max(0, bounds.height - (pad.vertical() + bd.vertical()));
+        const inner_height = @max(0, bounds.height - (pad.vertical() + bd.vertical() + gutter.vertical()));
 
         if (std.mem.eql(u8, n.style.display, "grid")) {
             try @import("layout_grid.zig").layout(self, n, bounds, inner_width, inner_height);
@@ -1045,6 +1119,85 @@ pub const Scene = struct {
         };
     }
 
+    pub fn snapToNearest(self: *const Scene, viewport_id: u32, offset: ScrollOffset) ScrollOffset {
+        const viewport = self.find(viewport_id) orelse return offset;
+        const snap_type = viewport.node.style.scrollSnapType;
+        if (std.mem.eql(u8, snap_type, "none") or snap_type.len == 0) return offset;
+
+        const is_x = std.mem.indexOf(u8, snap_type, "x") != null or std.mem.indexOf(u8, snap_type, "both") != null or (std.mem.indexOf(u8, snap_type, "inline") != null and std.mem.eql(u8, viewport.node.style.writingMode, "horizontal-tb"));
+        const is_y = std.mem.indexOf(u8, snap_type, "y") != null or std.mem.indexOf(u8, snap_type, "both") != null or std.mem.indexOf(u8, snap_type, "block") != null;
+
+        const port = viewport.node.paddingBox(viewport.bounds);
+        const pad = viewport.node.scrollPadding();
+        const snapport_top = port.y + pad.top;
+        const snapport_bottom = port.bottom() - pad.bottom;
+        const snapport_left = port.x + pad.left;
+        const snapport_right = port.right() - pad.right;
+
+        const extent = self.scrollExtent(viewport_id);
+
+        var best_x = offset.x;
+        var best_y = offset.y;
+        var min_dist_x: f32 = std.math.floatMax(f32);
+        var min_dist_y: f32 = std.math.floatMax(f32);
+
+        for (self.items.items) |child| {
+            if (child.parent_id != viewport_id) continue;
+            const align_str = child.node.style.scrollSnapAlign;
+            if (std.mem.eql(u8, align_str, "none") or align_str.len == 0) continue;
+
+            const margin = child.node.scrollMargin();
+            // Snap area in container space
+            const area_top = child.bounds.y - margin.top + offset.y;
+            const area_bottom = child.bounds.bottom() + margin.bottom + offset.y;
+            const area_left = child.bounds.x - margin.left + offset.x;
+            const area_right = child.bounds.right() + margin.right + offset.x;
+
+            if (is_y) {
+                var candidate_y: f32 = offset.y;
+                if (std.mem.indexOf(u8, align_str, "start") != null) {
+                    candidate_y = area_top - snapport_top;
+                } else if (std.mem.indexOf(u8, align_str, "end") != null) {
+                    candidate_y = area_bottom - snapport_bottom;
+                } else if (std.mem.indexOf(u8, align_str, "center") != null) {
+                    candidate_y = (area_top + area_bottom) * 0.5 - (snapport_top + snapport_bottom) * 0.5;
+                }
+                candidate_y = std.math.clamp(candidate_y, 0, extent.max_scroll_y);
+                const dist = @abs(candidate_y - offset.y);
+                if (dist < min_dist_y) {
+                    min_dist_y = dist;
+                    best_y = candidate_y;
+                }
+            }
+
+            if (is_x) {
+                var candidate_x: f32 = offset.x;
+                if (std.mem.indexOf(u8, align_str, "start") != null) {
+                    candidate_x = area_left - snapport_left;
+                } else if (std.mem.indexOf(u8, align_str, "end") != null) {
+                    candidate_x = area_right - snapport_right;
+                } else if (std.mem.indexOf(u8, align_str, "center") != null) {
+                    candidate_x = (area_left + area_right) * 0.5 - (snapport_left + snapport_right) * 0.5;
+                }
+                candidate_x = std.math.clamp(candidate_x, 0, extent.max_scroll_x);
+                const dist = @abs(candidate_x - offset.x);
+                if (dist < min_dist_x) {
+                    min_dist_x = dist;
+                    best_x = candidate_x;
+                }
+            }
+        }
+
+        const is_proximity = std.mem.indexOf(u8, snap_type, "proximity") != null;
+        const threshold_x = port.width * 0.5;
+        const threshold_y = port.height * 0.5;
+
+        return .{
+            .x = if (is_proximity and min_dist_x > threshold_x) offset.x else best_x,
+            .y = if (is_proximity and min_dist_y > threshold_y) offset.y else best_y,
+        };
+    }
+
     pub fn applyScrollOffsets(self: *Scene, offsets: *std.AutoHashMap(u32, ScrollOffset)) void {
         const a = self.arena.allocator();
         const original = a.alloc(Rect, self.items.items.len) catch return;
@@ -1054,6 +1207,8 @@ pub const Scene = struct {
             const extent = self.scrollExtent(item.node.id);
             off.x = if (item.node.isScrollContainerX()) std.math.clamp(off.x, 0, extent.max_scroll_x) else 0;
             off.y = if (item.node.isScrollContainerY()) std.math.clamp(off.y, 0, extent.max_scroll_y) else 0;
+            const snapped = self.snapToNearest(item.node.id, off.*);
+            off.* = snapped;
         };
         for (self.items.items, 0..) |*item, i| {
             var dx: f32 = 0;

@@ -161,6 +161,28 @@ export interface NativeStyle {
   transitionDuration?: number | string;
   transitionTimingFunction?: string;
   transitionDelay?: number | string;
+  shapeOutside?: string;
+  shapeMargin?: NativeLength;
+  shapeImageThreshold?: number;
+  clipRule?: "nonzero" | "evenodd" | string;
+  colorInterpolation?: "auto" | "sRGB" | "linearRGB" | string;
+  shapeRendering?: "auto" | "optimizeSpeed" | "crispEdges" | "geometricPrecision" | string;
+  textRendering?: "auto" | "optimizeSpeed" | "optimizeLegibility" | "geometricPrecision" | string;
+  vectorEffect?: "none" | "non-scaling-stroke" | string;
+  cx?: NativeLength;
+  cy?: NativeLength;
+  r?: NativeLength;
+  rx?: NativeLength;
+  ry?: NativeLength;
+  x?: NativeLength;
+  y?: NativeLength;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: NativeLength;
+  float?: "none" | "left" | "right";
+  clear?: "none" | "left" | "right" | "both";
+  startingStyle?: NativeStyle;
+  "@starting-style"?: NativeStyle;
 }
 
 export interface NativeNode {
@@ -181,7 +203,17 @@ export interface NativeProps {
   tabIndex?: number;
   focusable?: boolean;
   selected?: boolean;
+  states?: Set<string> | string[] | Record<string, boolean>;
+  state?: string;
+  slot?: string;
+  name?: string;
 }
+
+export class CustomStateSet extends Set<string> {}
+
+export const CSS: {
+  supports(first: string, second?: string): boolean;
+};
 
 export namespace JSX {
   type Element = SolidElement;
@@ -198,6 +230,16 @@ export namespace JSX {
     select: NativeProps;
     option: NativeProps;
     optgroup: NativeProps;
+    slot: NativeProps;
+    svg: NativeProps;
+    circle: NativeProps;
+    ellipse: NativeProps;
+    rect: NativeProps;
+    path: NativeProps;
+    line: NativeProps;
+    polyline: NativeProps;
+    polygon: NativeProps;
+    g: NativeProps;
   }
 }
 

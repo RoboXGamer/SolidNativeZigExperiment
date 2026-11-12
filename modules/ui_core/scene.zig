@@ -490,6 +490,21 @@ pub const Scene = struct {
                 }
             }
         }
+        inline for (.{ "cx", "cy", "r", "rx", "ry", "x", "y", "shapeMargin", "strokeWidth" }) |name| {
+            if (@field(n.style, name ++ "Css")) |css| {
+                if (css.len > 0) {
+                    var ctx = context;
+                    ctx.font_size = n.fontSize();
+                    ctx.percentage = if (std.mem.eql(u8, name, "cy") or std.mem.eql(u8, name, "ry") or std.mem.eql(u8, name, "y")) containing_height else containing_width;
+                    if (sizing.resolve(css, ctx)) |res| {
+                        switch (res) {
+                            .length => |len| @field(n.style, name) = len,
+                            else => {},
+                        }
+                    } else |_| {}
+                }
+            }
+        }
         if (n.style.padding) |value| if (!std.math.isFinite(value) or value < 0) return error.InvalidLength;
         if (!std.math.isFinite(n.style.margin) or !std.math.isFinite(n.style.borderWidth) or n.style.borderWidth < 0) return error.InvalidLength;
         if (n.style.flexBasis) |value| if (!std.math.isFinite(value) or value < 0) return error.InvalidLength;
@@ -1095,11 +1110,28 @@ pub const Scene = struct {
             if (item.node.style.bottom) |v| target.y = @min(target.y, port.bottom() - v - target.height);
             if (item.node.style.left) |v| target.x = @max(target.x, port.x + v);
             if (item.node.style.right) |v| target.x = @min(target.x, port.right() - v - target.width);
-            if (item.parent_id) |pid| if (self.find(pid)) |p| {
-                const box = p.node.contentBox(p.bounds);
-                target.x = @max(item.bounds.x, @min(target.x, box.right() - target.width));
-                target.y = @max(item.bounds.y, @min(target.y, box.bottom() - target.height));
-            };
+            if (item.parent_id) |pid| {
+                var container = self.find(pid);
+                const is_table_elem = std.mem.eql(u8, item.node.type, "th") or
+                    std.mem.eql(u8, item.node.type, "td") or
+                    std.mem.eql(u8, item.node.type, "tr") or
+                    std.mem.startsWith(u8, item.node.style.display, "table-");
+                if (is_table_elem) {
+                    var cur_parent = container;
+                    while (cur_parent) |cp| {
+                        if (std.mem.eql(u8, cp.node.type, "table") or std.mem.eql(u8, cp.node.style.display, "table")) {
+                            container = cp;
+                            break;
+                        }
+                        cur_parent = if (cp.parent_id) |p_id| self.find(p_id) else null;
+                    }
+                }
+                if (container) |p| {
+                    const box = p.node.contentBox(p.bounds);
+                    target.x = @max(item.bounds.x, @min(target.x, box.right() - target.width));
+                    target.y = @max(item.bounds.y, @min(target.y, box.bottom() - target.height));
+                }
+            }
             const dx = target.x - item.bounds.x;
             const dy = target.y - item.bounds.y;
             self.items.items[i].bounds = target;

@@ -49,3 +49,57 @@ pub fn evaluateTransitionProgress(duration: f32, delay: f32, curve: CubicBezier,
     const linear_p = time_in_trans / duration;
     return curve.solve(linear_p);
 }
+
+const geometry = @import("geometry.zig");
+pub const BasicShape = geometry.BasicShape;
+
+pub fn interpolateBasicShape(from: BasicShape, to: BasicShape, progress: f32) ?BasicShape {
+    switch (from) {
+        .circle => |c0| switch (to) {
+            .circle => |c1| return .{
+                .circle = .{
+                    .cx = interpolateNumber(c0.cx, c1.cx, progress),
+                    .cy = interpolateNumber(c0.cy, c1.cy, progress),
+                    .r = interpolateNumber(c0.r, c1.r, progress),
+                },
+            },
+            else => return null,
+        },
+        .ellipse => |e0| switch (to) {
+            .ellipse => |e1| return .{
+                .ellipse = .{
+                    .cx = interpolateNumber(e0.cx, e1.cx, progress),
+                    .cy = interpolateNumber(e0.cy, e1.cy, progress),
+                    .rx = interpolateNumber(e0.rx, e1.rx, progress),
+                    .ry = interpolateNumber(e0.ry, e1.ry, progress),
+                },
+            },
+            else => return null,
+        },
+        .inset => |i0| switch (to) {
+            .inset => |i1| {
+                var r: [4]f32 = undefined;
+                for (0..4) |idx| {
+                    r[idx] = interpolateNumber(i0.radii[idx], i1.radii[idx], progress);
+                }
+                return .{
+                    .inset = .{
+                        .top = interpolateNumber(i0.top, i1.top, progress),
+                        .right = interpolateNumber(i0.right, i1.right, progress),
+                        .bottom = interpolateNumber(i0.bottom, i1.bottom, progress),
+                        .left = interpolateNumber(i0.left, i1.left, progress),
+                        .radii = r,
+                    },
+                };
+            },
+            else => return null,
+        },
+        .polygon => |p0| switch (to) {
+            .polygon => |p1| {
+                if (p0.points.len != p1.points.len) return null;
+                return to;
+            },
+            else => return null,
+        },
+    }
+}

@@ -92,6 +92,136 @@ pub const Edges = struct {
     }
 };
 
+pub const Point = struct {
+    x: f32 = 0,
+    y: f32 = 0,
+};
+
+pub const FillRule = enum {
+    nonzero,
+    evenodd,
+};
+
+pub const BasicShape = union(enum) {
+    circle: struct {
+        cx: f32,
+        cy: f32,
+        r: f32,
+    },
+    ellipse: struct {
+        cx: f32,
+        cy: f32,
+        rx: f32,
+        ry: f32,
+    },
+    inset: struct {
+        top: f32,
+        right: f32,
+        bottom: f32,
+        left: f32,
+        radii: [4]f32 = .{ 0, 0, 0, 0 },
+    },
+    polygon: struct {
+        points: []const Point,
+        fill_rule: FillRule = .nonzero,
+    },
+
+    pub fn sliceX(self: BasicShape, y: f32, box: Rect, margin: f32) ?struct { min_x: f32, max_x: f32 } {
+        switch (self) {
+            .circle => |c| {
+                const effective_r = c.r + margin;
+                if (effective_r <= 0) return null;
+                const dy = @abs(y - c.cy);
+                if (dy > effective_r) return null;
+                const dx = @sqrt(effective_r * effective_r - dy * dy);
+                return .{
+                    .min_x = c.cx - dx,
+                    .max_x = c.cx + dx,
+                };
+            },
+            .ellipse => |e| {
+                const eff_ry = e.ry + margin;
+                const eff_rx = e.rx + margin;
+                if (eff_ry <= 0 or eff_rx <= 0) return null;
+                const dy = @abs(y - e.cy);
+                if (dy > eff_ry) return null;
+                const ratio = dy / eff_ry;
+                const dx = eff_rx * @sqrt(@max(0, 1.0 - ratio * ratio));
+                return .{
+                    .min_x = e.cx - dx,
+                    .max_x = e.cx + dx,
+                };
+            },
+            .inset => |in| {
+                const top = box.y + in.top - margin;
+                const bottom = box.bottom() - in.bottom + margin;
+                if (y < top or y > bottom) return null;
+                return .{
+                    .min_x = box.x + in.left - margin,
+                    .max_x = box.right() - in.right + margin,
+                };
+            },
+            .polygon => |poly| {
+                if (poly.points.len < 3) return null;
+                var min_x: f32 = std.math.inf(f32);
+                var max_x: f32 = -std.math.inf(f32);
+                var count: usize = 0;
+                for (poly.points, 0..) |p1, i| {
+                    const p2 = poly.points[(i + 1) % poly.points.len];
+                    if ((p1.y <= y and p2.y > y) or (p2.y <= y and p1.y > y)) {
+                        const t = (y - p1.y) / (p2.y - p1.y);
+                        const inter_x = p1.x + t * (p2.x - p1.x);
+                        min_x = @min(min_x, inter_x);
+                        max_x = @max(max_x, inter_x);
+                        count += 1;
+                    }
+                }
+                if (count == 0) return null;
+                return .{
+                    .min_x = min_x - margin,
+                    .max_x = max_x + margin,
+                };
+            },
+        }
+    }
+
+    pub fn contains(self: BasicShape, px: f32, py: f32, box: Rect) bool {
+        switch (self) {
+            .circle => |c| {
+                const dx = px - c.cx;
+                const dy = py - c.cy;
+                return (dx * dx + dy * dy) <= (c.r * c.r);
+            },
+            .ellipse => |e| {
+                if (e.rx <= 0 or e.ry <= 0) return false;
+                const dx = (px - e.cx) / e.rx;
+                const dy = (py - e.cy) / e.ry;
+                return (dx * dx + dy * dy) <= 1.0;
+            },
+            .inset => |in| {
+                const x0 = box.x + in.left;
+                const y0 = box.y + in.top;
+                const x1 = box.right() - in.right;
+                const y1 = box.bottom() - in.bottom;
+                return px >= x0 and px <= x1 and py >= y0 and py <= y1;
+            },
+            .polygon => |poly| {
+                if (poly.points.len < 3) return false;
+                var inside = false;
+                for (poly.points, 0..) |p1, i| {
+                    const p2 = poly.points[(i + 1) % poly.points.len];
+                    if (((p1.y > py) != (p2.y > py)) and
+                        (px < (p2.x - p1.x) * (py - p1.y) / (p2.y - p1.y) + p1.x))
+                    {
+                        inside = !inside;
+                    }
+                }
+                return inside;
+            },
+        }
+    }
+};
+
 test "DOMRect edges and containment" {
     const r = Rect{ .x = 10, .y = 20, .width = 100, .height = 50 };
     try std.testing.expectEqual(@as(f32, 10), r.left());

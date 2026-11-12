@@ -103,6 +103,28 @@ fn parseTrackDef(str_in: []const u8) TrackDef {
 pub fn parseTrackList(a: std.mem.Allocator, css: []const u8, available: f32, gap: f32) anyerror![]TrackDef {
     var list: std.ArrayList(TrackDef) = .empty;
     defer list.deinit(a);
+    const trimmed = std.mem.trim(u8, css, " \t\r\n");
+    if (std.mem.startsWith(u8, trimmed, "subgrid")) {
+        // Subgrid: inherits parent grid tracks and binds specified line names
+        var tokens = @import("css_syntax.zig").Tokens{ .input = if (trimmed.len > 7) trimmed[7..] else "", .separators = " \t\r\n" };
+        var pending: []const u8 = "";
+        while (tokens.next()) |tok| {
+            if (tok[0] == '[' and tok[tok.len - 1] == ']') {
+                pending = try std.fmt.allocPrint(a, "{s} {s}", .{ pending, tok[1 .. tok.len - 1] });
+                if (list.items.len > 0) list.items[list.items.len - 1].after = pending;
+                continue;
+            }
+            var d = TrackDef{ .min = .{ .unit = .auto }, .max = .{ .unit = .auto } };
+            d.before = pending;
+            pending = "";
+            try list.append(a, d);
+        }
+        if (list.items.len == 0) {
+            try list.append(a, .{ .min = .{ .unit = .auto }, .max = .{ .unit = .auto } });
+        }
+        if (pending.len > 0 and list.items.len > 0) list.items[list.items.len - 1].after = pending;
+        return list.toOwnedSlice(a);
+    }
     var tokens = @import("css_syntax.zig").Tokens{ .input = css, .separators = " \t\r\n" };
     var pending: []const u8 = "";
     while (tokens.next()) |tok| {

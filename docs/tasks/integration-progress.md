@@ -1,7 +1,9 @@
 # Integration checkpoint
 
-- Existing batch 8: 5ab25b0.
-- Batch 1 reconciled: bd4cb6a. Preserved selector/media exports, ruby typography, scroll snap fields, scrollbar sizing and colors alongside scope and transition additions.
-- pnpm test: PASS after batch 1.
-- pnpm run test:native: PASS after compiler compatibility fixes (wchar declaration, shadowed locals, optional parse fallback, explicit floating constants).
-- Remaining: batches 2-7 and 9-12, required batch11 fix, combined smoke validation, five runtime completion features, pushes and PR descriptions.
+Four batches integrated: 8, 1, 12, 3. Other eight batches and five partial tickets remain future milestones.
+
+Preserved compiler compatibility fixes and existing batch features. Structural and user selector implementations coexist with original selector APIs in dedicated modules. Both native.js bridge copies match.
+
+Validation: pnpm test PASS (final-test.log); pnpm run test:native PASS, eight framebuffer regressions (final-native.log); zig build PASS; pnpm run test:smoke PASS, 19 scene items (smoke-integration-5.log). Earlier failure logs retained. Smoke required QuickJS setup, UI bundle generation, Windows LoadImage macro repair, Zig ASCII API update, and retained scene style string ownership repair.
+
+Limits: broad existing suites do not prove every newly implemented CSS behavior; original batch documentation records feature-specific limitations. No claims of all twelve batches or partial-ticket completion.

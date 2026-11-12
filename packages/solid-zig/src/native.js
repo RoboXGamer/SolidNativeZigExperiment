@@ -30,6 +30,11 @@ function displayOf(node, style) {
   if (typeof style.display === "string") return style.display;
   if (node.type === "text") return "block";
   if (node.type === "grid") return "grid";
+  if (node.type === "table") return "table";
+  if (node.type === "caption") return "table-caption";
+  if (["thead", "tbody", "tfoot"].includes(node.type)) return "table-row-group";
+  if (node.type === "tr") return "table-row";
+  if (["td", "th"].includes(node.type)) return "table-cell";
   if (node.type === "option" && node.parent?.type === "select") {
     return node.parent._open ? "flex" : "none";
   }
@@ -279,6 +284,81 @@ function styleLength(value,{normal=false,negative=false}={}) {
 
 export function snapshot(node, inherited = {}) {
   const style = physicalStyle(node.props.style || {}, inherited);
+  const activeTarget = renderer.getTarget ? renderer.getTarget() : "";
+  const isTarget = Boolean(node.props.target || (node.props.id && String(node.props.id) === activeTarget));
+  if (isTarget && style[":target"]) {
+    Object.assign(style, style[":target"]);
+  }
+  const activeTargetText = renderer.getTargetText ? renderer.getTargetText() : "";
+  const isTargetText = Boolean(node.props.targetText || (node.type === "text" && activeTargetText && node.text.includes(activeTargetText)));
+  if (isTargetText && style["::target-text"]) {
+    Object.assign(style, style["::target-text"]);
+  }
+
+  if (typeof style.textDecoration === "string") {
+    const parts = splitSpacing(style.textDecoration.trim());
+    const line = [];
+    let decorStyle, decorColor, decorThickness;
+    for (const token of parts) {
+      if (["none", "underline", "overline", "line-through"].includes(token)) {
+        line.push(token);
+      } else if (["solid", "double", "dotted", "dashed", "wavy"].includes(token)) {
+        decorStyle = token;
+      } else if (token === "auto" || token === "from-font" || /^[+\-]?\d+(?:\.\d+)?(?:px|%|em|rem)?$/i.test(token)) {
+        decorThickness = token;
+      } else {
+        decorColor = token;
+      }
+    }
+    if (line.length > 0) style.textDecorationLine ??= line.join(" ");
+    if (decorStyle) style.textDecorationStyle ??= decorStyle;
+    if (decorColor) style.textDecorationColor ??= decorColor;
+    if (decorThickness != null) style.textDecorationThickness ??= decorThickness;
+  }
+
+  if (typeof style.textEmphasis === "string") {
+    const parts = splitSpacing(style.textEmphasis.trim());
+    const emphStyle = [];
+    let emphColor;
+    for (const token of parts) {
+      if (["none", "circle", "dot", "double-circle", "triangle", "sesame", "filled", "open"].includes(token) || /^['"].*['"]$/.test(token)) {
+        emphStyle.push(token);
+      } else {
+        emphColor = token;
+      }
+    }
+    if (emphStyle.length > 0) style.textEmphasisStyle ??= emphStyle.join(" ");
+    if (emphColor) style.textEmphasisColor ??= emphColor;
+  }
+
+  let borderSpacingX = 0, borderSpacingY = 0, borderSpacingCss = null;
+  if (style.borderSpacing != null) {
+    if (typeof style.borderSpacing === "number") {
+      borderSpacingX = style.borderSpacing;
+      borderSpacingY = style.borderSpacing;
+    } else if (typeof style.borderSpacing === "string") {
+      const parts = splitSpacing(style.borderSpacing.trim());
+      if (parts.length === 1) {
+        const v = parseFloat(parts[0]) || 0;
+        borderSpacingX = v; borderSpacingY = v;
+      } else if (parts.length >= 2) {
+        borderSpacingX = parseFloat(parts[0]) || 0;
+        borderSpacingY = parseFloat(parts[1]) || 0;
+      }
+      borderSpacingCss = style.borderSpacing.trim();
+    }
+  }
+
+  const floodOp = style.floodOpacity != null ? opacityValue(style.floodOpacity) : { number: 1, css: null };
+
+  let textDecorationThickness = null;
+  let textDecorationThicknessCss = null;
+  if (typeof style.textDecorationThickness === "number") {
+    textDecorationThickness = style.textDecorationThickness;
+  } else if (typeof style.textDecorationThickness === "string") {
+    textDecorationThicknessCss = style.textDecorationThickness.trim();
+  }
+
   if(typeof style.outline==="string") {
     let width,kind,color;
     for(const token of splitSpacing(style.outline)) {
@@ -566,6 +646,33 @@ export function snapshot(node, inherited = {}) {
       transitionDuration: typeof style.transitionDuration === "number" ? style.transitionDuration : (typeof style.transitionDuration === "string" ? (parseFloat(style.transitionDuration) * (style.transitionDuration.endsWith("ms") ? 0.001 : 1.0) || 0) : 0),
       transitionTimingFunction: typeof style.transitionTimingFunction === "string" ? style.transitionTimingFunction : "ease",
       transitionDelay: typeof style.transitionDelay === "number" ? style.transitionDelay : (typeof style.transitionDelay === "string" ? (parseFloat(style.transitionDelay) * (style.transitionDelay.endsWith("ms") ? 0.001 : 1.0) || 0) : 0),
+      textDecorationLine: style.textDecorationLine ?? inherited.textDecorationLine ?? "none",
+      textDecorationColor: style.textDecorationColor ?? inherited.textDecorationColor ?? "",
+      textDecorationStyle: style.textDecorationStyle ?? inherited.textDecorationStyle ?? "solid",
+      textDecorationThickness,
+      textDecorationThicknessCss,
+      textDecorationSkipInk: style.textDecorationSkipInk ?? inherited.textDecorationSkipInk ?? "auto",
+      textEmphasisStyle: style.textEmphasisStyle ?? inherited.textEmphasisStyle ?? "none",
+      textEmphasisColor: style.textEmphasisColor ?? inherited.textEmphasisColor ?? "",
+      textEmphasisPosition: style.textEmphasisPosition ?? inherited.textEmphasisPosition ?? "over right",
+      textCombineUpright: style.textCombineUpright ?? inherited.textCombineUpright ?? "none",
+      borderCollapse: style.borderCollapse ?? inherited.borderCollapse ?? "separate",
+      borderSpacing: borderSpacingX,
+      borderSpacingX,
+      borderSpacingY,
+      borderSpacingCss,
+      captionSide: style.captionSide ?? inherited.captionSide ?? "top",
+      emptyCells: style.emptyCells ?? inherited.emptyCells ?? "show",
+      tableLayout: style.tableLayout ?? inherited.tableLayout ?? "auto",
+      colorInterpolationFilters: style.colorInterpolationFilters ?? inherited.colorInterpolationFilters ?? "auto",
+      floodColor: style.floodColor ?? inherited.floodColor ?? "",
+      floodOpacity: floodOp.number,
+      floodOpacityCss: floodOp.css,
+      lightingColor: style.lightingColor ?? inherited.lightingColor ?? "",
+      isTarget,
+      isTargetText,
+      targetTextColor: style.targetTextColor ?? "",
+      targetTextBackgroundColor: style.targetTextBackgroundColor ?? "",
       ...textStyle,
       lineHeight,
       lineHeightCss,
@@ -831,3 +938,5 @@ export function mountApp(Component) {
   };
   mount(Component);
 }
+
+export { setTarget, setTargetText, getTarget, getTargetText } from "./renderer.js";

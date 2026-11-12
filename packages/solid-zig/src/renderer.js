@@ -1,4 +1,4 @@
-﻿import { createRenderer } from "@solidjs/universal";
+import { createRenderer } from "@solidjs/universal";
 
 // Minimal retained tree; Solid owns mutations and disposal.
 let nextNodeId = 1;
@@ -26,4 +26,12 @@ const renderer = createRenderer({
 });
 
 export const { render, effect, memo, createComponent, createElement, createTextNode, insertNode, insert, spread, setProp, mergeProps, applyRef, ref } = renderer;
+
+let currentTargetId = "";
+let currentTargetText = "";
+export function setTarget(id) { currentTargetId = id ? String(id).replace(/^#/, "") : ""; }
+export function setTargetText(text) { currentTargetText = text || ""; }
+export function getTarget() { return currentTargetId; }
+export function getTargetText() { return currentTargetText; }
+
 

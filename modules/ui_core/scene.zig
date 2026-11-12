@@ -164,6 +164,15 @@ pub const Node = struct {
             .tab_size = self.style.tabSize,
             .tab_size_is_length = if (self.style.tabSizeCss) |css| std.mem.eql(u8, css, "length") else false,
             .text_indent = self.style.textIndent orelse 0,
+            .text_emphasis_style = self.style.textEmphasisStyle,
+            .text_emphasis_color = self.style.textEmphasisColor,
+            .text_emphasis_position = self.style.textEmphasisPosition,
+            .text_decoration_line = self.style.textDecorationLine,
+            .text_decoration_color = self.style.textDecorationColor,
+            .text_decoration_style = self.style.textDecorationStyle,
+            .text_decoration_thickness = self.style.textDecorationThickness,
+            .text_decoration_skip_ink = self.style.textDecorationSkipInk,
+            .text_combine_upright = self.style.textCombineUpright,
         };
         return result;
     }
@@ -172,15 +181,21 @@ pub const Node = struct {
     pub fn shapeText(self: *const Node, base: Text, a: std.mem.Allocator, available: f32) ![]text_mod.ShapedLine {
         const text = self.textContext(base);
         const lines = try text.shapeLines(a, self.text, self.fontSize(), available, self.style.whiteSpace);
+        const rtl = std.mem.eql(u8, self.style.direction, "rtl");
         for (lines, 0..) |*line, i| {
             const capacity = @max(0, available - line.indent);
             if (self.clipsX() and std.mem.eql(u8, self.style.textOverflow, "ellipsis") and (std.mem.eql(u8, self.style.whiteSpace, "nowrap") or std.mem.eql(u8, self.style.whiteSpace, "pre"))) {
                 line.text = try text.ellipsize(a, line.text, self.fontSize(), capacity);
                 line.width = text.width(line.text, self.fontSize());
             }
-            const alignment = if (i + 1 == lines.len and !std.mem.eql(u8, self.style.textAlignLast, "auto")) self.style.textAlignLast else self.style.textAlign;
+            const is_last_line = (i + 1 == lines.len);
+            const alignment = if (is_last_line and !std.mem.eql(u8, self.style.textAlignLast, "auto"))
+                self.style.textAlignLast
+            else if (is_last_line and std.mem.eql(u8, self.style.textAlign, "justify"))
+                (if (rtl) "right" else "left")
+            else
+                self.style.textAlign;
             const free = @max(0, capacity - line.width);
-            const rtl = std.mem.eql(u8, self.style.direction, "rtl");
             line.offset_x = line.indent + if (std.mem.eql(u8, alignment, "center")) free / 2 else if (std.mem.eql(u8, alignment, "right") or (std.mem.eql(u8, alignment, "end") and !rtl) or (std.mem.eql(u8, alignment, "start") and rtl)) free else @as(f32, 0);
         }
         return lines;
@@ -541,6 +556,43 @@ pub const Scene = struct {
         }
         if (child.style.borderColor.len == 0) child.style.borderColor = child.style.color;
         if (child.style.outlineColor.len == 0) child.style.outlineColor = child.style.color;
+
+        // Typography / text decoration / text emphasis / text combine upright inheritance
+        if (child.style.textDecorationLine.len == 0 or std.mem.eql(u8, child.style.textDecorationLine, "none")) {
+            child.style.textDecorationLine = parent.style.textDecorationLine;
+            child.style.textDecorationColor = parent.style.textDecorationColor;
+            child.style.textDecorationStyle = parent.style.textDecorationStyle;
+            child.style.textDecorationThickness = parent.style.textDecorationThickness;
+            child.style.textDecorationThicknessCss = parent.style.textDecorationThicknessCss;
+        }
+        if (std.mem.eql(u8, child.style.textDecorationSkipInk, "auto")) child.style.textDecorationSkipInk = parent.style.textDecorationSkipInk;
+        if (std.mem.eql(u8, child.style.textEmphasisStyle, "none")) {
+            child.style.textEmphasisStyle = parent.style.textEmphasisStyle;
+            child.style.textEmphasisColor = parent.style.textEmphasisColor;
+            child.style.textEmphasisPosition = parent.style.textEmphasisPosition;
+        }
+        if (std.mem.eql(u8, child.style.textCombineUpright, "none")) child.style.textCombineUpright = parent.style.textCombineUpright;
+
+        // Table property inheritance
+        if (std.mem.eql(u8, child.style.borderCollapse, "separate") and !std.mem.eql(u8, parent.style.borderCollapse, "separate")) child.style.borderCollapse = parent.style.borderCollapse;
+        if (child.style.borderSpacing == 0 and parent.style.borderSpacing > 0) {
+            child.style.borderSpacing = parent.style.borderSpacing;
+            child.style.borderSpacingX = parent.style.borderSpacingX;
+            child.style.borderSpacingY = parent.style.borderSpacingY;
+        }
+        if (std.mem.eql(u8, child.style.captionSide, "top") and !std.mem.eql(u8, parent.style.captionSide, "top")) child.style.captionSide = parent.style.captionSide;
+        if (std.mem.eql(u8, child.style.emptyCells, "show") and !std.mem.eql(u8, parent.style.emptyCells, "show")) child.style.emptyCells = parent.style.emptyCells;
+
+        // SVG filter inheritance
+        if (std.mem.eql(u8, child.style.colorInterpolationFilters, "auto") and !std.mem.eql(u8, parent.style.colorInterpolationFilters, "auto")) child.style.colorInterpolationFilters = parent.style.colorInterpolationFilters;
+        if (child.style.floodColor.len == 0 and parent.style.floodColor.len > 0) child.style.floodColor = parent.style.floodColor;
+        if (child.style.lightingColor.len == 0 and parent.style.lightingColor.len > 0) child.style.lightingColor = parent.style.lightingColor;
+
+        // currentColor resolution
+        if (child.style.textDecorationColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textDecorationColor, "currentColor")) child.style.textDecorationColor = child.style.color;
+        if (child.style.textEmphasisColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textEmphasisColor, "currentColor")) child.style.textEmphasisColor = child.style.color;
+        if (std.ascii.eqlIgnoreCase(child.style.floodColor, "currentColor")) child.style.floodColor = child.style.color;
+        if (std.ascii.eqlIgnoreCase(child.style.lightingColor, "currentColor")) child.style.lightingColor = child.style.color;
     }
 
     fn prepareChildren(self: *Scene, n: *Node, width: f32, height: ?f32) anyerror!void {
@@ -693,6 +745,8 @@ pub const Scene = struct {
         const inner_width = @max(0, border_width - frame_x);
         const grid = std.mem.eql(u8, n.style.display, "grid");
         if (grid) return n.constrain(frame_y + (@import("layout_grid.zig").measureHeight(self, n, inner_width) catch 0), false);
+        const table = std.mem.eql(u8, n.style.display, "table") or std.mem.eql(u8, n.type, "table");
+        if (table) return n.constrain(frame_y + @import("layout_table.zig").measureHeight(self, n, inner_width), false);
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         const block = std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root");
         var total: f32 = 0;
@@ -866,6 +920,8 @@ pub const Scene = struct {
 
         if (std.mem.eql(u8, n.style.display, "grid")) {
             try @import("layout_grid.zig").layout(self, n, bounds, inner_width, inner_height);
+        } else if (std.mem.eql(u8, n.style.display, "table") or std.mem.eql(u8, n.type, "table")) {
+            try @import("layout_table.zig").layout(self, n, bounds, inner_width, inner_height);
         } else if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
             try @import("layout_block.zig").layout(self, n, bounds, inner_width);
         } else {

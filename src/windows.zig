@@ -30,6 +30,115 @@ fn colorWithOpacity(value: []const u8, fallback: rl.Color, opacity: f32) rl.Colo
 
 const text_backend = @import("text_backend.zig");
 const DrawContext = struct { focused: ?u32, editor: *ui.TextEdit, scroll_offsets: *std.AutoHashMap(u32, ui.ScrollOffset), text_cache: *text_backend.Cache };
+
+fn drawDecorLine(start_x: f32, end_x: f32, y: f32, thickness: f32, style: []const u8, c: rl.Color) void {
+    if (end_x <= start_x) return;
+    if (std.mem.eql(u8, style, "double")) {
+        const off = @max(1.0, thickness);
+        rl.drawLineEx(.{ .x = start_x, .y = y - off }, .{ .x = end_x, .y = y - off }, thickness, c);
+        rl.drawLineEx(.{ .x = start_x, .y = y + off }, .{ .x = end_x, .y = y + off }, thickness, c);
+    } else if (std.mem.eql(u8, style, "dashed")) {
+        const dash_len = @max(3.0, thickness * 3.0);
+        var cur_x = start_x;
+        var draw_dash = true;
+        while (cur_x < end_x) {
+            const next_x = @min(end_x, cur_x + dash_len);
+            if (draw_dash) {
+                rl.drawLineEx(.{ .x = cur_x, .y = y }, .{ .x = next_x, .y = y }, thickness, c);
+            }
+            cur_x = next_x;
+            draw_dash = !draw_dash;
+        }
+    } else if (std.mem.eql(u8, style, "dotted")) {
+        const r = @max(0.5, thickness / 2.0);
+        const step = @max(2.0, thickness * 2.0);
+        var cur_x = start_x + r;
+        while (cur_x <= end_x) {
+            rl.drawCircleV(.{ .x = cur_x, .y = y }, r, c);
+            cur_x += step;
+        }
+    } else if (std.mem.eql(u8, style, "wavy")) {
+        const wave_len = @max(4.0, thickness * 4.0);
+        const amp = @max(1.0, thickness * 1.2);
+        var px = start_x;
+        while (px < end_x) {
+            const nx = @min(end_x, px + 1.0);
+            const py1 = y + @sin((px - start_x) / wave_len * 2.0 * std.math.pi) * amp;
+            const py2 = y + @sin((nx - start_x) / wave_len * 2.0 * std.math.pi) * amp;
+            rl.drawLineEx(.{ .x = px, .y = py1 }, .{ .x = nx, .y = py2 }, thickness, c);
+            px = nx;
+        }
+    } else {
+        rl.drawLineEx(.{ .x = start_x, .y = y }, .{ .x = end_x, .y = y }, thickness, c);
+    }
+}
+
+fn drawTextDecoration(sline: ui.text.ShapedLine, line_x: f32, line_y: f32, font_sz: f32, typo: ui.text.Typography, text_measurer: ui.Text, decor_color: rl.Color) void {
+    if (typo.text_decoration_line.len == 0 or std.mem.eql(u8, typo.text_decoration_line, "none")) return;
+    var thickness: f32 = @max(1.0, @round(font_sz / 14.0));
+    if (typo.text_decoration_thickness) |th| if (th > 0) { thickness = th; };
+    const style = if (typo.text_decoration_style.len > 0) typo.text_decoration_style else "solid";
+    const skip_ink = std.mem.eql(u8, typo.text_decoration_skip_ink, "auto");
+
+    const has_under = std.mem.indexOf(u8, typo.text_decoration_line, "underline") != null;
+    const has_over = std.mem.indexOf(u8, typo.text_decoration_line, "overline") != null;
+    const has_through = std.mem.indexOf(u8, typo.text_decoration_line, "line-through") != null;
+
+    if (has_over) {
+        drawDecorLine(line_x, line_x + sline.width, line_y, thickness, style, decor_color);
+    }
+    if (has_through) {
+        const through_y = line_y + sline.ascent * 0.6;
+        drawDecorLine(line_x, line_x + sline.width, through_y, thickness, style, decor_color);
+    }
+    if (has_under) {
+        const under_y = line_y + sline.ascent + thickness + 1.0;
+        if (!skip_ink) {
+            drawDecorLine(line_x, line_x + sline.width, under_y, thickness, style, decor_color);
+        } else {
+            var seg_start = line_x;
+            var offset: usize = 0;
+            while (offset < sline.text.len) {
+                const next = ui.text_edit.nextGrapheme(sline.text, offset);
+                const char_slice = sline.text[offset..next];
+                const char_w = text_measurer.width(char_slice, font_sz);
+                const char_x = line_x + text_measurer.width(sline.text[0..offset], font_sz);
+                if (char_slice.len > 0 and ui.text.hasDescender(char_slice[0])) {
+                    if (char_x > seg_start) drawDecorLine(seg_start, char_x, under_y, thickness, style, decor_color);
+                    seg_start = char_x + char_w;
+                }
+                offset = next;
+            }
+            if (line_x + sline.width > seg_start) {
+                drawDecorLine(seg_start, line_x + sline.width, under_y, thickness, style, decor_color);
+            }
+        }
+    }
+}
+
+fn drawTextEmphasis(ctx: *DrawContext, sline: ui.text.ShapedLine, line_x: f32, line_y: f32, font_sz: f32, typo: ui.text.Typography, text_measurer: ui.Text, emphasis_color: rl.Color) !void {
+    if (typo.text_emphasis_style.len == 0 or std.mem.eql(u8, typo.text_emphasis_style, "none")) return;
+    const mark = ui.text.emphasisMark(typo.text_emphasis_style);
+    if (mark.len == 0) return;
+    const is_under = std.mem.indexOf(u8, typo.text_emphasis_position, "under") != null;
+    const mark_sz = font_sz * 0.5;
+    const mark_y = if (is_under) line_y + sline.ascent + font_sz * 0.2 else line_y - font_sz * 0.45;
+    const mark_w = text_measurer.width(mark, mark_sz);
+
+    var offset: usize = 0;
+    while (offset < sline.text.len) {
+        const next = ui.text_edit.nextGrapheme(sline.text, offset);
+        const char_slice = sline.text[offset..next];
+        const char_w = text_measurer.width(char_slice, font_sz);
+        const char_x = line_x + text_measurer.width(sline.text[0..offset], font_sz);
+        if (char_slice.len > 0 and char_slice[0] != ' ' and char_slice[0] != '\t' and char_slice[0] != '\r' and char_slice[0] != '\n') {
+            const mark_x = char_x + (char_w - mark_w) / 2.0;
+            try ctx.text_cache.drawStyled(mark, mark_x, mark_y, mark_sz, emphasis_color, .{ .font_family = typo.font_family });
+        }
+        offset = next;
+    }
+}
+
 fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std.mem.Allocator) !void {
     const ctx: *DrawContext = @ptrCast(@alignCast(context));
     const focused = ctx.focused;
@@ -53,7 +162,22 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
             const line_x = content.x + sline.offset_x;
             const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
 
-            try ctx.text_cache.drawStyled(sline.text, line_x, line_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
+            if (n.style.isTargetText) {
+                const bg_col = colorWithOpacity(if (n.style.targetTextBackgroundColor.len > 0) n.style.targetTextBackgroundColor else "mark", .yellow, op);
+                rl.drawRectangleRec(.{ .x = line_x, .y = line_y, .width = sline.width, .height = line_h }, bg_col);
+            }
+            const text_col = if (n.style.isTargetText and n.style.targetTextColor.len > 0)
+                colorWithOpacity(n.style.targetTextColor, .black, op)
+            else
+                colorWithOpacity(n.style.color, .white, op);
+
+            try ctx.text_cache.drawStyled(sline.text, line_x, line_y, n.fontSize(), text_col, text.typography);
+
+            const decor_col = colorWithOpacity(if (text.typography.text_decoration_color.len > 0) text.typography.text_decoration_color else n.style.color, .white, op);
+            drawTextDecoration(sline, line_x, line_y, n.fontSize(), text.typography, text, decor_col);
+
+            const emph_col = colorWithOpacity(if (text.typography.text_emphasis_color.len > 0) text.typography.text_emphasis_color else n.style.color, .white, op);
+            try drawTextEmphasis(ctx, sline, line_x, line_y, n.fontSize(), text.typography, text, emph_col);
         }
     }
     if (std.mem.eql(u8, n.type, "select")) {

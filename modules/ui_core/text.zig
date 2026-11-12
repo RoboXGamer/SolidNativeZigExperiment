@@ -85,7 +85,45 @@ pub const Typography = struct {
     tab_size: f32 = 8,
     tab_size_is_length: bool = false,
     text_indent: f32 = 0,
+    text_emphasis_style: []const u8 = "none",
+    text_emphasis_color: []const u8 = "",
+    text_emphasis_position: []const u8 = "over right",
+    text_decoration_line: []const u8 = "none",
+    text_decoration_color: []const u8 = "",
+    text_decoration_style: []const u8 = "solid",
+    text_decoration_thickness: ?f32 = null,
+    text_decoration_skip_ink: []const u8 = "auto",
+    text_combine_upright: []const u8 = "none",
 };
+
+pub fn emphasisMark(style_str: []const u8) []const u8 {
+    const s = std.mem.trim(u8, style_str, " \t\r\n");
+    if (s.len == 0 or std.mem.eql(u8, s, "none")) return "";
+    const is_open = std.mem.indexOf(u8, s, "open") != null;
+    if (std.mem.indexOf(u8, s, "double-circle") != null) {
+        return if (is_open) "◎" else "⦿";
+    } else if (std.mem.indexOf(u8, s, "circle") != null) {
+        return if (is_open) "○" else "●";
+    } else if (std.mem.indexOf(u8, s, "dot") != null) {
+        return if (is_open) "◦" else "•";
+    } else if (std.mem.indexOf(u8, s, "triangle") != null) {
+        return if (is_open) "△" else "▲";
+    } else if (std.mem.indexOf(u8, s, "sesame") != null) {
+        return if (is_open) "﹆" else "﹅";
+    } else if (std.mem.indexOf(u8, s, "filled") != null) {
+        return "●";
+    } else if (is_open) {
+        return "○";
+    }
+    return s;
+}
+
+pub fn hasDescender(c: u8) bool {
+    return switch (c) {
+        'g', 'j', 'p', 'q', 'y', 'Q', ',', ';' => true,
+        else => false,
+    };
+}
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
 
@@ -149,6 +187,9 @@ pub const Text = struct {
         }
         if (self.typography.letter_spacing != 0 or self.typography.word_spacing != 0 or std.mem.indexOfScalar(u8, content, '\t') != null) {
             metrics.width = @max(0, advance);
+        }
+        if (std.mem.eql(u8, self.typography.text_combine_upright, "all")) {
+            metrics.width = @min(metrics.width, px);
         }
         return metrics;
     }

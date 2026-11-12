@@ -437,7 +437,6 @@ export function snapshot(node, inherited = {}) {
     }
   }
   const isButton = node.type === "button";
-  const isInput = node.type === "input";
   const isSelect = node.type === "select";
   const isOption = node.type === "option";
   const clickable = !node.props.disabled && (

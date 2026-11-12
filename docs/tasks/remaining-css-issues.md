@@ -22,8 +22,10 @@ What remains open from this integration:
 3. **146 other open issues below `#168`** from the original 2024 Baseline
    catalog that were never part of the 12 batches.
 
-All 26 issues are still OPEN on `RoboXGamer/SolidNativeZigExperiment`. None of
-them were implemented, and none were validated.
+The 5 partials above are still OPEN. #144 (Lab/LCH) and #41 (color()) are also
+open and marked `partial-unverified` by the earlier css-subsystem batch (#314).
+No builds, tests, typechecks or test authoring were performed for any item
+listed here.
 
 ---
 

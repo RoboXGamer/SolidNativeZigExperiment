@@ -1204,6 +1204,11 @@ pub const Scene = struct {
             }
             return n.constrain(frame_y + lh, false);
         }
+        // A closed select is a replaced control: its option children are removed
+        // from the layout projection, so its own label line is the only content.
+        if (std.mem.eql(u8, n.type, "select") and n.children.len == 0 and n.style.height == null) {
+            return n.constrain(frame_y + self.textFor(n).lineHeight(n.fontSize()), false);
+        }
         const inner_width = @max(0, border_width - frame_x);
         const grid = std.mem.eql(u8, n.style.display, "grid");
         if (grid) return n.constrain(frame_y + (@import("layout_grid.zig").measureHeight(self, n, inner_width) catch 0), false);
@@ -1288,6 +1293,11 @@ pub const Scene = struct {
                 }
             }
             return n.constrain(frame + lh, false);
+        }
+        // See naturalHeightForWidth: a closed select keeps one label line even
+        // though every option child is display:none in the layout projection.
+        if (std.mem.eql(u8, n.type, "select") and n.children.len == 0) {
+            return n.constrain(frame + self.textFor(n).lineHeight(n.fontSize()), false);
         }
         var total: f32 = 0;
         if (std.mem.eql(u8, n.style.display, "grid")) {

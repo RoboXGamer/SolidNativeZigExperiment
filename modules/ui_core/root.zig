@@ -34,6 +34,8 @@ pub const paint = @import("paint.zig");
 pub const interaction = @import("interaction.zig");
 pub const animation = @import("animation.zig");
 pub const transitions = @import("transitions.zig");
+pub const selectors = @import("selectors.zig");
+pub const media = @import("media.zig");
 
 test {
     std.testing.refAllDecls(@import("tests.zig"));

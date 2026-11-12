@@ -1,8 +1,45 @@
-﻿import { createRenderer } from "@solidjs/universal";
+import { createRenderer } from "@solidjs/universal";
+import { matches, querySelector, querySelectorAll, closest } from "./selectors.js";
 
 // Minimal retained tree; Solid owns mutations and disposal.
 let nextNodeId = 1;
-export const node = (type, text = "") => ({ id: nextNodeId++, type, text, children: [], parent: null, props: {} });
+export const node = (type, text = "") => {
+  const n = {
+    id: nextNodeId++,
+    type,
+    text,
+    children: [],
+    parent: null,
+    props: {},
+    getAttribute(name) {
+      if (name === "id") return this.props.id != null ? String(this.props.id) : String(this.id);
+      return this.props[name] != null ? String(this.props[name]) : null;
+    },
+    setAttribute(name, value) {
+      this.props[name] = String(value);
+    },
+    hasAttribute(name) {
+      return this.props[name] !== undefined || (name === "id" && this.id != null);
+    },
+    removeAttribute(name) {
+      delete this.props[name];
+    },
+    matches(selector) {
+      return matches(this, selector, this);
+    },
+    querySelector(selector) {
+      return querySelector(this, selector);
+    },
+    querySelectorAll(selector) {
+      return querySelectorAll(this, selector);
+    },
+    closest(selector) {
+      return closest(this, selector);
+    },
+  };
+  return n;
+};
+
 const renderer = createRenderer({
   createElement: (type, props) => Object.assign(node(type), { props: props || {} }),
   createTextNode: text => node("text", String(text)),
@@ -26,4 +63,4 @@ const renderer = createRenderer({
 });
 
 export const { render, effect, memo, createComponent, createElement, createTextNode, insertNode, insert, spread, setProp, mergeProps, applyRef, ref } = renderer;
-
+export { matches, querySelector, querySelectorAll, closest };

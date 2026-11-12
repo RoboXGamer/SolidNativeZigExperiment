@@ -1,0 +1,156 @@
+{
+  "date": "2026-11-12",
+  "batch": 8,
+  "scope": "CSS 2024 Baseline features: selectors, shadow-parts, scope-pseudo, scrollbar-width, scrollbar-gutter, scroll-snap, scroll-behavior, scripting, safe-area-inset, ruby-position",
+  "validation": "Not run: builds, tests and typechecks explicitly paused by user",
+  "issues": [
+    {
+      "number": 226,
+      "id": "shadow-parts",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.selectors.part"
+      ]
+    },
+    {
+      "number": 225,
+      "id": "selectors",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.selectors.attribute",
+        "css.selectors.child",
+        "css.selectors.class",
+        "css.selectors.descendant",
+        "css.selectors.id",
+        "css.selectors.list",
+        "css.selectors.next-sibling",
+        "css.selectors.subsequent-sibling",
+        "css.selectors.type",
+        "css.selectors.type.namespaces",
+        "css.selectors.universal",
+        "css.selectors.universal.namespaces"
+      ]
+    },
+    {
+      "number": 224,
+      "id": "scrollbar-width",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.properties.scrollbar-width",
+        "css.properties.scrollbar-width.auto",
+        "css.properties.scrollbar-width.none",
+        "css.properties.scrollbar-width.thin"
+      ]
+    },
+    {
+      "number": 223,
+      "id": "scrollbar-gutter",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.properties.scrollbar-gutter",
+        "css.properties.scrollbar-gutter.auto",
+        "css.properties.scrollbar-gutter.stable"
+      ]
+    },
+    {
+      "number": 222,
+      "id": "scroll-snap",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.properties.scroll-margin",
+        "css.properties.scroll-margin-block",
+        "css.properties.scroll-margin-block-end",
+        "css.properties.scroll-margin-block-start",
+        "css.properties.scroll-margin-bottom",
+        "css.properties.scroll-margin-inline",
+        "css.properties.scroll-margin-inline-end",
+        "css.properties.scroll-margin-inline-start",
+        "css.properties.scroll-margin-left",
+        "css.properties.scroll-margin-right",
+        "css.properties.scroll-margin-top",
+        "css.properties.scroll-padding",
+        "css.properties.scroll-padding-block",
+        "css.properties.scroll-padding-block-end",
+        "css.properties.scroll-padding-block-end.auto",
+        "css.properties.scroll-padding-block-start",
+        "css.properties.scroll-padding-block-start.auto",
+        "css.properties.scroll-padding-block.auto",
+        "css.properties.scroll-padding-bottom",
+        "css.properties.scroll-padding-inline",
+        "css.properties.scroll-padding-inline-end",
+        "css.properties.scroll-padding-inline-end.auto",
+        "css.properties.scroll-padding-inline-start",
+        "css.properties.scroll-padding-inline-start.auto",
+        "css.properties.scroll-padding-inline.auto",
+        "css.properties.scroll-padding-left",
+        "css.properties.scroll-padding-right",
+        "css.properties.scroll-padding-top",
+        "css.properties.scroll-padding.auto",
+        "css.properties.scroll-snap-align",
+        "css.properties.scroll-snap-align.center",
+        "css.properties.scroll-snap-align.end",
+        "css.properties.scroll-snap-align.none",
+        "css.properties.scroll-snap-align.start",
+        "css.properties.scroll-snap-stop",
+        "css.properties.scroll-snap-stop.always",
+        "css.properties.scroll-snap-stop.normal",
+        "css.properties.scroll-snap-type",
+        "css.properties.scroll-snap-type.block",
+        "css.properties.scroll-snap-type.both",
+        "css.properties.scroll-snap-type.inline",
+        "css.properties.scroll-snap-type.none",
+        "css.properties.scroll-snap-type.x",
+        "css.properties.scroll-snap-type.y"
+      ]
+    },
+    {
+      "number": 221,
+      "id": "scroll-behavior",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.properties.scroll-behavior",
+        "css.properties.scroll-behavior.auto",
+        "css.properties.scroll-behavior.smooth"
+      ]
+    },
+    {
+      "number": 220,
+      "id": "scripting",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.at-rules.media.scripting"
+      ]
+    },
+    {
+      "number": 219,
+      "id": "scope-pseudo",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.selectors.scope",
+        "css.selectors.scope.dom_api"
+      ]
+    },
+    {
+      "number": 218,
+      "id": "safe-area-inset",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.types.env",
+        "css.types.env.safe-area-inset-bottom",
+        "css.types.env.safe-area-inset-left",
+        "css.types.env.safe-area-inset-right",
+        "css.types.env.safe-area-inset-top"
+      ]
+    },
+    {
+      "number": 217,
+      "id": "ruby-position",
+      "status": "implemented-unverified",
+      "keys": [
+        "css.properties.ruby-position",
+        "css.properties.ruby-position.over",
+        "css.properties.ruby-position.under"
+      ]
+    }
+  ]
+}

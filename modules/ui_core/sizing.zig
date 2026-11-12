@@ -37,6 +37,10 @@ pub const Context = struct {
     container_height: ?f32 = null,
     container_inline: ?f32 = null,
     container_block: ?f32 = null,
+    safe_area_inset_top: ?f32 = null,
+    safe_area_inset_right: ?f32 = null,
+    safe_area_inset_bottom: ?f32 = null,
+    safe_area_inset_left: ?f32 = null,
 };
 
 pub const AvailableSpace = union(enum) { definite: f32, min_content, max_content };
@@ -185,6 +189,37 @@ const Parser = struct {
             const q = try p.expression();
             if (!p.take(')')) return error.InvalidLength;
             return q;
+        }
+        if (std.ascii.eqlIgnoreCase(name, "env")) {
+            p.whitespace();
+            const ident_start = p.pos;
+            while (p.pos < p.input.len and (std.ascii.isAlphanumeric(p.input[p.pos]) or p.input[p.pos] == '-' or p.input[p.pos] == '_')) : (p.pos += 1) {}
+            const ident = p.input[ident_start..p.pos];
+            p.whitespace();
+            var fallback: ?Quantity = null;
+            if (p.take(',')) {
+                fallback = try p.expression();
+            }
+            if (!p.take(')')) return error.InvalidLength;
+
+            var val: ?f32 = null;
+            if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-top")) {
+                val = p.context.safe_area_inset_top;
+            } else if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-right")) {
+                val = p.context.safe_area_inset_right;
+            } else if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-bottom")) {
+                val = p.context.safe_area_inset_bottom;
+            } else if (std.ascii.eqlIgnoreCase(ident, "safe-area-inset-left")) {
+                val = p.context.safe_area_inset_left;
+            }
+
+            if (val) |v| {
+                return .{ .dimension = .length, .value = v };
+            } else if (fallback) |fb| {
+                return fb;
+            } else {
+                return .{ .dimension = .length, .value = 0 };
+            }
         }
         const is_min = std.ascii.eqlIgnoreCase(name, "min");
         const is_max = std.ascii.eqlIgnoreCase(name, "max");

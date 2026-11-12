@@ -358,8 +358,9 @@ pub fn computeBlockLayout(
 pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anyerror!void {
     const pad = n.padding();
     const bd = n.border();
-    const content_top = bounds.y + pad.top + bd.top;
-    const content_left = bounds.x + pad.left + bd.left;
+    const gutter = n.scrollbarGutterReserved();
+    const content_top = bounds.y + pad.top + bd.top + gutter.top;
+    const content_left = bounds.x + pad.left + bd.left + gutter.left;
 
     const count = n.children.len;
     if (count == 0) return;

@@ -49,7 +49,7 @@ pub const Node = struct {
     pub fn skipsContents(self: *const Node, viewport: Rect, bounds: Rect) bool {
         if (std.mem.eql(u8, self.style.contentVisibility, "hidden")) return true;
         if (std.mem.eql(u8, self.style.contentVisibility, "auto")) {
-            return !bounds.intersects(viewport);
+            return (bounds.right() <= viewport.left() or bounds.left() >= viewport.right() or bounds.bottom() <= viewport.top() or bounds.top() >= viewport.bottom());
         }
         return false;
     }

@@ -42,7 +42,7 @@ pub fn touchActionAllowsPanX(value: []const u8) bool {
     const v = std.mem.trim(u8, value, " \t\r\n");
     if (v.len == 0 or std.ascii.eqlIgnoreCase(v, "auto") or std.ascii.eqlIgnoreCase(v, "manipulation")) return true;
     if (std.ascii.eqlIgnoreCase(v, "none") or std.ascii.eqlIgnoreCase(v, "pan-y")) return false;
-    if (std.ascii.indexOfIgnoreCase(v, "pan-x") != null) return true;
+    if (std.ascii.findIgnoreCase(v, "pan-x") != null) return true;
     return false;
 }
 
@@ -51,7 +51,7 @@ pub fn touchActionAllowsPanY(value: []const u8) bool {
     const v = std.mem.trim(u8, value, " \t\r\n");
     if (v.len == 0 or std.ascii.eqlIgnoreCase(v, "auto") or std.ascii.eqlIgnoreCase(v, "manipulation")) return true;
     if (std.ascii.eqlIgnoreCase(v, "none") or std.ascii.eqlIgnoreCase(v, "pan-x")) return false;
-    if (std.ascii.indexOfIgnoreCase(v, "pan-y") != null) return true;
+    if (std.ascii.findIgnoreCase(v, "pan-y") != null) return true;
     return false;
 }
 
@@ -60,7 +60,7 @@ pub fn touchActionAllowsPinchZoom(value: []const u8) bool {
     const v = std.mem.trim(u8, value, " \t\r\n");
     if (v.len == 0 or std.ascii.eqlIgnoreCase(v, "auto") or std.ascii.eqlIgnoreCase(v, "manipulation")) return true;
     if (std.ascii.eqlIgnoreCase(v, "none")) return false;
-    if (std.ascii.indexOfIgnoreCase(v, "pinch-zoom") != null) return true;
+    if (std.ascii.findIgnoreCase(v, "pinch-zoom") != null) return true;
     return false;
 }
 

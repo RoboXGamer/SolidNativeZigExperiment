@@ -567,26 +567,6 @@ export function resolveUnsetValues(style, inherited = {}) {
   return resolved;
 }
 
-export function evaluateMediaQuery(query) {
-  if (typeof query !== "string") return false;
-  const q = query.trim().toLowerCase();
-  if (q.includes("update")) {
-    if (q.includes("update: fast") || q.includes("update:fast")) return true;
-    if (q.includes("update: none") || q.includes("update:none") || q.includes("update: slow") || q.includes("update:slow")) return false;
-    if (/\(\s*update\s*\)/.test(q)) return true;
-  }
-  return true;
-}
-
-export function matchMedia(query) {
-  return {
-    media: query,
-    matches: evaluateMediaQuery(query),
-    addEventListener() {},
-    removeEventListener() {}
-  };
-}
-
 export function snapshot(node, inherited = {}) {
   let authored = resolveUnsetValues(node.props.style || {}, inherited);
   if (node._isHovered) {

@@ -195,7 +195,7 @@ pub const Timeline = struct {
         return .{ .allocator = a };
     }
     pub fn deinit(self: *Timeline) void {
-        for (self.tracks.items) |*t| t.config.deinit(self.allocator);\
+        for (self.tracks.items) |*t| t.config.deinit(self.allocator);
         self.tracks.deinit(self.allocator);
     }
     fn remove(self: *Timeline, index: usize) void {
@@ -238,6 +238,7 @@ pub const Timeline = struct {
         c = .{};
     }
     pub fn retarget(self: *Timeline, old: *const ui.Scene, target: *const ui.Scene, now: f64) !void {
+        @setEvalBranchQuota(20000);
         var i = self.tracks.items.len;
         while (i > 0) {
             i -= 1;
@@ -277,6 +278,7 @@ pub const Timeline = struct {
         }
     }
     fn applyNode(self: *Timeline, n: *ui.Node, a: std.mem.Allocator, now: f64) !void {
+        @setEvalBranchQuota(20000);
         for (self.tracks.items) |t| if (t.id == n.id) {
             const v = t.sample(now);
             switch (v) {
@@ -320,3 +322,4 @@ pub const Timeline = struct {
         }
     }
 };
+

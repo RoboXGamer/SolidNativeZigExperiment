@@ -35,6 +35,7 @@ export function evaluateMediaQuery(queryString, env = {}) {
 
   const scripting = env.scripting || globalScriptingState;
 
+  if (/^update(?:\s*:|$)/i.test(q)) { const value = q.includes(":") ? q.slice(q.indexOf(":") + 1).trim().toLowerCase() : null; const actual = env.update || "fast"; const result = value ? value === actual : actual !== "none"; return negated ? !result : result; }
   // Check for scripting media feature
   if (/^scripting/i.test(q)) {
     const colonIdx = q.indexOf(":");

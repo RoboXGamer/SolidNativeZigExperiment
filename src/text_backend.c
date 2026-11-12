@@ -17,6 +17,7 @@ typedef struct {
     const char *language; size_t language_length;
     const char *transform; size_t transform_length;
     const char *feature_settings; size_t feature_settings_length;
+    const char *orientation; size_t orientation_length;
     float weight,letter_spacing,word_spacing,tab_size;
     int tab_size_is_length;
 } TextStyle;
@@ -76,49 +77,91 @@ static WCHAR *transform_text(const WCHAR *text,int length,const TextStyle *s,int
     }
     int locale_length=0; WCHAR *locale=wide(s->language,s->language_length,&locale_length);
     const WCHAR *locale_name=locale && locale_length?locale:LOCALE_NAME_INVARIANT;
-    DWORD flags=equals(s->transform,s->transform_length,"uppercase")?LCMAP_UPPERCASE:equals(s->transform,s->transform_length,"lowercase")?LCMAP_LOWERCASE:equals(s->transform,s->transform_length,"full-width")?LCMAP_FULLWIDTH:0;
-    if(flags) {
-        int required=LCMapStringEx(locale_name,flags|((flags==LCMAP_UPPERCASE || flags==LCMAP_LOWERCASE)?LCMAP_LINGUISTIC_CASING:0),text,length,NULL,0,NULL,NULL,0);
-        WCHAR *out=required?calloc((size_t)required+1,sizeof(WCHAR)):NULL;
-        if(out && LCMapStringEx(locale_name,flags|((flags==LCMAP_UPPERCASE || flags==LCMAP_LOWERCASE)?LCMAP_LINGUISTIC_CASING:0),text,length,out,required,NULL,NULL,0)) { *out_length=required; free(locale); return out; }
-        free(out);
-    } else if(equals(s->transform,s->transform_length,"capitalize")) {
-        // A UTF-16 character can expand during uppercasing; size without a cap.
-        size_t capacity=(size_t)length+1,used=0; WCHAR *out=malloc(capacity*sizeof(WCHAR)); int initial=1;
-        if(!out) { free(locale); return NULL; }
-        for(int i=0;i<length;) {
-            int count=(text[i]>=0xd800 && text[i]<=0xdbff && i+1<length)?2:1;
-            WORD kind=0; GetStringTypeW(CT_CTYPE1,text+i,1,&kind);
-            int required=initial && (kind&C1_ALPHA)?LCMapStringEx(locale_name,LCMAP_UPPERCASE|LCMAP_LINGUISTIC_CASING,text+i,count,NULL,0,NULL,NULL,0):0;
-            size_t added=required>0?(size_t)required:(size_t)count;
-            if(used+added>INT_MAX) { free(out);free(locale);return NULL; }
-            if(used+added+1>capacity) { size_t next=used+added+1; WCHAR *grown=realloc(out,next*sizeof(WCHAR)); if(!grown) { free(out);free(locale);return NULL; } out=grown;capacity=next; }
-            if(required) LCMapStringEx(locale_name,LCMAP_UPPERCASE|LCMAP_LINGUISTIC_CASING,text+i,count,out+used,required,NULL,NULL,0); else memcpy(out+used,text+i,(size_t)count*sizeof(WCHAR));
-            used+=added; if(kind&(C1_ALPHA|C1_DIGIT)) initial=0; else if(kind&(C1_SPACE|C1_PUNCT)) initial=1;
-            i+=count;
+    if (equals(s->transform, s->transform_length, "uppercase")) {
+        const WCHAR *eff_locale = (locale_name == LOCALE_NAME_INVARIANT && wmemchr(text, 0x00df, length)) ? L"de-DE" : locale_name;
+        int required = LCMapStringEx(eff_locale, LCMAP_UPPERCASE | LCMAP_LINGUISTIC_CASING, text, length, NULL, 0, NULL, NULL, 0);
+        WCHAR *out = required ? calloc((size_t)required + 1, sizeof(WCHAR)) : NULL;
+        if (out && LCMapStringEx(eff_locale, LCMAP_UPPERCASE | LCMAP_LINGUISTIC_CASING, text, length, out, required, NULL, NULL, 0)) {
+            *out_length = required; free(locale); return out;
         }
-        out[used]=0; *out_length=(int)used;free(locale);return out;
+        free(out);
+    } else if (equals(s->transform, s->transform_length, "lowercase")) {
+        const WCHAR *eff_locale = (locale_name == LOCALE_NAME_INVARIANT && (wmemchr(text, 0x03a3, length))) ? L"el-GR" : locale_name;
+        int required = LCMapStringEx(eff_locale, LCMAP_LOWERCASE | LCMAP_LINGUISTIC_CASING, text, length, NULL, 0, NULL, NULL, 0);
+        WCHAR *out = required ? calloc((size_t)required + 1, sizeof(WCHAR)) : NULL;
+        if (out && LCMapStringEx(eff_locale, LCMAP_LOWERCASE | LCMAP_LINGUISTIC_CASING, text, length, out, required, NULL, NULL, 0)) {
+            for (int i = 0; i < required; i++) {
+                if (out[i] == 0x03c3) {
+                    int is_end = (i + 1 == required) || iswspace(out[i + 1]) || iswpunct(out[i + 1]);
+                    if (is_end) out[i] = 0x03c2;
+                }
+            }
+            *out_length = required; free(locale); return out;
+        }
+        free(out);
+    } else if (equals(s->transform, s->transform_length, "full-width")) {
+        int required=LCMapStringEx(locale_name,LCMAP_FULLWIDTH,text,length,NULL,0,NULL,NULL,0);
+        WCHAR *out=required?calloc((size_t)required+1,sizeof(WCHAR)):NULL;
+        if(out && LCMapStringEx(locale_name,LCMAP_FULLWIDTH,text,length,out,required,NULL,NULL,0)) { *out_length=required; free(locale); return out; }
+        free(out);
+    } else if (equals(s->transform, s->transform_length, "capitalize")) {
+        // A UTF-16 character can expand during uppercasing; size without a cap.
+        size_t capacity = (size_t)length + 1, used = 0;
+        WCHAR *out = malloc(capacity * sizeof(WCHAR));
+        int initial = 1;
+        if (!out) { free(locale); return NULL; }
+        for (int i = 0; i < length;) {
+            int count = (text[i] >= 0xd800 && text[i] <= 0xdbff && i + 1 < length) ? 2 : 1;
+            WORD kind = 0;
+            GetStringTypeW(CT_CTYPE1, text + i, 1, &kind);
+            int required = initial && (kind & C1_ALPHA) ? LCMapStringEx(locale_name, LCMAP_UPPERCASE | LCMAP_LINGUISTIC_CASING, text + i, count, NULL, 0, NULL, NULL, 0) : 0;
+            size_t added = required > 0 ? (size_t)required : (size_t)count;
+            if (used + added > INT_MAX) { free(out); free(locale); return NULL; }
+            if (used + added + 1 > capacity) {
+                size_t next = used + added + 1;
+                WCHAR *grown = realloc(out, next * sizeof(WCHAR));
+                if (!grown) { free(out); free(locale); return NULL; }
+                out = grown; capacity = next;
+            }
+            if (required) LCMapStringEx(locale_name, LCMAP_UPPERCASE | LCMAP_LINGUISTIC_CASING, text + i, count, out + used, required, NULL, NULL, 0);
+            else memcpy(out + used, text + i, (size_t)count * sizeof(WCHAR));
+            used += added;
+            if (kind & (C1_ALPHA | C1_DIGIT)) initial = 0;
+            else if (kind & (C1_SPACE | C1_PUNCT)) initial = 1;
+            i += count;
+        }
+        out[used] = 0; *out_length = (int)used; free(locale); return out;
     }
     free(locale);
-    WCHAR *out=malloc(((size_t)length+1)*sizeof(WCHAR)); if(out) { memcpy(out,text,(size_t)length*sizeof(WCHAR));out[length]=0; } return out;
+    WCHAR *out = malloc(((size_t)length + 1) * sizeof(WCHAR));
+    if (out) { memcpy(out, text, (size_t)length * sizeof(WCHAR)); out[length] = 0; }
+    return out;
 }
 static void release_run(TextRun *r) {
-    if(r->analysis) ScriptStringFree(&r->analysis);
-    if(r->previous) SelectObject(r->dc,r->previous);
-    if(r->font) DeleteObject(r->font);
-    if(r->dc) DeleteDC(r->dc);
+    if (r->analysis) ScriptStringFree(&r->analysis);
+    if (r->previous) SelectObject(r->dc, r->previous);
+    if (r->font) DeleteObject(r->font);
+    if (r->dc) DeleteDC(r->dc);
     free(r->text);
     free(r->original);
 }
-static int create_run(TextRun *r,const char *utf8,size_t length,float size,const TextStyle *s) {
-    r->original=wide(utf8,length,&r->original_length); if(!r->original || !r->original_length) return 0;
-    r->text=transform_text(r->original,r->original_length,s,&r->length); if(!r->text || !r->length) return 0;
-    r->dc=CreateCompatibleDC(NULL);
-    if(!r->dc) return 0;
-    WCHAR face[LF_FACESIZE]; choose_family(r->dc,s,face);
-    int weight=s?(int)fmax(1,fmin(1000,round(s->weight))):FW_NORMAL;
-    int italic=s && !equals(s->style,s->style_length,"normal");
-    r->font=CreateFontW(-(int)fmax(1,round(size)),0,0,0,weight,italic,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,ANTIALIASED_QUALITY,DEFAULT_PITCH,face);
+static int create_run(TextRun *r, const char *utf8, size_t length, float size, const TextStyle *s) {
+    r->original = wide(utf8, length, &r->original_length);
+    if (!r->original || !r->original_length) return 0;
+    r->text = transform_text(r->original, r->original_length, s, &r->length);
+    if (!r->text || !r->length) return 0;
+    r->dc = CreateCompatibleDC(NULL);
+    if (!r->dc) return 0;
+    WCHAR face[LF_FACESIZE];
+    choose_family(r->dc, s, face);
+    int weight = s ? (int)fmax(1, fmin(1000, round(s->weight))) : FW_NORMAL;
+    int italic = s && !equals(s->style, s->style_length, "normal");
+    int escapement = 0, orientation_angle = 0;
+    if (s && equals(s->orientation, s->orientation_length, "sideways")) {
+        escapement = 2700;
+        orientation_angle = 2700;
+    }
+    r->font = CreateFontW(-(int)fmax(1, round(size)), 0, escapement, orientation_angle, weight, italic, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, face);
     if(!r->dc || !r->font) return 0;
     r->previous=SelectObject(r->dc,r->font);
     DWORD flags=SSA_GLYPHS|SSA_FALLBACK|SSA_LINK|SSA_BREAK;

@@ -8,13 +8,9 @@ export interface NativeEvent {
 }
 
 export interface NativeInputEvent extends NativeEvent {
-  type: "input";
-  target: { id: number; value: string };
 }
 
 export interface NativeChangeEvent extends NativeEvent {
-  type: "change";
-  target: { id: number; value: string };
 }
 
 export type NativeLength = number | string;
@@ -85,8 +81,8 @@ export interface NativeStyle {
   wordSpacing?: NativeLength;
   tabSize?: NativeLength;
   textIndent?: NativeLength;
-  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
-  textOverflow?: "clip" | "ellipsis";
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize" | string;
+  textOverflow?: "clip" | "ellipsis" | string;
   textAlignLast?: "auto" | "start" | "end" | "left" | "right" | "center" | "justify";
   wordBreak?: "normal" | "break-all" | "keep-all" | string;
   whiteSpaceCollapse?: "collapse" | "preserve" | "preserve-breaks" | "break-spaces" | string;
@@ -96,6 +92,25 @@ export interface NativeStyle {
   ":user-invalid"?: NativeStyle;
   ":where"?: Record<string, NativeStyle>;
   "::cue"?: NativeStyle;
+  textOrientation?: "mixed" | "upright" | "sideways" | string;
+  textShadow?: string;
+  webkitTextFillColor?: string;
+  textFillColor?: string;
+  webkitTextStroke?: string;
+  textStroke?: string;
+  webkitTextStrokeColor?: string;
+  textStrokeColor?: string;
+  webkitTextStrokeWidth?: NativeLength;
+  textStrokeWidth?: NativeLength;
+  textUnderlineOffset?: NativeLength;
+  textUnderlinePosition?: "auto" | "from-font" | "under" | "left" | "right" | string;
+  textDecoration?: string;
+  textDecorationLine?: "none" | "underline" | "line-through" | "overline" | string;
+  textDecorationColor?: string;
+  textDecorationThickness?: NativeLength;
+  textWrap?: "wrap" | "nowrap" | "balance" | "stable" | "pretty" | string;
+  textWrapMode?: "wrap" | "nowrap" | string;
+  textWrapStyle?: "auto" | "balance" | "stable" | "pretty" | string;
   visibility?: "visible" | "hidden" | "collapse";
   pointerEvents?: string;
   cursor?: string;
@@ -143,11 +158,7 @@ export interface NativeStyle {
   scrollbarWidth?: "auto" | "thin" | "none";
   scrollbarColor?: "auto" | string;
   textAutospace?: "normal" | "no-autospace";
-  textDecoration?: string;
-  textDecorationLine?: "none" | "underline" | "overline" | "line-through" | "spelling-error" | "grammar-error" | string;
   textDecorationStyle?: "solid" | "double" | "dotted" | "dashed" | "wavy";
-  textDecorationColor?: string;
-  textDecorationThickness?: NativeLength;
   mathShift?: "normal" | "compact";
   printColorAdjust?: "economy" | "exact";
   viewTransitionName?: "none" | "match-element" | "auto" | string;
@@ -188,7 +199,6 @@ export interface NativeStyle {
   columnCount?: number | "auto";
   columnWidth?: NativeLength;
   columns?: string | number;
-  columnGap?: NativeLength;
   columnRule?: string;
   columnRuleWidth?: NativeLength;
   columnRuleStyle?: "none" | "hidden" | "dotted" | "dashed" | "solid" | "double" | "groove" | "ridge" | "inset" | "outset";

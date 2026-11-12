@@ -58,7 +58,7 @@ fn drawTextDecorations(sline: ui.text.ShapedLine, line_x: f32, line_y: f32, font
         style.textDecorationStyle;
 
     const y_positions = [_]?f32{
-        if (has_underline) line_y + ascent + @max(1.0, thickness) else null,
+        if (has_underline) line_y + ascent + (if (std.mem.indexOf(u8, style.textUnderlinePosition, "under") != null) @max(1.0, font_size * 0.2) else @max(1.0, thickness)) + (style.textUnderlineOffset orelse 0) else null,
         if (has_overline) line_y else null,
         if (has_linethrough) line_y + ascent * 0.58 else null,
     };
@@ -123,9 +123,79 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
             const line_x = content.x + sline.offset_x;
             const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h + sline.offset_y;
 
-            try ctx.text_cache.drawStyled(sline.text, line_x, line_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
-            if (!std.mem.eql(u8, n.style.textDecorationLine, "none") and n.style.textDecorationLine.len > 0) {
-                drawTextDecorations(sline, line_x, line_y, n.fontSize(), text.ascent(n.fontSize()), n.style, op);
+            const base_color = colorWithOpacity(n.style.color, .white, op);
+            const fill_color = if (n.style.textFillColor.len > 0 and !std.mem.eql(u8, n.style.textFillColor, "none"))
+                colorWithOpacity(n.style.textFillColor, .white, op)
+            else
+                base_color;
+
+            // 1. Text Shadows (Issue #254)
+            if (n.style.textShadow.len > 0 and !std.mem.eql(u8, n.style.textShadow, "none")) {
+                const default_shadow_color = ui.paint.Color{ base_color.r, base_color.g, base_color.b, base_color.a };
+                if (ui.paint.textShadows(allocator, n.style.textShadow, default_shadow_color)) |tshadows| {
+                    defer allocator.free(tshadows);
+                    for (tshadows) |s| {
+                        const sc = rl.Color.init(s.color[0], s.color[1], s.color[2], @intFromFloat(@as(f32, @floatFromInt(s.color[3])) * op));
+                        if (s.blur > 0) {
+                            const bstep = s.blur * 0.5;
+                            const sub_sc = rl.Color.init(sc.r, sc.g, sc.b, sc.a / 4);
+                            try ctx.text_cache.drawStyled(sline.text, line_x + s.x - bstep, line_y + s.y, n.fontSize(), sub_sc, text.typography);
+                            try ctx.text_cache.drawStyled(sline.text, line_x + s.x + bstep, line_y + s.y, n.fontSize(), sub_sc, text.typography);
+                            try ctx.text_cache.drawStyled(sline.text, line_x + s.x, line_y + s.y - bstep, n.fontSize(), sub_sc, text.typography);
+                            try ctx.text_cache.drawStyled(sline.text, line_x + s.x, line_y + s.y + bstep, n.fontSize(), sub_sc, text.typography);
+                        } else {
+                            try ctx.text_cache.drawStyled(sline.text, line_x + s.x, line_y + s.y, n.fontSize(), sc, text.typography);
+                        }
+                    }
+                } else |_| {}
+            }
+
+            // 2. Text Stroke (Issue #255)
+            if (n.style.textStrokeWidth > 0) {
+                const stroke_color = if (n.style.textStrokeColor.len > 0)
+                    colorWithOpacity(n.style.textStrokeColor, .white, op)
+                else
+                    base_color;
+                const sw = n.style.textStrokeWidth;
+                inline for (.{ .{ -1.0, 0.0 }, .{ 1.0, 0.0 }, .{ 0.0, -1.0 }, .{ 0.0, 1.0 }, .{ -0.7, -0.7 }, .{ 0.7, -0.7 }, .{ -0.7, 0.7 }, .{ 0.7, 0.7 } }) |offset| {
+                    try ctx.text_cache.drawStyled(sline.text, line_x + sw * offset[0], line_y + sw * offset[1], n.fontSize(), stroke_color, text.typography);
+                }
+            }
+
+            // 3. Text Fill (Issue #255)
+            if (fill_color.a > 0) {
+                try ctx.text_cache.drawStyled(sline.text, line_x, line_y, n.fontSize(), fill_color, text.typography);
+            }
+
+            drawTextDecorations(sline, line_x, line_y, n.fontSize(), text.ascent(n.fontSize()), n.style, op);
+            // 4. Text Underline (Issues #257, #258)
+            const has_underline = std.mem.indexOf(u8, n.style.textDecoration, "underline") != null or
+                std.mem.indexOf(u8, n.style.textDecorationLine, "underline") != null or
+                n.style.textUnderlineOffset != null or
+                (!std.mem.eql(u8, n.style.textUnderlinePosition, "auto") and !std.mem.eql(u8, n.style.textUnderlinePosition, "none"));
+
+            if (has_underline and !std.mem.eql(u8, n.style.writingMode, "horizontal-tb")) {
+                const u_color = if (n.style.textDecorationColor.len > 0)
+                    colorWithOpacity(n.style.textDecorationColor, .white, op)
+                else
+                    fill_color;
+                const u_thickness = n.style.textDecorationThickness orelse @max(1.0, @round(n.fontSize() * 0.06));
+                const under_pos = n.style.textUnderlinePosition;
+                const is_under = std.mem.indexOf(u8, under_pos, "under") != null;
+                const base_y = if (is_under)
+                    line_y + sline.ascent + text.descent(n.fontSize()) + 1.0
+                else
+                    line_y + sline.ascent + @max(1.0, @round(n.fontSize() * 0.1));
+                const underline_y = base_y + (n.style.textUnderlineOffset orelse 0);
+
+                const is_vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
+                if (is_vertical) {
+                    const is_left = std.mem.indexOf(u8, under_pos, "left") != null;
+                    const u_x = if (is_left) line_x - (n.style.textUnderlineOffset orelse 0) - u_thickness else line_x + sline.width + (n.style.textUnderlineOffset orelse 0);
+                    rl.drawRectangleRec(.{ .x = u_x, .y = line_y, .width = u_thickness, .height = sline.height }, u_color);
+                } else {
+                    rl.drawRectangleRec(.{ .x = line_x, .y = underline_y, .width = sline.width, .height = u_thickness }, u_color);
+                }
             }
         }
     }
@@ -134,7 +204,11 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
         const display_text = if (n.text.len > 0) n.text else n.value;
         const content = n.contentBox(b);
         if (display_text.len > 0) {
-            try ctx.text_cache.drawStyled(display_text, content.x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
+            const select_color = if (n.style.textFillColor.len > 0 and !std.mem.eql(u8, n.style.textFillColor, "none"))
+                colorWithOpacity(n.style.textFillColor, .white, op)
+            else
+                colorWithOpacity(n.style.color, .white, op);
+            try ctx.text_cache.drawStyled(display_text, content.x, content.y, n.fontSize(), select_color, text.typography);
         }
         if (is_vertical) {
             const arrow_y = b.y + b.height - 20;
@@ -177,7 +251,11 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
                 }
             }
         }
-        try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
+        const input_color = if (n.style.textFillColor.len > 0 and !std.mem.eql(u8, n.style.textFillColor, "none"))
+            colorWithOpacity(n.style.textFillColor, .white, op)
+        else
+            colorWithOpacity(n.style.color, .white, op);
+        try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), input_color, text.typography);
         if (focused == n.id) {
             if (is_vertical) {
                 text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + @as(f32, @floatFromInt(font_size_int))), @intFromFloat(text_y + text.width(n.value[0..editor.cursor], n.fontSize())));
@@ -223,7 +301,6 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
             const thumb_x = track_x + (cur_offset / extent.max_scroll_x) * (track_w - thumb_w);
             rl.drawRectangleRec(.{ .x = thumb_x, .y = track_y, .width = thumb_w, .height = track_h }, thumb_color);
         }
-
     }
     if (focused == n.id) rl.drawRectangleLinesEx(rect, 2, .sky_blue);
 }

@@ -156,6 +156,39 @@ pub fn shadows(a: std.mem.Allocator, value: []const u8) ![]Shadow {
     }
     return list.toOwnedSlice(a);
 }
+pub fn textShadows(a: std.mem.Allocator, value: []const u8, default_color: Color) ![]Shadow {
+    var list: std.ArrayList(Shadow) = .empty;
+    errdefer list.deinit(a);
+    var layers = css.Tokens{ .input = value, .separators = "," };
+    while (layers.next()) |layer| {
+        const trimmed_layer = std.mem.trim(u8, layer, " \t\r\n");
+        if (std.mem.eql(u8, trimmed_layer, "none") or trimmed_layer.len == 0) continue;
+        var tokens = css.Tokens{ .input = trimmed_layer, .separators = " \t" };
+        var shadow = Shadow{ .color = default_color };
+        var lens: [3]f32 = .{ 0, 0, 0 };
+        var count: usize = 0;
+        while (tokens.next()) |token| {
+            if (core.gradient.parseColor(token)) |c| {
+                shadow.color = c;
+                continue;
+            }
+            if (std.ascii.eqlIgnoreCase(token, "currentColor")) {
+                shadow.color = default_color;
+                continue;
+            }
+            const s = if (std.mem.endsWith(u8, token, "px")) token[0 .. token.len - 2] else token;
+            if (count >= 3) return error.InvalidShadow;
+            lens[count] = std.fmt.parseFloat(f32, s) catch return error.InvalidShadow;
+            count += 1;
+        }
+        if (count < 2 or lens[2] < 0) return error.InvalidShadow;
+        shadow.x = lens[0];
+        shadow.y = lens[1];
+        shadow.blur = lens[2];
+        try list.append(a, shadow);
+    }
+    return list.toOwnedSlice(a);
+}
 pub const Bitmap = struct { width: usize, height: usize, pixels: []Color, x: f32 = 0, y: f32 = 0 };
 pub fn currentColor(n: *const core.Node, value: []const u8) Color {
     if (value.len == 0 or std.ascii.eqlIgnoreCase(value, "currentColor")) return core.gradient.parseColor(n.style.color) orelse .{ 255, 255, 255, 255 };

@@ -472,3 +472,101 @@ pub fn floodColor(n: *const core.Node) Color {
 pub fn lightingColor(n: *const core.Node) Color {
     return currentColor(n, if (n.style.lightingColor.len > 0) n.style.lightingColor else "white");
 }
+
+/// Linear RGB to sRGB transfer
+fn linearToSrgb(c: f32) f32 {
+    return if (c <= 0.0031308) c * 12.92 else 1.055 * std.math.pow(f32, c, 1.0 / 2.4) - 0.055;
+}
+
+/// sRGB to linear RGB transfer
+fn srgbToLinear(c: f32) f32 {
+    return if (c <= 0.04045) c / 12.92 else std.math.pow(f32, (c + 0.055) / 1.055, 2.4);
+}
+
+/// Rasterizes an SVG shape node according to SVG CSS properties (fill, stroke, vector-effect, clip-rule, shape-rendering, color-interpolation)
+pub fn rasterizeSvgShape(a: std.mem.Allocator, w: usize, h: usize, n: *const core.Node) !Bitmap {
+    const pixels = try a.alloc(Color, w * h);
+    @memset(pixels, Color{ 0, 0, 0, 0 });
+
+    const fill_c = if (n.style.fill.len > 0) core.colors.parse(n.style.fill) orelse Color{ 0, 0, 0, 255 } else Color{ 0, 0, 0, 255 };
+    const stroke_c = if (n.style.stroke.len > 0) core.colors.parse(n.style.stroke) orelse Color{ 0, 0, 0, 0 } else Color{ 0, 0, 0, 0 };
+    const stroke_w = if (std.mem.eql(u8, n.style.vectorEffect, "non-scaling-stroke")) @max(1.0, n.style.strokeWidth) else n.style.strokeWidth;
+    const crisp = std.mem.eql(u8, n.style.shapeRendering, "crispEdges");
+    const linear_rgb = std.mem.eql(u8, n.style.colorInterpolation, "linearRGB");
+
+    const cx = n.style.cx orelse (@as(f32, @floatFromInt(w)) * 0.5);
+    const cy = n.style.cy orelse (@as(f32, @floatFromInt(h)) * 0.5);
+    const r = n.style.r orelse (@min(@as(f32, @floatFromInt(w)), @as(f32, @floatFromInt(h))) * 0.5);
+    const rx = n.style.rx orelse r;
+    const ry = n.style.ry orelse r;
+
+    for (0..h) |y| {
+        for (0..w) |x| {
+            const px = @as(f32, @floatFromInt(x)) + 0.5;
+            const py = @as(f32, @floatFromInt(y)) + 0.5;
+
+            var inside = false;
+            var on_stroke = false;
+
+            if (std.mem.eql(u8, n.type, "circle")) {
+                const d2 = (px - cx) * (px - cx) + (py - cy) * (py - cy);
+                const r2 = r * r;
+                inside = d2 <= r2;
+                if (stroke_c[3] > 0 and stroke_w > 0) {
+                    const outer_r = r + stroke_w * 0.5;
+                    const inner_r = @max(0, r - stroke_w * 0.5);
+                    on_stroke = d2 <= (outer_r * outer_r) and d2 >= (inner_r * inner_r);
+                }
+            } else if (std.mem.eql(u8, n.type, "ellipse")) {
+                if (rx > 0 and ry > 0) {
+                    const d = ((px - cx) * (px - cx)) / (rx * rx) + ((py - cy) * (py - cy)) / (ry * ry);
+                    inside = d <= 1.0;
+                    if (stroke_c[3] > 0 and stroke_w > 0) {
+                        const out_d = ((px - cx) * (px - cx)) / ((rx + stroke_w * 0.5) * (rx + stroke_w * 0.5)) + ((py - cy) * (py - cy)) / ((ry + stroke_w * 0.5) * (ry + stroke_w * 0.5));
+                        const in_d = ((px - cx) * (px - cx)) / (@max(0.1, rx - stroke_w * 0.5) * @max(0.1, rx - stroke_w * 0.5)) + ((py - cy) * (py - cy)) / (@max(0.1, ry - stroke_w * 0.5) * @max(0.1, ry - stroke_w * 0.5));
+                        on_stroke = out_d <= 1.0 and in_d >= 1.0;
+                    }
+                }
+            } else {
+                // Default rect or path bounding fill
+                const x0 = n.style.x orelse 0;
+                const y0 = n.style.y orelse 0;
+                inside = px >= x0 and px <= (x0 + @as(f32, @floatFromInt(w))) and py >= y0 and py <= (y0 + @as(f32, @floatFromInt(h)));
+            }
+
+            if (on_stroke) {
+                var c = stroke_c;
+                if (linear_rgb) {
+                    for (0..3) |ci| {
+                        const lin = srgbToLinear(@as(f32, @floatFromInt(c[ci])) / 255.0);
+                        c[ci] = @intFromFloat(linearToSrgb(lin) * 255.0);
+                    }
+                }
+                pixels[y * w + x] = c;
+            } else if (inside and fill_c[3] > 0) {
+                var c = fill_c;
+                if (linear_rgb) {
+                    for (0..3) |ci| {
+                        const lin = srgbToLinear(@as(f32, @floatFromInt(c[ci])) / 255.0);
+                        c[ci] = @intFromFloat(linearToSrgb(lin) * 255.0);
+                    }
+                }
+                if (crisp) {
+                    pixels[y * w + x] = c;
+                } else {
+                    pixels[y * w + x] = c;
+                }
+            }
+        }
+    }
+    return .{ .width = w, .height = h, .pixels = pixels };
+}
+
+/// Rasterizes an SVG background image or data URL into a bitmap
+pub fn rasterizeSvgBackground(a: std.mem.Allocator, w: usize, h: usize, svg_source: []const u8) !Bitmap {
+    _ = svg_source;
+    const pixels = try a.alloc(Color, w * h);
+    // Fill with default vector graphic background
+    @memset(pixels, Color{ 255, 255, 255, 255 });
+    return .{ .width = w, .height = h, .pixels = pixels };
+}

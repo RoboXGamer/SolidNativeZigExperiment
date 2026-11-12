@@ -1,4 +1,4 @@
-﻿import * as solid from "solid-js";
+import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import { createModuleHost } from "./module-runtime.js";
@@ -457,6 +457,80 @@ function styleLength(value,{normal=false,negative=false}={}) {
   throw Error("Invalid style length: "+value);
 }
 
+export class CustomStateSet extends Set {
+  add(val) { return super.add(String(val).replace(/^--/, "")); }
+  has(val) { return super.has(String(val).replace(/^--/, "")); }
+  delete(val) { return super.delete(String(val).replace(/^--/, "")); }
+}
+
+export function supportsProperty(property, value) {
+  if (!property) return false;
+  const prop = property.trim().toLowerCase();
+  const known = [
+    "display", "position", "top", "right", "bottom", "left", "inset",
+    "grid-template-columns", "grid-template-rows", "grid-auto-flow", "subgrid",
+    "flex", "flex-direction", "flex-wrap", "flex-grow", "flex-shrink", "flex-basis",
+    "justify-content", "align-items", "align-content", "align-self",
+    "shape-outside", "shape-margin", "shape-image-threshold", "clip-path",
+    "clip-rule", "color-interpolation", "shape-rendering", "text-rendering", "vector-effect",
+    "cx", "cy", "r", "rx", "ry", "x", "y", "fill", "stroke", "stroke-width",
+    "transform", "transform-origin", "transition", "opacity", "overflow", "box-sizing",
+    "background", "background-image", "background-color", "color", "font-size", "font-family",
+    "letter-spacing", "word-spacing"
+  ];
+  if (!known.includes(prop) && !prop.startsWith("--")) return false;
+  if (value == null) return true;
+  const val = String(value).trim();
+  if (prop === "grid-template-columns" || prop === "grid-template-rows") {
+    if (val.startsWith("subgrid")) return true;
+  }
+  if (prop === "position" && val === "sticky") return true;
+  return true;
+}
+
+export function evalSupportsCondition(cond) {
+  const s = String(cond).trim();
+  if (!s) return false;
+  if (s.includes("-webkit-transform-3d")) return true;
+  if (/^selector\(.+\)$/i.test(s)) return true;
+  if (/^font-tech\(.+\)$/i.test(s)) {
+    return /features-opentype|variations|palettes|color-COLRv0|color-COLRv1/i.test(s);
+  }
+  if (/^font-format\(.+\)$/i.test(s)) {
+    return /woff|woff2|opentype|truetype|collection|svg/i.test(s);
+  }
+  if (/^not\s+/i.test(s)) {
+    return !evalSupportsCondition(s.slice(4).trim());
+  }
+  if (s.startsWith("(") && s.endsWith(")")) {
+    const inner = s.slice(1, -1).trim();
+    if (inner.includes(" and ")) {
+      const parts = inner.split(" and ");
+      return parts.every(p => evalSupportsCondition(p.trim()));
+    }
+    if (inner.includes(" or ")) {
+      const parts = inner.split(" or ");
+      return parts.some(p => evalSupportsCondition(p.trim()));
+    }
+    if (inner.includes(":")) {
+      const [prop, ...valParts] = inner.split(":");
+      return supportsProperty(prop.trim(), valParts.join(":").trim());
+    }
+    return evalSupportsCondition(inner);
+  }
+  return false;
+}
+
+export const CSS = {
+  supports(first, second) {
+    if (second !== undefined) return supportsProperty(first, second);
+    return evalSupportsCondition(first);
+  }
+};
+if (typeof globalThis !== "undefined") {
+  globalThis.CSS = CSS;
+}
+
 export function resolveAttr(val, props) {
   if (typeof val !== "string" || !val.includes("attr(")) return val;
   return val.replace(/attr\(\s*([\w-]+)(?:\s+([\w%]+))?(?:\s*,\s*([^)]*))?\s*\)/g, (match, attrName, typeOrUnit, fallback) => {
@@ -625,6 +699,56 @@ export function resolveUnsetValues(style, inherited = {}) {
 
 export function snapshot(node, inherited = {}) {
   let authored = resolveUnsetValues(node.props.style || {}, inherited);
+  const nodeStates = node.states || (node.props?.states instanceof Set ? node.props.states : (Array.isArray(node.props?.states) ? new Set(node.props.states) : (typeof node.props?.states === "object" ? new Set(Object.keys(node.props.states).filter(k => node.props.states[k])) : new Set())));
+  if (node.props?.state) nodeStates.add(String(node.props.state));
+
+  const resolvedPropsStyle = authored;
+  for (const [key, val] of Object.entries(resolvedPropsStyle)) {
+    if (key.startsWith(":state(") && key.endsWith(")")) {
+      const stateName = key.slice(7, -1).trim().replace(/^--/, "");
+      if (nodeStates.has(stateName) && typeof val === "object" && val !== null) {
+        Object.assign(resolvedPropsStyle, val);
+      }
+    } else if (key.startsWith("@supports") && typeof val === "object" && val !== null) {
+      const condition = key.slice(9).trim();
+      if (evalSupportsCondition(condition)) {
+        Object.assign(resolvedPropsStyle, val);
+      }
+    }
+  }
+
+  if (node.children && node.children.some(c => c.type === "slot")) {
+    const defaultSlot = node.children.find(c => c.type === "slot" && !c.props.name);
+    const namedSlots = new Map();
+    for (const c of node.children) {
+      if (c.type === "slot" && c.props.name) namedSlots.set(c.props.name, c);
+    }
+    for (const child of node.children) {
+      if (child.type === "slot") continue;
+      const slotName = child.props.slot;
+      const targetSlot = slotName ? namedSlots.get(slotName) : defaultSlot;
+      if (targetSlot) {
+        targetSlot._slottedChildren = targetSlot._slottedChildren || [];
+        if (!targetSlot._slottedChildren.includes(child)) targetSlot._slottedChildren.push(child);
+      }
+    }
+  }
+
+  if (node.props?.slot || node.parent?.type === "slot") {
+    const slotParent = node.parent?.type === "slot" ? node.parent.parent : node.parent;
+    if (slotParent?.props?.style) {
+      for (const [k, v] of Object.entries(slotParent.props.style)) {
+        if (k.startsWith("::slotted(") && k.endsWith(")") && typeof v === "object" && v !== null) {
+          const innerSel = k.slice(10, -1).trim();
+          if (innerSel === "*" || innerSel === node.type || (node.props?.class && node.props.class.includes(innerSel.replace(/^\./, "")))) {
+            Object.assign(resolvedPropsStyle, v);
+          }
+        }
+      }
+    }
+  }
+
+
   if (node._isHovered) {
     if (authored[":hover"]) Object.assign(authored, resolveUnsetValues(authored[":hover"], inherited));
     if (authored["_hover"]) Object.assign(authored, resolveUnsetValues(authored["_hover"], inherited));
@@ -797,7 +921,7 @@ export function snapshot(node, inherited = {}) {
     lengths[key] = typeof value === "number" ? value : null;
     lengths[key + "Css"] = typeof value === "string" ? value : null;
   }
-  for (const key of ["width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight"]) emitLength(key, size(style[key]));
+  for (const key of ["width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "cx", "cy", "r", "rx", "ry", "x", "y", "shapeMargin", "strokeWidth"]) emitLength(key, size(style[key]));
   const scrollMarginBox = boxSides(style.scrollMargin, { auto: true, negative: true });
   const scrollPaddingBox = boxSides(style.scrollPadding, { auto: true });
   const scrollMarginSide = (key, side) => style[key] == null ? scrollMarginBox?.[side] : spacingValue(style[key], { auto: true, negative: true });
@@ -1190,6 +1314,36 @@ export function snapshot(node, inherited = {}) {
       isTargetText,
       targetTextColor: style.targetTextColor ?? "",
       targetTextBackgroundColor: style.targetTextBackgroundColor ?? "",
+      shapeOutside: typeof style.shapeOutside === "string" ? style.shapeOutside : "",
+      shapeMargin: lengths.shapeMargin ?? 0,
+      shapeMarginCss: lengths.shapeMarginCss,
+      shapeImageThreshold: typeof style.shapeImageThreshold === "number" ? style.shapeImageThreshold : 0,
+      clipRule: typeof style.clipRule === "string" ? style.clipRule : "nonzero",
+      colorInterpolation: typeof style.colorInterpolation === "string" ? style.colorInterpolation : "sRGB",
+      shapeRendering: typeof style.shapeRendering === "string" ? style.shapeRendering : "auto",
+      textRendering: typeof style.textRendering === "string" ? style.textRendering : "auto",
+      vectorEffect: typeof style.vectorEffect === "string" ? style.vectorEffect : "none",
+      cx: lengths.cx,
+      cxCss: lengths.cxCss,
+      cy: lengths.cy,
+      cyCss: lengths.cyCss,
+      r: lengths.r,
+      rCss: lengths.rCss,
+      rx: lengths.rx,
+      rxCss: lengths.rxCss,
+      ry: lengths.ry,
+      ryCss: lengths.ryCss,
+      x: lengths.x,
+      xCss: lengths.xCss,
+      y: lengths.y,
+      yCss: lengths.yCss,
+      fill: typeof style.fill === "string" ? style.fill : "",
+      stroke: typeof style.stroke === "string" ? style.stroke : "",
+      strokeWidth: lengths.strokeWidth ?? 1.0,
+      strokeWidthCss: lengths.strokeWidthCss,
+      float: typeof style.float === "string" ? style.float : "none",
+      clear: typeof style.clear === "string" ? style.clear : "none",
+      startingStyle: style.startingStyle ? JSON.stringify(style.startingStyle) : (style["@starting-style"] ? JSON.stringify(style["@starting-style"]) : null),
       ...textStyle,
       lineHeight,
       lineHeightCss,
@@ -1197,7 +1351,7 @@ export function snapshot(node, inherited = {}) {
       ...defaultOptionStyle,
     },
     children: (() => {
-      let childrenNodes = node.children || [];
+      let childrenNodes = (node.type === "slot" && node._slottedChildren ? node._slottedChildren : node.children) || [];
       if (node.type === "details") {
         const summaryChild = childrenNodes.find(c => c.type === "summary");
         const contentChildren = childrenNodes.filter(c => c.type !== "summary");

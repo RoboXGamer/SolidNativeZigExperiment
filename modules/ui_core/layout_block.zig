@@ -367,10 +367,19 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
     const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
     _ = computeBlockLayout(self, n, inner_width, child_layouts);
 
+    const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
+    const is_v_rl = std.mem.eql(u8, n.style.writingMode, "vertical-rl");
+    const content_width = bounds.width - pad.horizontal() - bd.horizontal();
+
     for (n.children, 0..) |*child, i| {
         if (child.isOutOfFlow()) continue;
         const cl = child_layouts[i];
-        const child_rect = Rect{
+        const child_rect = if (vertical) Rect{
+            .x = if (is_v_rl) content_left + @max(0, content_width - cl.y - cl.height) else content_left + cl.y,
+            .y = content_top + cl.x,
+            .width = cl.height,
+            .height = cl.width,
+        } else Rect{
             .x = content_left + cl.x,
             .y = content_top + cl.y,
             .width = cl.width,

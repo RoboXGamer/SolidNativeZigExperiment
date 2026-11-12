@@ -233,6 +233,14 @@ export function physicalStyle(style, inherited = {}) {
       for (const [letter, side] of [["t", "Top"], ["r", "Right"], ["b", "Bottom"], ["l", "Left"]]) result[prefix + side + suffix] = sides[letter];
       continue;
     }
+    if (key === "overflowBlock") {
+      result[vertical ? "overflowX" : "overflowY"] = value;
+      continue;
+    }
+    if (key === "overflowInline") {
+      result[vertical ? "overflowY" : "overflowX"] = value;
+      continue;
+    }
     if (sizes[key]) { result[sizes[key]] = value; continue; }
     const edge = key.match(/^(margin|padding|border)(InlineStart|InlineEnd|BlockStart|BlockEnd)(Width)?$/);
     if (edge) { result[edge[1] + logical[edge[2]] + (edge[3] ?? "")] = value; continue; }
@@ -277,8 +285,112 @@ function styleLength(value,{normal=false,negative=false}={}) {
   throw Error("Invalid style length: "+value);
 }
 
+export function resolveAttr(val, props) {
+  if (typeof val !== "string" || !val.includes("attr(")) return val;
+  return val.replace(/attr\(\s*([\w-]+)(?:\s+([\w%]+))?(?:\s*,\s*([^)]*))?\s*\)/g, (match, attrName, typeOrUnit, fallback) => {
+    let found = props ? props[attrName] : undefined;
+    if (found === undefined && props) {
+      const camel = attrName.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      found = props[camel];
+    }
+    if (found !== undefined && found !== null) {
+      if (typeOrUnit && !isNaN(Number(found)) && !String(found).endsWith(typeOrUnit)) {
+        return String(found) + typeOrUnit;
+      }
+      return String(found);
+    }
+    if (fallback !== undefined) {
+      return fallback.trim();
+    }
+    return "";
+  });
+}
+
+function zoomValue(value, inherited = 1.0) {
+  if (value == null) return inherited;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) throw Error("Invalid zoom: " + value);
+    return value * inherited;
+  }
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase();
+    if (s === "normal" || s === "reset") return 1.0;
+    if (s.endsWith("%")) {
+      const num = Number(s.slice(0, -1));
+      if (!Number.isFinite(num) || num <= 0) throw Error("Invalid zoom: " + value);
+      return (num / 100) * inherited;
+    }
+    const num = Number(s);
+    if (Number.isFinite(num) && num > 0) return num * inherited;
+  }
+  throw Error("Invalid zoom: " + value);
+}
+
+function zIndexValue(value) {
+  if (value == null || value === "auto") return null;
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "auto") return null;
+    if (/^[+-]?\d+$/.test(trimmed)) {
+      const parsed = parseInt(trimmed, 10);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  throw Error("Invalid zIndex: " + value);
+}
+
+const fontFaceRegistry = new Map();
+export function registerFontFace(descriptor) {
+  if (descriptor && descriptor.fontFamily) {
+    fontFaceRegistry.set(descriptor.fontFamily.toLowerCase(), descriptor);
+  }
+}
+
+let activeViewTransition = false;
+let activeViewTransitionTypes = new Set();
+export function startViewTransition(updateCallback, options = {}) {
+  activeViewTransition = true;
+  if (options && Array.isArray(options.types)) {
+    activeViewTransitionTypes = new Set(options.types);
+  }
+  let p = null;
+  try {
+    const res = updateCallback ? updateCallback() : null;
+    if (res && typeof res.then === "function") {
+      p = res;
+    }
+  } catch (err) {
+    activeViewTransition = false;
+    activeViewTransitionTypes.clear();
+    throw err;
+  }
+  if (p) {
+    return p.finally(() => {
+      activeViewTransition = false;
+      activeViewTransitionTypes.clear();
+    });
+  }
+  activeViewTransition = false;
+  activeViewTransitionTypes.clear();
+  return Promise.resolve();
+}
+
+export function isViewTransitionActive(type) {
+  if (!activeViewTransition) return false;
+  if (type) return activeViewTransitionTypes.has(type);
+  return true;
+}
+
 export function snapshot(node, inherited = {}) {
-  const style = physicalStyle(node.props.style || {}, inherited);
+  const rawStyle = { ...(node.props.style || {}) };
+  for (const [k, v] of Object.entries(rawStyle)) {
+    rawStyle[k] = resolveAttr(v, node.props);
+  }
+  if (activeViewTransition && rawStyle.activeViewTransition) {
+    Object.assign(rawStyle, rawStyle.activeViewTransition);
+  }
+  const style = physicalStyle(rawStyle, inherited);
   if(typeof style.outline==="string") {
     let width,kind,color;
     for(const token of splitSpacing(style.outline)) {
@@ -353,11 +465,16 @@ export function snapshot(node, inherited = {}) {
   const colGapParsed = parseGap(style.columnGap);
   if (style.aspectRatio != null && (typeof style.aspectRatio !== "number" || !Number.isFinite(style.aspectRatio) || style.aspectRatio <= 0)) throw Error(`Invalid aspect ratio: ${style.aspectRatio}`);
   if (style.fontSize != null && !(typeof style.fontSize === "string" && style.fontSize.trim()) && (typeof style.fontSize !== "number" || !Number.isFinite(style.fontSize) || style.fontSize <= 0)) throw Error(`Invalid font size: ${style.fontSize}`);
+  const registeredFace = fontFaceRegistry.get((style.fontFamily ?? inherited.fontFamily ?? "").toLowerCase());
+  const defaultFontFeatureSettings = registeredFace?.fontFeatureSettings ?? "normal";
+  const currentZoom = zoomValue(style.zoom, inherited.zoom ?? 1.0);
   const textStyle = {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
     fontSizeCss: typeof style.fontSize === "string" ? style.fontSize.trim() : null,
     fontFamily: style.fontFamily ?? inherited.fontFamily ?? "system-ui",
+    fontFeatureSettings: style.fontFeatureSettings ?? inherited.fontFeatureSettings ?? defaultFontFeatureSettings,
+    zoom: currentZoom,
     fontWeight: typeof style.fontWeight==="number" ? style.fontWeight : (inherited.fontWeight ?? 400),
     fontWeightCss: typeof style.fontWeight==="string" ? style.fontWeight : null,
     fontStyle: style.fontStyle ?? inherited.fontStyle ?? "normal",
@@ -366,6 +483,7 @@ export function snapshot(node, inherited = {}) {
     textAlignLast: style.textAlignLast ?? inherited.textAlignLast ?? "auto",
     cursor: style.cursor ?? inherited.cursor ?? "auto",
     visibility: style.visibility ?? inherited.visibility ?? "visible",
+    contentVisibility: style.contentVisibility ?? inherited.contentVisibility ?? "visible",
     pointerEvents: style.pointerEvents ?? inherited.pointerEvents ?? "auto",
     whiteSpace: style.whiteSpace ?? inherited.whiteSpace ?? "normal",
     textAlign: style.textAlign ?? inherited.textAlign ?? "left",
@@ -373,6 +491,8 @@ export function snapshot(node, inherited = {}) {
     writingMode: style.writingMode,
     direction: style.direction,
   };
+  const containIntrinsicWidth = styleLength(style.containIntrinsicWidth ?? style.containIntrinsicSize);
+  const containIntrinsicHeight = styleLength(style.containIntrinsicHeight ?? style.containIntrinsicSize);
   let columns = [];
   let gridTemplateColumnsCss = null;
   if (displayOf(node, style) === "grid" && style.gridTemplateColumns != null) {
@@ -404,11 +524,13 @@ export function snapshot(node, inherited = {}) {
   const isInput = node.type === "input";
   const isSelect = node.type === "select";
   const isOption = node.type === "option";
+  const isSummary = node.type === "summary";
   const clickable = !node.props.disabled && (
     typeof node.props.onClick === "function" ||
     isButton ||
     isInput ||
     isSelect ||
+    isSummary ||
     (isOption && (!node.parent || !node.parent.props.disabled))
   );
   const tabIndex = typeof node.props.tabIndex === "number" ? Math.trunc(node.props.tabIndex) : null;
@@ -529,6 +651,15 @@ export function snapshot(node, inherited = {}) {
       overflow,
       overflowX,
       overflowY,
+      overflowBlock: typeof style.overflowBlock === "string" ? style.overflowBlock : "",
+      overflowInline: typeof style.overflowInline === "string" ? style.overflowInline : "",
+      contentVisibility: textStyle.contentVisibility,
+      containIntrinsicWidth: containIntrinsicWidth.number,
+      containIntrinsicWidthCss: containIntrinsicWidth.css,
+      containIntrinsicHeight: containIntrinsicHeight.number,
+      containIntrinsicHeightCss: containIntrinsicHeight.css,
+      zoom: currentZoom,
+      activeViewTransition: isViewTransitionActive(),
       scrollbarGutter: typeof style.scrollbarGutter === "string" ? style.scrollbarGutter : "",
       scrollbarWidth: typeof style.scrollbarWidth === "string" ? style.scrollbarWidth : "",
       whiteSpace: typeof style.whiteSpace === "string" ? style.whiteSpace : (inherited.whiteSpace || "normal"),
@@ -541,7 +672,7 @@ export function snapshot(node, inherited = {}) {
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",
       position: typeof style.position === "string" ? style.position.trim().toLowerCase() : "static",
-      zIndex: typeof style.zIndex === "number" ? Math.trunc(style.zIndex) : null,
+      zIndex: zIndexValue(style.zIndex),
       gridTemplateColumnsCss: gridTemplateColumnsCss,
       gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),
       gridAutoFlow: typeof style.gridAutoFlow === "string" ? style.gridAutoFlow : "row",
@@ -572,7 +703,30 @@ export function snapshot(node, inherited = {}) {
       ...defaultSelectStyle,
       ...defaultOptionStyle,
     },
-    children: node.children.map(child => snapshot(child, textStyle)),
+    children: (() => {
+      let childrenNodes = node.children || [];
+      if (node.type === "details") {
+        const summaryChild = childrenNodes.find(c => c.type === "summary");
+        const contentChildren = childrenNodes.filter(c => c.type !== "summary");
+        const isOpen = Boolean(node.props.open);
+        const contentBox = {
+          id: node.id + 1000000,
+          type: "details-content",
+          text: "",
+          children: contentChildren,
+          parent: node,
+          props: {
+            style: {
+              display: isOpen ? "block" : "none",
+              ...(style.detailsContent || {}),
+              ...(node.props.detailsContentStyle || {}),
+            }
+          }
+        };
+        childrenNodes = summaryChild ? [summaryChild, contentBox] : [contentBox];
+      }
+      return childrenNodes.map(child => snapshot(child, textStyle));
+    })(),
   };
 }
 

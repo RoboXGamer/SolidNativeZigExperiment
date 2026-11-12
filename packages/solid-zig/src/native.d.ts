@@ -123,6 +123,14 @@ export interface NativeStyle {
   overflow?: "visible" | "hidden" | "clip" | "auto" | "scroll" | string;
   overflowX?: "visible" | "hidden" | "clip" | "auto" | "scroll";
   overflowY?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  overflowBlock?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  overflowInline?: "visible" | "hidden" | "clip" | "auto" | "scroll";
+  fontFeatureSettings?: string;
+  contentVisibility?: "visible" | "auto" | "hidden";
+  containIntrinsicSize?: NativeLength;
+  containIntrinsicWidth?: NativeLength;
+  containIntrinsicHeight?: NativeLength;
+  zoom?: number | string;
   scrollbarGutter?: string;
   scrollbarWidth?: "auto" | "thin" | "none";
   outlineWidth?: NativeLength;
@@ -134,7 +142,9 @@ export interface NativeStyle {
   bottom?: NativeLength;
   left?: NativeLength;
   inset?: NativeLength;
-  zIndex?: number;
+  zIndex?: number | string;
+  detailsContent?: NativeStyle;
+  activeViewTransition?: NativeStyle;
   gridTemplateRows?: string | Array<number | string>;
   gridAutoFlow?: "row" | "column" | "row dense" | "column dense" | string;
   gridTemplateAreas?: string;

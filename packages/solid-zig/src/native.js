@@ -31,7 +31,6 @@ import {
   NamespaceRegistry,
   parseAnPlusB,
   matchesSelector,
-  querySelectorAll,
   expandNesting,
   resolveNestedStyles,
 } from "./selectors.js";
@@ -991,7 +990,6 @@ export {
   getScriptingState,
   matches,
   querySelector,
-  querySelectorAll,
   closest,
   calculateSpecificity,
 };
@@ -1163,7 +1161,6 @@ export {
   NamespaceRegistry,
   parseAnPlusB,
   matchesSelector,
-  querySelectorAll,
   expandNesting,
   resolveNestedStyles,
 };

@@ -1,7 +1,7 @@
 //! Persistent node storage for incremental bridge commits.
 const std = @import("std");
 const core = @import("root.zig");
-const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, intrinsicAspectRatio: ?f32 = null, hovered: bool = false, active: bool = false, focused: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
+const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, readOnly: bool = false, readWrite: bool = false, popoverOpen: bool = false, intrinsicAspectRatio: ?f32 = null, hovered: bool = false, active: bool = false, focused: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
 const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, removed: []const u32 = &.{} };
 const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode };
 pub const Tree = struct {
@@ -83,6 +83,6 @@ pub const Tree = struct {
         const n = (self.nodes.get(id) orelse return error.UnknownNode).node;
         const children = try allocator.alloc(core.Node, n.children.len);
         for (n.children, 0..) |child, i| children[i] = try self.materialize(allocator, child, depth + 1);
-        return .{ .id = n.id, .type = n.type, .text = n.text, .value = n.value, .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .intrinsicAspectRatio = n.intrinsicAspectRatio, .hovered = n.hovered, .active = n.active, .focused = n.focused, .style = n.style, .children = children };
+        return .{ .id = n.id, .type = n.type, .text = n.text, .value = n.value, .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .readOnly = n.readOnly, .readWrite = n.readWrite, .popoverOpen = n.popoverOpen, .intrinsicAspectRatio = n.intrinsicAspectRatio, .hovered = n.hovered, .active = n.active, .focused = n.focused, .style = n.style, .children = children };
     }
 };

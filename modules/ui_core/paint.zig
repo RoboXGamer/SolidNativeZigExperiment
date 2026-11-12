@@ -570,3 +570,74 @@ pub fn rasterizeSvgBackground(a: std.mem.Allocator, w: usize, h: usize, svg_sour
     @memset(pixels, Color{ 255, 255, 255, 255 });
     return .{ .width = w, .height = h, .pixels = pixels };
 }
+
+pub const BasicShape = struct {
+    box: core.Rect,
+    radii: EllipticalRadii = .{},
+
+    pub fn contains(self: BasicShape, x: f32, y: f32) bool {
+        return ellipticalContains(self.box, self.radii, x, y);
+    }
+};
+
+/// Parses rect(top right bottom left [round radii]) or xywh(x y width height [round radii])
+/// relative to the given reference box.
+pub fn parseBasicShape(value: []const u8, ref: core.Rect, font_size: f32) ?BasicShape {
+    const trimmed = std.mem.trim(u8, value, " \t\r\n");
+    if (!std.mem.endsWith(u8, trimmed, ")")) return null;
+    const is_rect = std.ascii.startsWithIgnoreCase(trimmed, "rect(");
+    const is_xywh = std.ascii.startsWithIgnoreCase(trimmed, "xywh(");
+    if (!is_rect and !is_xywh) return null;
+    const inner = trimmed[5 .. trimmed.len - 1];
+
+    var round_part: ?[]const u8 = null;
+    var coords_part: []const u8 = inner;
+    if (std.mem.indexOf(u8, inner, "round")) |round_idx| {
+        coords_part = std.mem.trim(u8, inner[0..round_idx], " \t\r\n");
+        round_part = std.mem.trim(u8, inner[round_idx + 5 ..], " \t\r\n");
+    }
+
+    var tokens = css.Tokens{ .input = coords_part, .separators = " \t\r\n," };
+    var args: [4][]const u8 = undefined;
+    var arg_count: usize = 0;
+    while (tokens.next()) |tok| {
+        if (tok.len == 0) continue;
+        if (arg_count == 4) return null;
+        args[arg_count] = tok;
+        arg_count += 1;
+    }
+    if (arg_count != 4) return null;
+
+    var computed_box: core.Rect = undefined;
+    if (is_rect) {
+        const t = if (std.ascii.eqlIgnoreCase(args[0], "auto")) 0 else (length(args[0], ref.height, font_size) orelse return null);
+        const r = if (std.ascii.eqlIgnoreCase(args[1], "auto")) ref.width else (length(args[1], ref.width, font_size) orelse return null);
+        const b = if (std.ascii.eqlIgnoreCase(args[2], "auto")) ref.height else (length(args[2], ref.height, font_size) orelse return null);
+        const l = if (std.ascii.eqlIgnoreCase(args[3], "auto")) 0 else (length(args[3], ref.width, font_size) orelse return null);
+        const x = ref.x + l;
+        const y = ref.y + t;
+        const w = @max(0, r - l);
+        const h = @max(0, b - t);
+        computed_box = .{ .x = x, .y = y, .width = w, .height = h };
+    } else {
+        const x_offset = length(args[0], ref.width, font_size) orelse return null;
+        const y_offset = length(args[1], ref.height, font_size) orelse return null;
+        const w = length(args[2], ref.width, font_size) orelse return null;
+        const h = length(args[3], ref.height, font_size) orelse return null;
+        if (w < 0 or h < 0) return null;
+        computed_box = .{ .x = ref.x + x_offset, .y = ref.y + y_offset, .width = w, .height = h };
+    }
+
+    var rad = EllipticalRadii{};
+    if (round_part) |rp| {
+        var parts = css.Split{ .input = rp, .separator = '/' };
+        const horizontal = parts.next() orelse "";
+        const vertical = parts.next();
+        if (radiusList(horizontal, computed_box.width, font_size)) |rx| {
+            if (radiusList(vertical orelse horizontal, computed_box.height, font_size)) |ry| {
+                rad = .{ .x = rx, .y = ry };
+            }
+        }
+    }
+    return BasicShape{ .box = computed_box, .radii = normalizedElliptical(rad, computed_box.width, computed_box.height) };
+}

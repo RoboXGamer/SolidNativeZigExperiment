@@ -1,3 +1,6 @@
+let preferences = { colorScheme: "light", contrast: "no-preference", reducedMotion: "no-preference" };
+export function getPreferences() { return {...preferences}; }
+export function setPreferences(value) { Object.assign(preferences,value); }
 function resolutionMedia(query, context = {}) {
   const currentDppx = context.resolution ?? context.devicePixelRatio ?? 1.0;
   let q = String(query).trim();
@@ -57,6 +60,8 @@ export function getScriptingState() {
 
 export function evaluateMediaQuery(queryString, env = {}) {
   let q = queryString.trim();
+  const preference = q.match(/^\(prefers-(color-scheme|contrast|reduced-motion)\s*:\s*([^)]*)\)$/i);
+  if (preference) { const key = {"color-scheme":"colorScheme",contrast:"contrast","reduced-motion":"reducedMotion"}[preference[1].toLowerCase()]; return (env[key] ?? preferences[key]) === preference[2].trim().toLowerCase(); }
   if (q.startsWith("@media")) {
     q = q.slice(6).trim();
   }

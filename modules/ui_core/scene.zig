@@ -25,10 +25,24 @@ pub const Node = struct {
     active: bool = false,
     focused: bool = false,
     value: []const u8 = "",
+    readOnly: bool = false,
+    readWrite: bool = false,
+    popoverOpen: bool = false,
     /// Optional input for a future replaced-element measurement provider.
     intrinsicAspectRatio: ?f32 = null,
     style: Style = .{},
     children: []Node = &.{},
+
+    pub fn isReadOnly(self: *const Node) bool {
+        if (self.readWrite) return false;
+        if (self.readOnly) return true;
+        if (std.mem.eql(u8, self.type, "input") or std.mem.eql(u8, self.type, "textarea")) return false;
+        return true;
+    }
+
+    pub fn isReadWrite(self: *const Node) bool {
+        return !self.isReadOnly();
+    }
 
     pub fn effectiveOverflowX(self: *const Node) []const u8 {
         if (self.style.overflowX.len > 0) return self.style.overflowX;
@@ -249,6 +263,7 @@ pub const Node = struct {
             .text_decoration_skip_ink = self.style.textDecorationSkipInk,
             .text_combine_upright = self.style.textCombineUpright,
             .ruby_align = self.style.rubyAlign,
+            .quotes = self.style.quotes,
         };
         return result;
     }
@@ -967,6 +982,7 @@ pub const Scene = struct {
             child.style.scrollbarThumbColor = parent.style.scrollbarThumbColor;
             child.style.scrollbarTrackColor = parent.style.scrollbarTrackColor;
         }
+        if (std.mem.eql(u8, child.style.quotes, "auto") and !std.mem.eql(u8, parent.style.quotes, "auto")) child.style.quotes = parent.style.quotes;
         if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (parent.style.color.len > 0) parent.style.color else "#ffffff";
         if (child.style.textDecorationColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textDecorationColor, "currentColor")) {
             child.style.textDecorationColor = child.style.color;
@@ -1512,6 +1528,11 @@ pub const Scene = struct {
             }
             parent_id = parent.parent_id;
         }
+        if (item.node.style.clipPath.len > 0) {
+            if (@import("paint.zig").parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize())) |shape| {
+                clip = clip.intersect(shape.box);
+            }
+        }
         return clip;
     }
 
@@ -1850,6 +1871,7 @@ pub const Scene = struct {
     }
 
     pub fn establishesContext(self: *const Scene, item: Item) bool {
+        if (item.node.popoverOpen) return true;
         const st = item.node.style;
         if (std.mem.eql(u8, st.isolation, "isolate")) return true;
         if (st.willChange.len > 0 and !std.mem.eql(u8, st.willChange, "auto")) {
@@ -1896,6 +1918,7 @@ pub const Scene = struct {
             scene: *const Scene,
             fn key(c: @This(), i: usize) i64 {
                 const item = c.scene.items.items[i];
+                if (item.node.popoverOpen) return 1_000_000_000;
                 if (c.scene.establishesContext(item)) return item.node.style.zIndex orelse 0;
                 return 0;
             }
@@ -1976,6 +1999,12 @@ pub const Scene = struct {
 
     pub fn pointVisible(self: *const Scene, item: Item, x: f32, y: f32) bool {
         if (!self.viewport.contains(x, y)) return false;
+        if (item.node.style.clipPath.len > 0) {
+            if (@import("paint.zig").parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize())) |shape| {
+                const point = self.localPoint(item, x, y) orelse return false;
+                if (!shape.contains(point.x, point.y)) return false;
+            }
+        }
         var parent_id = item.parent_id;
         while (parent_id) |pid| {
             const p = self.find(pid) orelse return false;
@@ -1988,6 +2017,11 @@ pub const Scene = struct {
             if (p.node.clipsX() and (point.x < box.x or point.x >= box.right())) return false;
             if (p.node.clipsY() and (point.y < box.y or point.y >= box.bottom())) return false;
             if (p.node.clipsX() and p.node.clipsY() and !@import("paint.zig").ellipticalContains(box, @import("paint.zig").paddingRadii(p.node, p.bounds), point.x, point.y)) return false;
+            if (p.node.style.clipPath.len > 0) {
+                if (@import("paint.zig").parseBasicShape(p.node.style.clipPath, p.bounds, p.node.fontSize())) |shape| {
+                    if (!shape.contains(point.x, point.y)) return false;
+                }
+            }
             parent_id = p.parent_id;
         }
         return true;
@@ -2003,7 +2037,19 @@ pub const Scene = struct {
             const item = self.items.items[order[i]];
             if (!@import("interaction.zig").acceptsPointer(item.node) or std.mem.eql(u8, item.node.type, "__layout_root")) continue;
             const point = self.localPoint(item, x, y) orelse continue;
-            if (@import("paint.zig").ellipticalContains(item.bounds, @import("paint.zig").resolvedRadii(item.node, item.bounds.width, item.bounds.height), point.x, point.y) and self.pointVisible(item, x, y)) return item.node.id;
+            if (item.node.style.clipPath.len > 0) {
+                if (@import("paint.zig").parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize())) |shape| {
+                    if (!shape.contains(point.x, point.y)) continue;
+                }
+            }
+            const in_border_box = @import("paint.zig").ellipticalContains(item.bounds, @import("paint.zig").resolvedRadii(item.node, item.bounds.width, item.bounds.height), point.x, point.y);
+            if (!in_border_box) continue;
+            const pe = item.node.style.pointerEvents;
+            const pad_box = item.node.paddingBox(item.bounds);
+            const in_pad_box = @import("paint.zig").ellipticalContains(pad_box, @import("paint.zig").paddingRadii(item.node, item.bounds), point.x, point.y);
+            if ((std.ascii.eqlIgnoreCase(pe, "stroke") or std.ascii.eqlIgnoreCase(pe, "visibleStroke")) and in_pad_box) continue;
+            if ((std.ascii.eqlIgnoreCase(pe, "fill") or std.ascii.eqlIgnoreCase(pe, "visibleFill")) and !in_pad_box) continue;
+            if (self.pointVisible(item, x, y)) return item.node.id;
         }
         return null;
     }

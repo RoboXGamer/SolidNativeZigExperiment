@@ -148,12 +148,13 @@ pub const Renderer = struct {
         while (parent) |pid| {
             const p = scene.find(pid) orelse break;
             parent = p.parent_id;
-            if ((!p.node.clipsX() and !p.node.clipsY()) or !scene.clipApplies(item, p)) continue;
+            const p_shape = if (p.node.style.clipPath.len > 0) ui.paint.parseBasicShape(p.node.style.clipPath, p.bounds, p.node.fontSize()) else null;
+            if ((!p.node.clipsX() and !p.node.clipsY() and p_shape == null) or !scene.clipApplies(item, p)) continue;
             const inv = scene.worldTransform4x4(p).inverse() orelse return current.texture;
-            const box = p.node.paddingBox(p.bounds);
+            const box = if (p_shape) |s| s.box else p.node.paddingBox(p.bounds);
             const rect = [4]f32{ box.x, box.y, box.width, box.height };
-            const radius = ui.paint.paddingRadii(p.node, p.bounds);
-            const axes = [2]f32{ if (p.node.clipsX()) 1 else 0, if (p.node.clipsY()) 1 else 0 };
+            const radius = if (p_shape) |s| s.radii else ui.paint.paddingRadii(p.node, p.bounds);
+            const axes = [2]f32{ if (p.node.clipsX() or p_shape != null) 1 else 0, if (p.node.clipsY() or p_shape != null) 1 else 0 };
             const resolution = [2]f32{ @floatFromInt(self.width), @floatFromInt(self.height) };
             rl.beginTextureMode(next);
             rl.clearBackground(.blank);
@@ -178,16 +179,18 @@ pub const Renderer = struct {
         const next = try self.target(1);
         clear(current, .white);
         const input = std.mem.eql(u8, item.node.type, "input");
-        const clips_x = item.node.clipsX() or input;
-        const clips_y = item.node.clipsY() or input;
+        const has_shape = item.node.style.clipPath.len > 0;
+        const basic_shape = if (has_shape) ui.paint.parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize()) else null;
+        const clips_x = item.node.clipsX() or input or basic_shape != null;
+        const clips_y = item.node.clipsY() or input or basic_shape != null;
         if (!clips_x and !clips_y) return current.texture;
         const inv = scene.worldTransform4x4(item).inverse() orelse {
             clear(current, .blank);
             return current.texture;
         };
-        const box = item.node.paddingBox(item.bounds);
+        const box = if (basic_shape) |s| s.box else item.node.paddingBox(item.bounds);
         const rect = [4]f32{ box.x, box.y, box.width, box.height };
-        const radius = ui.paint.paddingRadii(item.node, item.bounds);
+        const radius = if (basic_shape) |s| s.radii else ui.paint.paddingRadii(item.node, item.bounds);
         const axes = [2]f32{ if (clips_x) 1 else 0, if (clips_y) 1 else 0 };
         const resolution = [2]f32{ @floatFromInt(self.width), @floatFromInt(self.height) };
         clear(next, .blank);

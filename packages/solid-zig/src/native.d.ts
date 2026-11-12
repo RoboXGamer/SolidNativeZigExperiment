@@ -131,8 +131,10 @@ export interface NativeStyle {
   "::target-text"?: NativeStyle;
   rubyAlign?: "start" | "center" | "space-between" | "space-around";
   [key: `--${string}`]: any;
+  quotes?: "auto" | "none" | string;
+  clipPath?: string;
   visibility?: "visible" | "hidden" | "collapse";
-  pointerEvents?: string;
+  pointerEvents?: "auto" | "none" | "visiblePainted" | "visibleFill" | "visibleStroke" | "visible" | "painted" | "fill" | "stroke" | "all" | string;
   cursor?: string;
   outline?: string;
   outlineStyle?: string;
@@ -198,6 +200,11 @@ export interface NativeStyle {
   gridTemplateRows?: string | Array<number | string>;
   gridAutoFlow?: "row" | "column" | "row dense" | "column dense" | string;
   gridTemplateAreas?: string;
+  ":read-only"?: NativeStyle;
+  ":read-write"?: NativeStyle;
+  ":popover-open"?: NativeStyle;
+  "::backdrop"?: NativeStyle;
+  [mediaOrSelector: `@media ${string}`]: NativeStyle | undefined;
   gridColumn?: string;
   gridRow?: string;
   gridArea?: string;
@@ -327,6 +334,13 @@ export interface NativeProps {
   value?: string | number;
   disabled?: boolean;
   readOnly?: boolean;
+  readonly?: boolean;
+  contentEditable?: boolean | "true" | "false";
+  contenteditable?: boolean | "true" | "false";
+  popover?: "auto" | "manual" | "hint" | boolean | string;
+  popoverTarget?: string;
+  popovertarget?: string;
+  popoverTargetAction?: "toggle" | "show" | "hide";
   tabIndex?: number;
   focusable?: boolean;
   selected?: boolean;
@@ -369,6 +383,7 @@ export namespace JSX {
     polyline: NativeProps;
     polygon: NativeProps;
     g: NativeProps;
+    q: NativeProps;
   }
 }
 
@@ -433,3 +448,12 @@ export function resolveNestedStyles(node: any, styleObj: any, context?: any): an
 export function computeObjectFit(fit: string, containerWidth: number, containerHeight: number, intrinsicWidth: number, intrinsicHeight: number): { width: number; height: number };
 export function computeObjectPosition(position: string, containerWidth: number, containerHeight: number, objectWidth: number, objectHeight: number): { x: number; y: number };
 export function computeObjectRect(container: { x?: number; y?: number; width: number; height: number }, intrinsicWidth: number, intrinsicHeight: number, fit?: string, position?: string): { x: number; y: number; width: number; height: number };
+export function getPreferences(): { colorScheme: "light" | "dark"; contrast: string; reducedMotion: string };
+export function setPreferences(prefs: Partial<{ colorScheme: "light" | "dark"; contrast: string; reducedMotion: string }>): void;
+export function showPopover(node: any): void;
+export function hidePopover(node: any): void;
+export function togglePopover(node: any, force?: boolean): void;
+export function isPopoverOpen(node: any): boolean;
+export function isReadOnly(node: any): boolean;
+export function isReadWrite(node: any): boolean;
+export function resolveQuotes(quotes?: string, lang?: string, depth?: number): { open: string; close: string } | null;

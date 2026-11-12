@@ -76,6 +76,14 @@ pub fn isInlineLevel(child: *const Node) bool {
         std.mem.eql(u8, child.style.display, "inline-flex");
 }
 
+fn alignmentShift(n: *const Node, free: f32, last: bool) f32 {
+    if (free <= 0) return 0;
+    const alignment = if (last and !std.mem.eql(u8, n.style.textAlignLast, "auto")) n.style.textAlignLast else n.style.textAlign;
+    if (std.mem.eql(u8, alignment, "center")) return free * 0.5;
+    const rtl = std.mem.eql(u8, n.style.direction, "rtl");
+    if (std.mem.eql(u8, alignment, "right") or (std.mem.eql(u8, alignment, "start") and rtl) or (std.mem.eql(u8, alignment, "end") and !rtl)) return free;
+    return 0;
+}
 pub const BlockChildLayout = struct {
     x: f32,
     y: f32,
@@ -158,12 +166,7 @@ pub fn computeBlockLayout(
                 // Wrap to a new line box
                 const free_line_x = inner_width - line_x;
                 if (children_out) |out| {
-                    var shift: f32 = 0;
-                    if (std.mem.eql(u8, n.style.textAlign, "center") and free_line_x > 0) {
-                        shift = free_line_x * 0.5;
-                    } else if (std.mem.eql(u8, n.style.textAlign, "right") and free_line_x > 0) {
-                        shift = free_line_x;
-                    }
+                    const shift = alignmentShift(n, free_line_x, false);
                     if (shift > 0) {
                         for (out[line_start..i]) |*item| item.x += shift;
                     }
@@ -213,12 +216,7 @@ pub fn computeBlockLayout(
             // Flush preceding inline line box
             const free_line_x = inner_width - line_x;
             if (children_out) |out| {
-                var shift: f32 = 0;
-                if (std.mem.eql(u8, n.style.textAlign, "center") and free_line_x > 0) {
-                    shift = free_line_x * 0.5;
-                } else if (std.mem.eql(u8, n.style.textAlign, "right") and free_line_x > 0) {
-                    shift = free_line_x;
-                }
+                const shift = alignmentShift(n, free_line_x, true);
                 if (shift > 0) {
                     for (out[line_start..i]) |*item| item.x += shift;
                 }
@@ -318,12 +316,7 @@ pub fn computeBlockLayout(
     if (in_inline_run) {
         const free_line_x = inner_width - line_x;
         if (children_out) |out| {
-            var shift: f32 = 0;
-            if (std.mem.eql(u8, n.style.textAlign, "center") and free_line_x > 0) {
-                shift = free_line_x * 0.5;
-            } else if (std.mem.eql(u8, n.style.textAlign, "right") and free_line_x > 0) {
-                shift = free_line_x;
-            }
+            const shift = alignmentShift(n, free_line_x, true);
             if (shift > 0) {
                 for (out[line_start..n.children.len]) |*item| item.x += shift;
             }

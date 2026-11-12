@@ -37,6 +37,18 @@ pub fn collapseWhitespace(a: std.mem.Allocator, input: []const u8) ![]const u8 {
 
 pub const default_font_size: f32 = 20;
 
+/// Absolute CSS size ladder uses the host's established medium; relative sizes
+/// use the parent's computed size rather than the root size.
+pub fn fontSizeKeyword(raw: []const u8, parent: f32) ?f32 {
+    const css = std.mem.trim(u8, raw, " \t\r\n");
+    inline for (.{ "xx-small", "x-small", "small", "medium", "large", "x-large", "xx-large", "xxx-large" }, .{ 0.6, 0.75, 0.889, 1.0, 1.2, 1.5, 2.0, 3.0 }) |name, ratio| {
+        if (std.ascii.eqlIgnoreCase(css, name)) return default_font_size * ratio;
+    }
+    if (std.ascii.eqlIgnoreCase(css, "smaller")) return parent / 1.2;
+    if (std.ascii.eqlIgnoreCase(css, "larger")) return parent * 1.2;
+    return null;
+}
+
 /// Average advance of the Raylib built-in font, in em fractions. Only used when
 /// no backend measurer is installed.
 pub const fallback_advance_ratio: f32 = 0.5;
@@ -61,12 +73,30 @@ pub const Metrics = struct {
 /// `ui_core` keeps no dependency on the renderer.
 pub const MeasureFn = *const fn (ctx: ?*anyopaque, content: []const u8, font_size: f32) Metrics;
 pub const PositionFn = *const fn (?*anyopaque, []const u8, f32, f32) usize;
+/// Immutable, per-run styling shared by measurement, rasterization and hit testing.
+pub const Typography = struct {
+    font_family: []const u8 = "system-ui",
+    font_weight: f32 = 400,
+    font_style: []const u8 = "normal",
+    language: []const u8 = "",
+    text_transform: []const u8 = "none",
+    letter_spacing: f32 = 0,
+    word_spacing: f32 = 0,
+    tab_size: f32 = 8,
+    tab_size_is_length: bool = false,
+    text_indent: f32 = 0,
+};
+pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
+pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
 
 pub const ShapedLine = struct {
     text: []const u8,
     width: f32,
     height: f32,
     ascent: f32,
+    /// First-line indentation, relative to the line's content box.
+    indent: f32 = 0,
+    offset_x: f32 = 0,
 };
 
 pub const Wrap = struct {
@@ -78,9 +108,12 @@ pub const Text = struct {
     ctx: ?*anyopaque = null,
     measure_fn: ?MeasureFn = null,
     position_fn: ?PositionFn = null,
+    styled_measure_fn: ?StyledMeasureFn = null,
+    styled_position_fn: ?StyledPositionFn = null,
+    typography: Typography = .{},
 
     pub fn isMeasured(self: Text) bool {
-        return self.measure_fn != null;
+        return self.measure_fn != null or self.styled_measure_fn != null;
     }
 
     fn size(font_size: f32) f32 {
@@ -95,8 +128,58 @@ pub const Text = struct {
             const desc = px * fallback_descent_ratio;
             return .{ .width = 0, .height = h, .ascent = asc, .descent = desc, .leading = @max(0, h - (asc + desc)) };
         }
-        if (self.measure_fn) |f| return f(self.ctx, content, px);
-        return estimate(content, px);
+        if (self.styled_measure_fn) |f| return f(self.ctx, content, px, self.typography);
+        var metrics = if (self.measure_fn) |f| f(self.ctx, content, px) else estimate(content, px);
+        // Preserve legacy callbacks while giving their fallback spacing semantics.
+        var offset: usize = 0;
+        var advance: f32 = 0;
+        const edit = @import("text_edit.zig");
+        const space = if (self.measure_fn) |f| f(self.ctx, " ", px).width else estimate(" ", px).width;
+        while (offset < content.len) {
+            const next = edit.nextGrapheme(content, offset);
+            const cluster = content[offset..next];
+            if (cluster.len == 1 and cluster[0] == '\t') {
+                const stop = if (self.typography.tab_size_is_length) self.typography.tab_size else self.typography.tab_size * (space + self.typography.letter_spacing + self.typography.word_spacing);
+                if (stop > 0) advance += stop - @mod(advance, stop);
+            } else {
+                advance += (if (self.measure_fn) |f| f(self.ctx, cluster, px).width else estimate(cluster, px).width) + self.typography.letter_spacing;
+                if (std.mem.eql(u8, cluster, " ") or std.mem.eql(u8, cluster, "\xc2\xa0")) advance += self.typography.word_spacing;
+            }
+            offset = next;
+        }
+        if (self.typography.letter_spacing != 0 or self.typography.word_spacing != 0 or std.mem.indexOfScalar(u8, content, '\t') != null) {
+            metrics.width = @max(0, advance);
+        }
+        return metrics;
+    }
+
+    pub fn position(self: Text, content: []const u8, x: f32, font_size: f32) ?usize {
+        if (self.styled_position_fn) |f| return f(self.ctx, content, x, size(font_size), self.typography);
+        if (self.position_fn) |f| return f(self.ctx, content, x, size(font_size));
+        return null;
+    }
+
+    /// Returns an arena-owned ellipsized run; the authoring text is untouched.
+    pub fn ellipsize(self: Text, a: std.mem.Allocator, content: []const u8, font_size: f32, available: f32) ![]const u8 {
+        if (self.width(content, font_size) <= available) return content;
+        const ellipsis = "\xe2\x80\xa6";
+        if (self.width(ellipsis, font_size) > available) return "";
+        var result: std.ArrayList(u8) = .empty;
+        errdefer result.deinit(a);
+        const edit = @import("text_edit.zig");
+        var end: usize = 0;
+        while (end < content.len) {
+            const next = edit.nextGrapheme(content, end);
+            result.clearRetainingCapacity();
+            try result.appendSlice(a, content[0..next]);
+            try result.appendSlice(a, ellipsis);
+            if (self.width(result.items, font_size) > available) break;
+            end = next;
+        }
+        result.clearRetainingCapacity();
+        try result.appendSlice(a, content[0..end]);
+        try result.appendSlice(a, ellipsis);
+        return result.toOwnedSlice(a);
     }
 
     pub fn width(self: Text, content: []const u8, font_size: f32) f32 {
@@ -135,10 +218,12 @@ pub const Text = struct {
     /// Widest line of an unwrapped run; `\n` starts a new line.
     pub fn maxContentWidth(self: Text, content: []const u8, font_size: f32) f32 {
         var widest: f32 = 0;
+        var first = true;
         var it = std.mem.splitScalar(u8, content, '\n');
         while (it.next()) |raw_line| {
             const line = trimCarriageReturn(raw_line);
-            const w = self.width(line, font_size);
+            const w = self.width(line, font_size) + if (first) self.typography.text_indent else @as(f32, 0);
+            first = false;
             if (w > widest) widest = w;
         }
         return widest;
@@ -155,133 +240,59 @@ pub const Text = struct {
         return widest;
     }
 
-    /// Greedy word wrap that reports how many lines the run needs and the
-    /// widest actual line. Used by callers that want wrapping without a full
-    /// inline formatting context.
     pub fn wrap(self: Text, content: []const u8, font_size: f32, available: f32) Wrap {
-        if (content.len == 0) return .{ .lines = 0, .widest = 0 };
-        if (available <= 0) {
-            const w = self.maxContentWidth(content, font_size);
-            var lines: usize = 1;
-            for (content) |c| if (c == '\n') {
-                lines += 1;
-            };
-            return .{ .lines = lines, .widest = w };
-        }
-        const space = self.width(" ", font_size);
-        var result = Wrap{ .lines = 0, .widest = 0 };
-        var hard_lines = std.mem.splitScalar(u8, content, '\n');
-        while (hard_lines.next()) |raw_line| {
-            const hard_line = trimCarriageReturn(raw_line);
-            var words = std.mem.tokenizeAny(u8, hard_line, " \t");
-            var line: f32 = 0;
-            var first = true;
-            var line_had_word = false;
-            while (words.next()) |word| {
-                line_had_word = true;
-                const w = self.width(word, font_size);
-                if (first) {
-                    line = w;
-                    first = false;
-                } else if (line + space + w <= available) {
-                    line += space + w;
-                } else {
-                    if (line > result.widest) result.widest = line;
-                    result.lines += 1;
-                    line = w;
-                }
-            }
-            if (line > result.widest) result.widest = line;
-            if (line_had_word or hard_line.len == 0) result.lines += 1;
-        }
-        if (result.lines == 0) result.lines = 1;
-        return result;
+        return self.wrapWithWhitespace(content, font_size, available, "normal");
     }
 
-    /// Breaks text into shaped lines with computed coordinates and dimensions.
-    pub fn shapeLines(
-        self: Text,
-        allocator: std.mem.Allocator,
-        content: []const u8,
-        font_size: f32,
-        available: f32,
-        white_space: []const u8,
-    ) ![]ShapedLine {
-        if (content.len == 0) return try allocator.alloc(ShapedLine, 0);
-        const line_h = self.lineHeight(font_size);
-        const asc = self.ascent(font_size);
-        const is_nowrap = std.mem.eql(u8, white_space, "nowrap");
-
+    pub fn wrapWithWhitespace(self: Text, content: []const u8, font_size: f32, available: f32, white_space: []const u8) Wrap {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const lines = self.shapeLines(arena.allocator(), content, font_size, available, white_space) catch return .{ .lines = if (content.len == 0) 0 else 1, .widest = self.maxContentWidth(content, font_size) };
+        var result = Wrap{ .lines = lines.len };
+        for (lines) |line| result.widest = @max(result.widest, line.width + line.indent);
+        return result;
+    }
+    /// Lines borrow author text. Only overflow presentation allocates new text.
+    /// Measurements use complete candidate runs so shaping and tabs match paint.
+    pub fn shapeLines(self: Text, allocator: std.mem.Allocator, content: []const u8, font_size: f32, available: f32, white_space: []const u8) ![]ShapedLine {
         var list: std.ArrayList(ShapedLine) = .empty;
         errdefer list.deinit(allocator);
-
-        if (is_nowrap or available <= 0) {
-            var it = std.mem.splitScalar(u8, content, '\n');
-            while (it.next()) |raw_line| {
-                const line = trimCarriageReturn(raw_line);
-                const w = self.width(line, font_size);
-                try list.append(allocator, .{
-                    .text = line,
-                    .width = w,
-                    .height = line_h,
-                    .ascent = asc,
-                });
-                if (is_nowrap) break;
-            }
-            return list.toOwnedSlice(allocator);
-        }
-
-        const space_w = self.width(" ", font_size);
+        if (content.len == 0) return list.toOwnedSlice(allocator);
+        const preserve = std.mem.eql(u8, white_space, "pre") or std.mem.eql(u8, white_space, "pre-wrap") or std.mem.eql(u8, white_space, "break-spaces");
+        const no_wrap = std.mem.eql(u8, white_space, "nowrap") or std.mem.eql(u8, white_space, "pre") or available <= 0;
+        const line_h = self.lineHeight(font_size);
+        const asc = self.ascent(font_size);
         var hard_lines = std.mem.splitScalar(u8, content, '\n');
-        while (hard_lines.next()) |raw_line| {
-            const hard_line = trimCarriageReturn(raw_line);
-            if (hard_line.len == 0) {
-                try list.append(allocator, .{ .text = "", .width = 0, .height = line_h, .ascent = asc });
+        while (hard_lines.next()) |raw| {
+            const hard_line = trimCarriageReturn(raw);
+            if (no_wrap or hard_line.len == 0) {
+                try list.append(allocator, .{ .text = hard_line, .width = self.width(hard_line, font_size), .height = line_h, .ascent = asc, .indent = if (list.items.len == 0) self.typography.text_indent else 0 });
                 continue;
             }
-
-            var words = std.mem.tokenizeAny(u8, hard_line, " \t");
-            var line_start: ?usize = null;
-            var line_end: usize = 0;
-            var line_w: f32 = 0;
-
-            while (words.next()) |word| {
-                const w = self.width(word, font_size);
-                const word_start = @intFromPtr(word.ptr) - @intFromPtr(hard_line.ptr);
-                const word_end = word_start + word.len;
-
-                if (line_start == null) {
-                    line_start = word_start;
-                    line_end = word_end;
-                    line_w = w;
-                } else if (line_w + space_w + w <= available) {
-                    line_end = word_end;
-                    line_w += space_w + w;
-                } else {
-                    const slice = hard_line[line_start.?..line_end];
-                    try list.append(allocator, .{
-                        .text = slice,
-                        .width = line_w,
-                        .height = line_h,
-                        .ascent = asc,
-                    });
-                    line_start = word_start;
-                    line_end = word_end;
-                    line_w = w;
+            var start: usize = 0;
+            while (start < hard_line.len) {
+                if (!preserve) while (start < hard_line.len and (hard_line[start] == ' ' or hard_line[start] == '\t')) : (start += 1) {};
+                if (start == hard_line.len) break;
+                const indent: f32 = if (list.items.len == 0) self.typography.text_indent else 0;
+                const capacity = @max(0, available - indent);
+                var end = start;
+                var accepted = start;
+                while (end < hard_line.len) {
+                    // A break opportunity follows each whitespace sequence.
+                    while (end < hard_line.len and hard_line[end] != ' ' and hard_line[end] != '\t') : (end += 1) {}
+                    const word_end = end;
+                    while (end < hard_line.len and (hard_line[end] == ' ' or hard_line[end] == '\t')) : (end += 1) {}
+                    const candidate_end = if (preserve) end else word_end;
+                    if (accepted > start and self.width(hard_line[start..candidate_end], font_size) > capacity) break;
+                    accepted = candidate_end;
+                    if (self.width(hard_line[start..candidate_end], font_size) > capacity) break;
                 }
-            }
-
-            if (line_start) |start| {
-                const slice = hard_line[start..line_end];
-                try list.append(allocator, .{
-                    .text = slice,
-                    .width = line_w,
-                    .height = line_h,
-                    .ascent = asc,
-                });
+                if (accepted == start) accepted = end;
+                const slice = hard_line[start..accepted];
+                try list.append(allocator, .{ .text = slice, .width = self.width(slice, font_size), .height = line_h, .ascent = asc, .indent = indent });
+                start = accepted;
             }
         }
-
         return list.toOwnedSlice(allocator);
     }
 };

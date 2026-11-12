@@ -30,6 +30,7 @@ pub fn build(b: *std.Build) void {
     module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = &.{} });
     module.addCSourceFile(.{ .file = b.path("src/event_wakeup.c"), .flags = &.{} });
     module.addCSourceFile(.{ .file = b.path("src/text_backend.c"), .flags = &.{} });
+    module.addCSourceFile(.{ .file = b.path("src/cursor_backend.c"), .flags = &.{} });
     module.linkSystemLibrary("usp10", .{});
     module.linkSystemLibrary("imm32", .{});
     const tests = b.addTest(.{ .root_module = ui_core });

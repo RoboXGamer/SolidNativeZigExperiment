@@ -8,6 +8,8 @@ extern fn ui_watch_stop() void;
 extern fn ui_wake_start() c_int;
 extern fn ui_wake_schedule(seconds: f64) void;
 extern fn ui_wake_stop() void;
+extern fn ui_cursor_update([*]const u8, usize, c_int, c_int) void;
+extern fn ui_cursor_shutdown() void;
 extern fn getenv([*:0]const u8) ?[*:0]const u8;
 
 const source = @embedFile("ui-bundle.js");
@@ -26,13 +28,6 @@ fn colorWithOpacity(value: []const u8, fallback: rl.Color, opacity: f32) rl.Colo
     return c;
 }
 
-fn roundness(rect: rl.Rectangle, radius: f32) f32 {
-    const m = @min(rect.width, rect.height);
-    if (m <= 0) return 0;
-    return @min(1, radius / (m / 2));
-}
-
-/// Real font metrics for layout: Raylib owns the glyph atlas, so ask it for
 const text_backend = @import("text_backend.zig");
 const DrawContext = struct { focused: ?u32, editor: *ui.TextEdit, scroll_offsets: *std.AutoHashMap(u32, ui.ScrollOffset), text_cache: *text_backend.Cache };
 fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std.mem.Allocator) !void {
@@ -41,54 +36,35 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
     const editor = ctx.editor;
     const scroll_offsets = ctx.scroll_offsets;
     const n = item.node;
+    const text = n.textContext(scene.text);
     if (std.mem.eql(u8, n.type, "__layout_root")) return;
     const b = item.bounds;
     const rect = rl.Rectangle{ .x = b.x, .y = b.y, .width = b.width, .height = b.height };
 
-    const radius = if (n.style.borderTopLeftRadius > 0) n.style.borderTopLeftRadius else n.style.borderRadius;
     const op: f32 = 1;
 
-    // per-side borders
-    const bw = n.border();
-    const uniform = (bw.top == bw.right and bw.right == bw.bottom and bw.bottom == bw.left);
-    if (radius > 0 and uniform and bw.top > 0) {
-        rl.drawRectangleRoundedLinesEx(rect, roundness(rect, radius), 8, bw.top, colorWithOpacity(n.style.borderColor, .white, op));
-    } else {
-        if (bw.top > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y }, bw.top, colorWithOpacity(if (n.style.borderTopColor.len > 0) n.style.borderTopColor else n.style.borderColor, .white, op));
-        if (bw.right > 0) rl.drawLineEx(.{ .x = rect.x + rect.width, .y = rect.y }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.right, colorWithOpacity(if (n.style.borderRightColor.len > 0) n.style.borderRightColor else n.style.borderColor, .white, op));
-        if (bw.bottom > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y + rect.height }, .{ .x = rect.x + rect.width, .y = rect.y + rect.height }, bw.bottom, colorWithOpacity(if (n.style.borderBottomColor.len > 0) n.style.borderBottomColor else n.style.borderColor, .white, op));
-        if (bw.left > 0) rl.drawLineEx(.{ .x = rect.x, .y = rect.y }, .{ .x = rect.x, .y = rect.y + rect.height }, bw.left, colorWithOpacity(if (n.style.borderLeftColor.len > 0) n.style.borderLeftColor else n.style.borderColor, .white, op));
-    }
-    if (n.style.outlineWidth > 0) {
-        const orect = rl.Rectangle{ .x = rect.x - n.style.outlineWidth, .y = rect.y - n.style.outlineWidth, .width = rect.width + 2 * n.style.outlineWidth, .height = rect.height + 2 * n.style.outlineWidth };
-        rl.drawRectangleLinesEx(orect, n.style.outlineWidth, colorWithOpacity(n.style.outlineColor, .white, op));
-    }
     const font_size_int: i32 = @intFromFloat(@max(1.0, @round(n.fontSize())));
     if (std.mem.eql(u8, n.type, "text") and n.text.len > 0) {
         const content = n.contentBox(b);
-        const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else scene.text.lineHeight(n.fontSize())) else scene.text.lineHeight(n.fontSize());
-        const lines = scene.text.shapeLines(allocator, n.text, n.fontSize(), content.width, n.style.whiteSpace) catch &.{};
+        const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else text.lineHeight(n.fontSize())) else text.lineHeight(n.fontSize());
+        const available = @max(0, @min(content.width, scene.clipFor(item).right() - content.x));
+        const lines = n.shapeText(scene.text, allocator, available) catch &.{};
         for (lines, 0..) |sline, line_idx| {
-            var line_x = content.x;
-            if (std.mem.eql(u8, n.style.textAlign, "center")) {
-                line_x += @max(0, (content.width - sline.width) / 2);
-            } else if (std.mem.eql(u8, n.style.textAlign, "right")) {
-                line_x += @max(0, content.width - sline.width);
-            }
+            const line_x = content.x + sline.offset_x;
             const line_y = content.y + @as(f32, @floatFromInt(line_idx)) * line_h;
 
-            try ctx.text_cache.draw(sline.text, line_x, line_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op));
+            try ctx.text_cache.drawStyled(sline.text, line_x, line_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
         }
     }
     if (std.mem.eql(u8, n.type, "select")) {
         const display_text = if (n.text.len > 0) n.text else n.value;
         const content = n.contentBox(b);
         if (display_text.len > 0) {
-            try ctx.text_cache.draw(display_text, content.x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .white, op));
+            try ctx.text_cache.drawStyled(display_text, content.x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
         }
         const arrow_x = b.x + b.width - 20;
         if (arrow_x > content.x) {
-            try ctx.text_cache.draw("v", arrow_x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .light_gray, op));
+            try ctx.text_cache.drawStyled("v", arrow_x, content.y, n.fontSize(), colorWithOpacity(n.style.color, .light_gray, op), text.typography);
         }
     }
     if (std.mem.eql(u8, n.type, "input")) {
@@ -97,19 +73,19 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
         const text_y = content.y;
         if (focused == n.id) {
             editor.clamp(n.value);
-            const caret = text_backend.measure(null, n.value[0..editor.cursor], @floatFromInt(font_size_int)).width;
+            const caret = text.width(n.value[0..editor.cursor], n.fontSize());
             text_x -= @max(0, caret - @max(0, content.width - 4));
             const selected = editor.selection();
-            const start = text_backend.measure(null, n.value[0..selected.start], @floatFromInt(font_size_int)).width;
-            const end = text_backend.measure(null, n.value[0..selected.end], @floatFromInt(font_size_int)).width;
+            const start = text.width(n.value[0..selected.start], n.fontSize());
+            const end = text.width(n.value[0..selected.end], n.fontSize());
             if (selected.start != selected.end) {
                 rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size_int) }, .blue);
             } else {
                 rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
             }
         }
-        try ctx.text_cache.draw(n.value, text_x, text_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op));
-        if (focused == n.id) text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + scene.text.width(n.value[0..editor.cursor], n.fontSize())), @intFromFloat(text_y + scene.text.lineHeight(n.fontSize())));
+        try ctx.text_cache.drawStyled(n.value, text_x, text_y, n.fontSize(), colorWithOpacity(n.style.color, .white, op), text.typography);
+        if (focused == n.id) text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + text.width(n.value[0..editor.cursor], n.fontSize())), @intFromFloat(text_y + text.lineHeight(n.fontSize())));
     }
     // Scrollbar rendering
     if (n.isScrollContainer() and !std.mem.eql(u8, n.style.scrollbarWidth, "none")) {
@@ -209,7 +185,7 @@ fn synchronize(runtime: *bridge.Runtime, tree: *ui.Tree) !bool {
 }
 
 fn buildScene(tree: *ui.Tree) !ui.Scene {
-    return ui.Scene.fromTreeWithText(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = text_backend.measure, .position_fn = text_backend.position });
+    return ui.Scene.fromTreeWithText(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = text_backend.measure, .position_fn = text_backend.position, .styled_measure_fn = text_backend.measureStyled, .styled_position_fn = text_backend.positionStyled });
 }
 
 pub fn run() void {
@@ -222,6 +198,7 @@ pub fn run() void {
     rl.setConfigFlags(.{ .window_resizable = true, .vsync_hint = true, .window_hidden = smoke });
     rl.initWindow(window_width, window_height, "Solid + Zig experiment");
     defer rl.closeWindow();
+    defer ui_cursor_shutdown();
     var renderer = @import("renderer.zig").Renderer.init(std.heap.page_allocator) catch |err| {
         std.log.err("Renderer initialization failed: {}", .{err});
         return;
@@ -293,7 +270,7 @@ pub fn run() void {
                         const content = item.node.contentBox(item.bounds);
                         const local = scene.localPoint(item, mouse.x, mouse.y) orelse ui.transform.Point{ .x = mouse.x, .y = mouse.y };
                         const rel_x = local.x - content.x;
-                        const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), scene.text);
+                        const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), item.node.textContext(scene.text));
                         editor.move(idx, false);
                     }
                 }
@@ -307,8 +284,9 @@ pub fn run() void {
                     if (std.mem.eql(u8, item.node.type, "input")) {
                         const mouse = rl.getMousePosition();
                         const content = item.node.contentBox(item.bounds);
-                        const rel_x = mouse.x - content.x;
-                        const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), scene.text);
+                        const local = scene.localPoint(item, mouse.x, mouse.y) orelse ui.transform.Point{ .x = mouse.x, .y = mouse.y };
+                        const rel_x = local.x - content.x;
+                        const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), item.node.textContext(scene.text));
                         editor.move(idx, true);
                     }
                 }
@@ -375,6 +353,10 @@ pub fn run() void {
         if (focused) |id| if (scene.find(id) == null) {
             focused = null;
         };
+        const pointer = rl.getMousePosition();
+        const hovered = if (scene.pointerTarget(pointer.x, pointer.y)) |id| scene.find(id) else null;
+        const cursor = if (hovered) |h| h.node.style.cursor else "auto";
+        ui_cursor_update(cursor.ptr, cursor.len, if (hovered) |h| (if (std.mem.eql(u8, h.node.type, "input") or std.mem.eql(u8, h.node.type, "text")) 1 else 0) else 0, if (hovered) |h| (if (h.node.clickable) 1 else 0) else 0);
         rl.beginDrawing();
         rl.clearBackground(background_color);
         var draw_context = DrawContext{ .focused = focused, .editor = &editor, .scroll_offsets = &scroll_offsets, .text_cache = &text_cache };

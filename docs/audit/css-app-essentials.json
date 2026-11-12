@@ -1,0 +1,288 @@
+{
+  "date": "2026-11-12",
+  "parallelSubagents": 2,
+  "scope": "Native everyday app typography, text, box visuals and interaction",
+  "records": [
+    {
+      "issue": 94,
+      "feature": "font-family",
+      "status": "implemented-unverified",
+      "scope": "Installed native stacks and generic families; shared shaping/layout/paint",
+      "compatibilityKeys": [
+        "css.properties.font-family",
+        "css.properties.font-family.cursive",
+        "css.properties.font-family.fantasy",
+        "css.properties.font-family.monospace",
+        "css.properties.font-family.sans-serif",
+        "css.properties.font-family.serif"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 95,
+      "feature": "font-family-system",
+      "status": "implemented-unverified",
+      "scope": "system-ui native font selection",
+      "compatibilityKeys": [
+        "css.properties.font-family.system-ui"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 101,
+      "feature": "font-size",
+      "status": "partial-unverified",
+      "scope": "Absolute/relative keywords and unit sizing; complete zero-size semantics still require follow-up",
+      "compatibilityKeys": [
+        "css.properties.font-size",
+        "css.properties.font-size.large",
+        "css.properties.font-size.larger",
+        "css.properties.font-size.medium",
+        "css.properties.font-size.rem_values",
+        "css.properties.font-size.small",
+        "css.properties.font-size.smaller",
+        "css.properties.font-size.x-large",
+        "css.properties.font-size.x-small",
+        "css.properties.font-size.xx-large",
+        "css.properties.font-size.xx-small",
+        "css.properties.font-size.xxx-large"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 104,
+      "feature": "font-style",
+      "status": "partial-unverified",
+      "scope": "Native normal/italic/oblique; @font-face descriptors and exact oblique angles remain",
+      "compatibilityKeys": [
+        "css.at-rules.font-face.font-style",
+        "css.properties.font-style",
+        "css.properties.font-style.italic",
+        "css.properties.font-style.normal",
+        "css.properties.font-style.oblique"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 117,
+      "feature": "font-weight",
+      "status": "partial-unverified",
+      "scope": "Native numeric/normal/bold/bolder/lighter; @font-face descriptor/variable-font coverage remains",
+      "compatibilityKeys": [
+        "css.at-rules.font-face.font-weight",
+        "css.properties.font-weight",
+        "css.properties.font-weight.bold",
+        "css.properties.font-weight.bolder",
+        "css.properties.font-weight.lighter",
+        "css.properties.font-weight.normal",
+        "css.properties.font-weight.number"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 147,
+      "feature": "letter-spacing",
+      "status": "implemented-unverified",
+      "scope": "Inherited typed lengths/normal in glyph advances, measurements and caret mapping",
+      "compatibilityKeys": [
+        "css.properties.letter-spacing",
+        "css.properties.letter-spacing.normal"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 285,
+      "feature": "word-spacing",
+      "status": "implemented-unverified",
+      "scope": "Shared styled word advances in measurement, shaping and paint",
+      "compatibilityKeys": [
+        "css.properties.word-spacing",
+        "css.properties.word-spacing.normal"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 241,
+      "feature": "tab-size",
+      "status": "implemented-unverified",
+      "scope": "Number and length-based tab stops shared by layout and native shaping",
+      "compatibilityKeys": [
+        "css.properties.tab-size",
+        "css.properties.tab-size.length"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 251,
+      "feature": "text-indent",
+      "status": "partial-unverified",
+      "scope": "First shaped text-run indentation; complete multi-inline fragmentation remains",
+      "compatibilityKeys": [
+        "css.properties.text-indent"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 246,
+      "feature": "text-align-last",
+      "status": "partial-unverified",
+      "scope": "Final-line alignment values; full justification engine remains",
+      "compatibilityKeys": [
+        "css.properties.text-align-last",
+        "css.properties.text-align-last.auto"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 253,
+      "feature": "text-overflow",
+      "status": "partial-unverified",
+      "scope": "Clipped nowrap/pre ellipsis and ancestor LTR projection; full RTL/fragmented inline edges remain",
+      "compatibilityKeys": [
+        "css.properties.text-overflow",
+        "css.properties.text-overflow.clip",
+        "css.properties.text-overflow.ellipsis"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 256,
+      "feature": "text-transform",
+      "status": "partial-unverified",
+      "scope": "Locale-aware native case transforms without source mutation; full Unicode capitalization boundaries and all combinations remain",
+      "compatibilityKeys": [
+        "css.properties.text-transform",
+        "css.properties.text-transform.capitalize",
+        "css.properties.text-transform.lowercase",
+        "css.properties.text-transform.lowercase_sigma",
+        "css.properties.text-transform.none",
+        "css.properties.text-transform.turkic_is",
+        "css.properties.text-transform.uppercase",
+        "css.properties.text-transform.uppercase_eszett"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 25,
+      "feature": "border-radius",
+      "status": "implemented-unverified",
+      "scope": "Elliptical/percentage/slash/per-corner radii, zero override, overlap normalization, shared paint and hit geometry",
+      "compatibilityKeys": [
+        "css.properties.border-bottom-left-radius",
+        "css.properties.border-bottom-left-radius.elliptical_corners",
+        "css.properties.border-bottom-left-radius.percentages",
+        "css.properties.border-bottom-right-radius",
+        "css.properties.border-bottom-right-radius.elliptical_corners",
+        "css.properties.border-bottom-right-radius.percentages",
+        "css.properties.border-radius",
+        "css.properties.border-radius.4_values_for_4_corners",
+        "css.properties.border-radius.elliptical_borders",
+        "css.properties.border-radius.percentages",
+        "css.properties.border-top-left-radius",
+        "css.properties.border-top-left-radius.elliptical_corners",
+        "css.properties.border-top-left-radius.percentages",
+        "css.properties.border-top-right-radius",
+        "css.properties.border-top-right-radius.elliptical_corners",
+        "css.properties.border-top-right-radius.percentages"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 180,
+      "feature": "outline",
+      "status": "implemented-unverified",
+      "scope": "Shorthand, widths, styles, color and offset through native raster cache",
+      "compatibilityKeys": [
+        "css.properties.outline",
+        "css.properties.outline.auto",
+        "css.properties.outline.currentColor",
+        "css.properties.outline.dashed",
+        "css.properties.outline.dotted",
+        "css.properties.outline.double",
+        "css.properties.outline.groove",
+        "css.properties.outline.inset",
+        "css.properties.outline.medium",
+        "css.properties.outline.none",
+        "css.properties.outline.outset",
+        "css.properties.outline.ridge",
+        "css.properties.outline.solid",
+        "css.properties.outline.thick",
+        "css.properties.outline.thin",
+        "css.properties.outline.transparent"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 181,
+      "feature": "outlines",
+      "status": "implemented-unverified",
+      "scope": "All listed native outline style paths; auto uses backend solid focus ring",
+      "compatibilityKeys": [
+        "css.properties.outline-color",
+        "css.properties.outline-color.transparent",
+        "css.properties.outline-offset",
+        "css.properties.outline-style",
+        "css.properties.outline-style.auto",
+        "css.properties.outline-style.dashed",
+        "css.properties.outline-style.dotted",
+        "css.properties.outline-style.double",
+        "css.properties.outline-style.groove",
+        "css.properties.outline-style.inset",
+        "css.properties.outline-style.none",
+        "css.properties.outline-style.outset",
+        "css.properties.outline-style.ridge",
+        "css.properties.outline-style.solid",
+        "css.properties.outline-width",
+        "css.properties.outline-width.medium",
+        "css.properties.outline-width.thick",
+        "css.properties.outline-width.thin"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 65,
+      "feature": "cursor",
+      "status": "partial-unverified",
+      "scope": "Native keywords and local image/.cur/.ani URL resources; network/data/SVG cursors and exact uncommon platform shapes remain",
+      "compatibilityKeys": [
+        "css.properties.cursor",
+        "css.properties.cursor.auto",
+        "css.properties.cursor.cell",
+        "css.properties.cursor.text",
+        "css.properties.cursor.url"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 277,
+      "feature": "visibility",
+      "status": "partial-unverified",
+      "scope": "Inherited visible/hidden/collapse paint and input policy; flex struts/table collapse layout remain",
+      "compatibilityKeys": [
+        "css.properties.visibility",
+        "css.properties.visibility.collapse",
+        "css.properties.visibility.hidden",
+        "css.properties.visibility.visible"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    },
+    {
+      "issue": 195,
+      "feature": "pointer-events",
+      "status": "partial-unverified",
+      "scope": "Native box auto/none and descendant overrides; SVG-specific painted/fill/stroke hit regions remain",
+      "compatibilityKeys": [
+        "css.properties.pointer-events",
+        "css.properties.pointer-events.all",
+        "css.properties.pointer-events.auto",
+        "css.properties.pointer-events.fill",
+        "css.properties.pointer-events.html_elements",
+        "css.properties.pointer-events.none",
+        "css.properties.pointer-events.painted",
+        "css.properties.pointer-events.stroke",
+        "css.properties.pointer-events.visible"
+      ],
+      "validation": "Not run: builds, tests and typechecks explicitly paused by user"
+    }
+  ]
+}

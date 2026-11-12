@@ -43,3 +43,7 @@ browser engine or a released desktop toolkit. Stylesheet/cascade/query systems,
 advanced CSS families, complete controls/accessibility and full browser-oracle
 conformance remain in the catalog backlog. The 2026-11-11 audit is historical;
 its old percentages must not be treated as current measurements.
+
+Everyday app typography, text overflow, elliptical corners, outlines and native
+interaction/cursors are described in [the app essentials handoff](docs/tasks/css-app-essentials-2026-11-12.md).
+This latest batch is implementation-only; builds and tests were paused.

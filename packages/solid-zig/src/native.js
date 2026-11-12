@@ -263,8 +263,38 @@ function opacityValue(value) {
   throw Error("Invalid opacity: " + value);
 }
 
+function authoredMask(style,names) {return names.reduce((mask,key,i)=>mask|(style[key]!=null?1<<i:0),0);}
+function radiusCss(value) {
+  if(value==null) return null;
+  if(typeof value==="number" && Number.isFinite(value) && value>=0) return value+"px";
+  if(typeof value==="string" && value.trim()) return value.trim();
+  throw Error("Invalid border radius: "+value);
+}
+function styleLength(value,{normal=false,negative=false}={}) {
+  if(value==null || (normal && value==="normal")) return {number:null,css:null};
+  if(typeof value==="number" && Number.isFinite(value) && (negative || value>=0)) return {number:value,css:null};
+  if(typeof value==="string" && value.trim()) return {number:null,css:value.trim()};
+  throw Error("Invalid style length: "+value);
+}
+
 export function snapshot(node, inherited = {}) {
   const style = physicalStyle(node.props.style || {}, inherited);
+  if(typeof style.outline==="string") {
+    let width,kind,color;
+    for(const token of splitSpacing(style.outline)) {
+      if(["none","auto","solid","dashed","dotted","double","groove","ridge","inset","outset"].includes(token)) kind=token;
+      else if(["thin","medium","thick"].includes(token) || /^[+\-.\d]/.test(token) || /^(calc|min|max|clamp|abs|round)\(/i.test(token)) width=token;
+      else color=token;
+    }
+    style.outlineWidth??=width??"medium"; style.outlineStyle??=kind??"none"; style.outlineColor??=color??"currentColor";
+  }
+  const typographySpecified=authoredMask(style,["fontFamily","fontWeight","fontStyle","language","letterSpacing","wordSpacing","tabSize","textTransform","textAlignLast","textIndent"]) | (node.props.lang != null ? 1 << 3 : 0);
+  const interactionSpecified=authoredMask(style,["visibility","pointerEvents","cursor"]);
+  const letterSpacing=styleLength(style.letterSpacing,{normal:true,negative:true});
+  const wordSpacing=styleLength(style.wordSpacing,{normal:true,negative:true});
+  const textIndent=styleLength(style.textIndent,{negative:true});
+  const outlineWidth=styleLength(style.outlineWidth);
+  const outlineOffset=styleLength(style.outlineOffset,{negative:true});
   const opacity=opacityValue(style.opacity);
   const isolation=style.isolation == null ? "auto" : String(style.isolation).trim().toLowerCase();
   if(!["auto","isolate"].includes(isolation)) throw Error("Invalid isolation: "+style.isolation);
@@ -327,6 +357,16 @@ export function snapshot(node, inherited = {}) {
     color: typeof style.color === "string" ? style.color : (inherited.color || ""),
     fontSize: typeof style.fontSize === "number" ? style.fontSize : (inherited.fontSize || 0),
     fontSizeCss: typeof style.fontSize === "string" ? style.fontSize.trim() : null,
+    fontFamily: style.fontFamily ?? inherited.fontFamily ?? "system-ui",
+    fontWeight: typeof style.fontWeight==="number" ? style.fontWeight : (inherited.fontWeight ?? 400),
+    fontWeightCss: typeof style.fontWeight==="string" ? style.fontWeight : null,
+    fontStyle: style.fontStyle ?? inherited.fontStyle ?? "normal",
+    language: node.props.lang ?? style.language ?? inherited.language ?? "",
+    textTransform: style.textTransform ?? inherited.textTransform ?? "none",
+    textAlignLast: style.textAlignLast ?? inherited.textAlignLast ?? "auto",
+    cursor: style.cursor ?? inherited.cursor ?? "auto",
+    visibility: style.visibility ?? inherited.visibility ?? "visible",
+    pointerEvents: style.pointerEvents ?? inherited.pointerEvents ?? "auto",
     whiteSpace: style.whiteSpace ?? inherited.whiteSpace ?? "normal",
     textAlign: style.textAlign ?? inherited.textAlign ?? "left",
     lineHeight: style.lineHeight ?? inherited.lineHeight,
@@ -467,6 +507,19 @@ export function snapshot(node, inherited = {}) {
       borderRightColor: typeof style.borderRightColor === "string" ? style.borderRightColor : "",
       borderBottomColor: typeof style.borderBottomColor === "string" ? style.borderBottomColor : "",
       borderLeftColor: typeof style.borderLeftColor === "string" ? style.borderLeftColor : "",
+      typographySpecified,
+      interactionSpecified,
+      letterSpacing:letterSpacing.number, letterSpacingCss:letterSpacing.css,
+      wordSpacing:wordSpacing.number, wordSpacingCss:wordSpacing.css,
+      textIndent:textIndent.number, textIndentCss:textIndent.css,
+      tabSize:typeof style.tabSize==="number" ? style.tabSize : 8,
+      tabSizeCss:typeof style.tabSize==="string" ? style.tabSize : null,
+      textOverflow:style.textOverflow ?? "clip",
+      borderRadiusCss:radiusCss(style.borderRadius),
+      borderTopLeftRadiusCss:radiusCss(style.borderTopLeftRadius),
+      borderTopRightRadiusCss:radiusCss(style.borderTopRightRadius),
+      borderBottomRightRadiusCss:radiusCss(style.borderBottomRightRadius),
+      borderBottomLeftRadiusCss:radiusCss(style.borderBottomLeftRadius),
       borderRadius: typeof style.borderRadius === "number" ? style.borderRadius : 0,
       borderTopLeftRadius: typeof style.borderTopLeftRadius === "number" ? style.borderTopLeftRadius : 0,
       borderTopRightRadius: typeof style.borderTopRightRadius === "number" ? style.borderTopRightRadius : 0,
@@ -482,7 +535,9 @@ export function snapshot(node, inherited = {}) {
       textAlign: typeof style.textAlign === "string" ? style.textAlign : (inherited.textAlign || "left"),
       lineHeight,
       lineHeightCss: lineHeightCss ?? "",
-      outlineWidth: typeof style.outlineWidth === "number" ? style.outlineWidth : 0,
+      outlineWidth:outlineWidth.number ?? 0, outlineWidthCss:outlineWidth.css ?? (typeof style.outlineWidth==="number" ? style.outlineWidth+"px" : null),
+      outlineOffset:outlineOffset.number ?? 0, outlineOffsetCss:outlineOffset.css,
+      outlineStyle:style.outlineStyle ?? "none",
       outlineColor: typeof style.outlineColor === "string" ? style.outlineColor : "",
       boxShadow: typeof style.boxShadow === "string" ? style.boxShadow : "",
       position: typeof style.position === "string" ? style.position.trim().toLowerCase() : "static",

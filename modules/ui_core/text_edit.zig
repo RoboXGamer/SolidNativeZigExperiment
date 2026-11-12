@@ -66,7 +66,7 @@ pub fn prevGrapheme(value: []const u8, from: usize) usize {
 }
 
 pub fn positionForX(value: []const u8, click_x: f32, font_size: f32, t: text_mod.Text) usize {
-    if (t.position_fn) |f| return @min(value.len, f(t.ctx, value, click_x, font_size));
+    if (t.position(value, click_x, font_size)) |position| return @min(value.len, position);
     if (click_x <= 0) return 0;
     var offset: usize = 0;
     var prev_w: f32 = 0;

@@ -69,7 +69,7 @@ fn contentHeight(scene: *const Scene, n: *const Node) f32 {
 /// Max-content width (border box) measured with backend text metrics or recursive intrinsic sizing.
 fn maxContentWidth(scene: *const Scene, n: *const Node) f32 {
     if (preferred(n, true)) |width| return width;
-    if (std.mem.eql(u8, n.type, "text")) return scene.text.maxContentWidth(n.text, n.fontSize()) + frameWidth(n);
+    if (std.mem.eql(u8, n.type, "text")) return scene.textFor(n).maxContentWidth(n.text, n.fontSize()) + frameWidth(n);
     if (!std.mem.eql(u8, n.style.display, "flex")) {
         return scene.intrinsicWidthFor(n, .max_content);
     }
@@ -97,7 +97,7 @@ fn maxContentWidth(scene: *const Scene, n: *const Node) f32 {
 /// Min-content width (border box): widest unbreakable word or intrinsic minimum.
 fn minContentWidth(scene: *const Scene, n: *const Node) f32 {
     if (preferred(n, true)) |width| return width;
-    if (std.mem.eql(u8, n.type, "text")) return scene.text.minContentWidth(n.text, n.fontSize()) + frameWidth(n);
+    if (std.mem.eql(u8, n.type, "text")) return scene.textFor(n).minContentWidth(n.text, n.fontSize()) + frameWidth(n);
     if (!std.mem.eql(u8, n.style.display, "flex")) {
         return scene.intrinsicWidthFor(n, .min_content);
     }
@@ -232,7 +232,7 @@ pub fn findFirstBaseline(scene: *const Scene, n: *const Node) ?f32 {
     const pad_top = n.padding().top;
     const bd_top = n.border().top;
     if (std.mem.eql(u8, n.type, "text")) {
-        return pad_top + bd_top + scene.text.ascent(n.fontSize());
+        return pad_top + bd_top + scene.textFor(n).ascent(n.fontSize());
     }
     for (n.children) |*child| {
         if (findFirstBaseline(scene, child)) |b| {
@@ -246,12 +246,12 @@ pub fn findLastBaseline(scene: *const Scene, n: *const Node) ?f32 {
     const pad_top = n.padding().top;
     const bd_top = n.border().top;
     if (std.mem.eql(u8, n.type, "text")) {
-        const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else scene.text.lineHeight(n.fontSize())) else scene.text.lineHeight(n.fontSize());
+        const line_h = if (n.style.lineHeight) |lh| (if (lh > 0) lh else scene.textFor(n).lineHeight(n.fontSize())) else scene.textFor(n).lineHeight(n.fontSize());
         var lines: usize = 1;
         for (n.text) |ch| if (ch == '\n') {
             lines += 1;
         };
-        return pad_top + bd_top + @as(f32, @floatFromInt(lines - 1)) * line_h + scene.text.ascent(n.fontSize());
+        return pad_top + bd_top + @as(f32, @floatFromInt(lines - 1)) * line_h + scene.textFor(n).ascent(n.fontSize());
     }
     var i = n.children.len;
     while (i > 0) {
@@ -265,7 +265,7 @@ pub fn findLastBaseline(scene: *const Scene, n: *const Node) ?f32 {
 
 /// First baseline offset from top of box.
 pub fn firstBaselineOf(scene: *const Scene, child: *const Node) f32 {
-    if (std.mem.eql(u8, child.type, "text")) return scene.text.ascent(child.fontSize());
+    if (std.mem.eql(u8, child.type, "text")) return scene.textFor(child).ascent(child.fontSize());
     if (findFirstBaseline(scene, child)) |b| return b;
     return child.constrain(scene.naturalHeight(child), false);
 }

@@ -1,4 +1,4 @@
-//! CSS Table layout algorithm conforming to CSS 2.1 / CSS 2024 Table module.
+﻿//! CSS Table layout algorithm conforming to CSS 2.1 / CSS 2024 Table module.
 //! Supports:
 //! - border-collapse: separate and collapse
 //! - border-spacing: horizontal and vertical spacing
@@ -227,8 +227,8 @@ pub fn layout(scene: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inn
             for (cells, 0..) |c, col| {
                 if (col >= col_count) break;
                 const explicit_w = c.style.width;
-                const min_w = if (explicit_w) |w| w else scene.naturalWidth(c);
-                const max_w = if (explicit_w) |w| w else scene.naturalWidth(c);
+                const min_w = if (explicit_w) |w| w else scene.intrinsicWidthFor(c, .max_content);
+                const max_w = if (explicit_w) |w| w else scene.intrinsicWidthFor(c, .max_content);
                 if (min_w > min_widths[col]) min_widths[col] = min_w;
                 if (max_w > max_widths[col]) max_widths[col] = max_w;
             }
@@ -303,3 +303,4 @@ pub fn layout(scene: *Scene, n: *const Node, bounds: Rect, inner_width: f32, inn
         }
     }
 }
+

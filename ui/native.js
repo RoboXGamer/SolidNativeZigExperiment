@@ -411,7 +411,7 @@ export function physicalStyle(style, inherited = {}) {
     if (key === "textDecoration" && typeof value === "string") {
       const parts = splitSpacing(value.trim());
       for (const part of parts) {
-        if (["none", "underline", "overline", "line-through"].includes(part)) {
+        if (["none", "underline", "overline", "line-through", "spelling-error", "grammar-error"].includes(part)) {
           result.textDecorationLine = result.textDecorationLine && part !== "none" ? result.textDecorationLine + " " + part : part;
         } else if (["auto", "from-font"].includes(part) || /^[+\-.\d]/.test(part) || /^(calc|min|max|clamp)\(/i.test(part)) {
           result.textDecorationThickness = part;
@@ -677,7 +677,7 @@ export function snapshot(node, inherited = {}) {
     const line = [];
     let decorStyle, decorColor, decorThickness;
     for (const token of parts) {
-      if (["none", "underline", "overline", "line-through"].includes(token)) {
+      if (["none", "underline", "overline", "line-through", "spelling-error", "grammar-error"].includes(token)) {
         line.push(token);
       } else if (["solid", "double", "dotted", "dashed", "wavy"].includes(token)) {
         decorStyle = token;
@@ -1696,4 +1696,5 @@ export {
   resolveNestedStyles,
 };
 export { setTarget, setTargetText, getTarget, getTargetText } from "./renderer.js";
+
 

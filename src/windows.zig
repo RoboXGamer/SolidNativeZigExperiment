@@ -79,7 +79,7 @@ fn drawTextDecoration(sline: ui.text.ShapedLine, line_x: f32, line_y: f32, font_
     if (typo.text_decoration_thickness > 0) {
         thickness = typo.text_decoration_thickness;
     }
-    const style = if (typo.text_decoration_style.len > 0) typo.text_decoration_style else "solid";
+    const style = if ((std.mem.indexOf(u8, typo.text_decoration_line, "spelling-error") != null or std.mem.indexOf(u8, typo.text_decoration_line, "grammar-error") != null) and std.mem.eql(u8, typo.text_decoration_style, "solid")) "wavy" else if (typo.text_decoration_style.len > 0) typo.text_decoration_style else "solid";
     const skip_ink = std.mem.eql(u8, typo.text_decoration_skip_ink, "auto");
 
     const has_under = std.mem.indexOf(u8, typo.text_decoration_line, "underline") != null or std.mem.indexOf(u8, typo.text_decoration_line, "spelling-error") != null or std.mem.indexOf(u8, typo.text_decoration_line, "grammar-error") != null;

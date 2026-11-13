@@ -1148,3 +1148,25 @@ test "CSS transitions and cubic-bezier interpolation (ANIM-01)" {
 }
 
 
+
+test "absolute RTL overconstraint honors right inset" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","direction":"rtl","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"position":"absolute","left":10,"right":20,"top":0,"width":50,"height":10}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 130), scene.find(2).?.bounds.x);
+}
+
+test "opposing absolute calc and percent insets stretch within padding box" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","boxSizing":"border-box","width":200,"height":100,"borderLeftWidth":5,"borderRightWidth":5},"children":[{"id":2,"type":"column","style":{"position":"absolute","leftCss":"calc(10% - 4px)","right":10,"top":0,"bottom":0,"marginLeft":3,"marginRight":7}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    const b = scene.find(2).?.bounds;
+    // Padding box is [5,195]; left=19-4=15; margins consume ten pixels.
+    try std.testing.expectApproxEqAbs(@as(f32, 23), b.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 155), b.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), b.height, 0.01);
+}

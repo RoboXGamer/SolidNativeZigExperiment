@@ -184,6 +184,14 @@ for (const [writingMode, blockStart, blockEnd, ltrStart, ltrEnd] of [
   for (const direction of ['ltr', 'rtl']) {
     const [inlineStart, inlineEnd] = direction === 'ltr' ? [ltrStart, ltrEnd] : [ltrEnd, ltrStart];
     const inherited = { writingMode, direction };
+    for (const [blockEdge, blockSide] of [['Start', blockStart], ['End', blockEnd]]) {
+      for (const [inlineEdge, inlineSide] of [['Start', inlineStart], ['End', inlineEnd]]) {
+        const topBottom = ['top','bottom'].includes(blockSide) ? blockSide : inlineSide;
+        const leftRight = ['left','right'].includes(blockSide) ? blockSide : inlineSide;
+        const physical = 'border' + topBottom[0].toUpperCase() + topBottom.slice(1) + leftRight[0].toUpperCase() + leftRight.slice(1) + 'Radius';
+        assert.equal(physicalStyle({ ['border' + blockEdge + inlineEdge + 'Radius']: '11px 7px' }, inherited)[physical], '11px 7px');
+      }
+    }
     for (const [logicalSide, physicalSide] of [['BlockStart', blockStart], ['BlockEnd', blockEnd], ['InlineStart', inlineStart], ['InlineEnd', inlineEnd]]) {
       const cap = physicalSide[0].toUpperCase() + physicalSide.slice(1);
       for (const line of ['none', 'hidden', 'solid', 'double', 'dotted', 'dashed', 'groove', 'ridge', 'inset', 'outset']) {
@@ -218,3 +226,4 @@ for (const position of ['absolute', 'fixed']) {
   assert.equal(snapshot(node({ position, display: 'inline-flex' })).style.display, 'flex');
   assert.equal(snapshot(node({ position, display: 'inline' })).style.display, 'block');
 }
+assert.equal(snapshot(node({ float: 'inline-start', display: 'inline-flex' })).style.display, 'flex');

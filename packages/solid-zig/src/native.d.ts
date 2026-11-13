@@ -326,8 +326,12 @@ export interface NativeStyle {
   fill?: string;
   stroke?: string;
   strokeWidth?: NativeLength;
-  float?: "none" | "left" | "right";
-  clear?: "none" | "left" | "right" | "both";
+  borderStartStartRadius?: NativeLength;
+  borderStartEndRadius?: NativeLength;
+  borderEndStartRadius?: NativeLength;
+  borderEndEndRadius?: NativeLength;
+  float?: "none" | "left" | "right" | "inline-start" | "inline-end";
+  clear?: "none" | "left" | "right" | "both" | "inline-start" | "inline-end";
   startingStyle?: NativeStyle;
   "@starting-style"?: NativeStyle;
   overflowWrap?: "normal" | "break-word" | "anywhere" | string;

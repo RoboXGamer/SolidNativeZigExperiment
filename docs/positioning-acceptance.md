@@ -1,10 +1,10 @@
 # Positioning acceptance evidence
 
-Issues #1, #86 and #155 remain open for review. This document records implemented native paths and executed regression evidence; it does not certify exhaustive browser/WPT conformance.
+Issues #1, #86 and #155 are implemented for the tracked slice and linked for closure on merge. This document records implemented native paths and executed regression evidence; it does not certify exhaustive browser/WPT conformance.
 
 ## Completion follow-up
 
-Final validation: `zig build test --summary all` passed **123/123** tests. `pnpm run test`, eight native framebuffer checks, `pnpm run build:ui`, `zig build`, and native smoke (19 scene items) passed. The older 113-test figure below records the earlier checkpoint.
+Final validation: `zig build test --summary all` passed **124/124** tests. `pnpm run test`, eight native framebuffer checks, `pnpm run build:ui`, `zig build`, and native smoke (19 scene items) passed. The older 113-test figure below records the earlier checkpoint.
 
 - Block and inline static positions now come from the block layout cursor and margin strut, so a relatively shifted sibling does not displace an absolute child's hypothetical position.
 - Positioned grid children resolve explicit positive/negative/named lines, line spans and named grid areas without participating in track sizing or auto-placement. RTL static placement uses the selected area's width.
@@ -14,7 +14,7 @@ Final validation: `zig build test --summary all` passed **123/123** tests. `pnpm
 - Logical margins/padding retain percentage values until native resolution; their physical consumers use the containing block width for percentage bases. Logical sizing continues through the native intrinsic/min/max sizing paths.
 - JS tests exercise logical side and axis mapping in all five writing modes with LTR/RTL, shorthand resets, naming forms, invalid border styles/widths and reactive inherited-direction changes. Native geometry/raster tests exercise the actual consumers.
 
-Rules used for the fixtures: [CSS Logical Properties Level 1](https://drafts.csswg.org/css-logical-1/) and [CSS Positioned Layout Level 3](https://drafts.csswg.org/css-position-3/). These are specification-derived regression fixtures, not recorded browser screenshots or an executed full WPT suite. Platform-specific border bevel shades and rounded dash distribution are renderer choices.
+Rules used for the fixtures: [CSS Logical Properties Level 1](https://drafts.csswg.org/css-logical-1/) and [CSS Positioned Layout Level 3](https://drafts.csswg.org/css-position-3/). These include specification-derived regressions and 66 frozen Edge geometry/radius comparisons; the full WPT suite was not executed. Platform-specific border bevel shades and rounded dash distribution are renderer choices.
 
 ## Direct implementation follow-up
 
@@ -137,8 +137,8 @@ The completion follow-up above supersedes the former missing inline/grid, margin
 | css.properties.border-block.thick | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
 | css.properties.border-block.thin | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
 | css.properties.border-block.transparent | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
-| css.properties.border-end-end-radius | Unverified in this milestone; remains open |
-| css.properties.border-end-start-radius | Unverified in this milestone; remains open |
+| css.properties.border-end-end-radius | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
+| css.properties.border-end-start-radius | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
 | css.properties.border-inline | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
 | css.properties.border-inline-color | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
 | css.properties.border-inline-color.currentColor | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
@@ -241,30 +241,30 @@ The completion follow-up above supersedes the former missing inline/grid, margin
 | css.properties.border-inline.thick | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
 | css.properties.border-inline.thin | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
 | css.properties.border-inline.transparent | Logical side/axis mapping and shorthand reset in physicalStyle; per-side snapshot, width keyword resolution, layout and native style rasterization. JS matrix exercises all five writing modes in LTR/RTL; native fixtures exercise ten styles, none/hidden geometry and currentColor. Representative consumer evidence, not a separate browser oracle for each key. |
-| css.properties.border-start-end-radius | Unverified in this milestone; remains open |
-| css.properties.border-start-start-radius | Unverified in this milestone; remains open |
-| css.properties.clear.inline-end | Unverified in this milestone; remains open |
-| css.properties.clear.inline-start | Unverified in this milestone; remains open |
-| css.properties.float.inline-end | Unverified in this milestone; remains open |
-| css.properties.float.inline-start | Unverified in this milestone; remains open |
+| css.properties.border-start-end-radius | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
+| css.properties.border-start-start-radius | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
+| css.properties.clear.inline-end | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
+| css.properties.clear.inline-start | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
+| css.properties.float.inline-end | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
+| css.properties.float.inline-start | Implemented: logical corner mapping and native float/clear exclusion, clearance and BFC paths. Frozen Edge bridge/native cases cover all five writing modes in LTR/RTL. |
 | css.properties.inline-size | Mapped to physical width/height/min/max before snapshot; existing native intrinsic sizing and constraints consume computed lengths/keywords. JS axis/keyword fixtures and native intrinsic-minimum/shrink-to-fit fixtures passed; no exhaustive independent per-key browser comparison. |
 | css.properties.inline-size.fit-content | Mapped to physical width/height/min/max before snapshot; existing native intrinsic sizing and constraints consume computed lengths/keywords. JS axis/keyword fixtures and native intrinsic-minimum/shrink-to-fit fixtures passed; no exhaustive independent per-key browser comparison. |
 | css.properties.inline-size.max-content | Mapped to physical width/height/min/max before snapshot; existing native intrinsic sizing and constraints consume computed lengths/keywords. JS axis/keyword fixtures and native intrinsic-minimum/shrink-to-fit fixtures passed; no exhaustive independent per-key browser comparison. |
 | css.properties.inline-size.min-content | Mapped to physical width/height/min/max before snapshot; existing native intrinsic sizing and constraints consume computed lengths/keywords. JS axis/keyword fixtures and native intrinsic-minimum/shrink-to-fit fixtures passed; no exhaustive independent per-key browser comparison. |
-| css.properties.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-block | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-block-end | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-block-end.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-block-start | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-block-start.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-block.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-inline | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-inline-end | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-inline-end.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-inline-start | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-inline-start.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset-inline.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
-| css.properties.inset.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-block | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-block-end | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-block-end.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-block-start | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-block-start.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-block.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-inline | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-inline-end | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-inline-end.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-inline-start | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-inline-start.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset-inline.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
+| css.properties.inset.auto | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; frozen Edge logical geometry comparison covers all five writing modes in LTR/RTL |
 | css.properties.margin-block | Logical-to-physical side/axis mapping, inherited mode/direction and declaration order; native length/auto/negative handling and containing-width percentage resolution. JS mapping matrix and native percentage/auto-margin fixtures passed. |
 | css.properties.margin-block-end | Logical-to-physical side/axis mapping, inherited mode/direction and declaration order; native length/auto/negative handling and containing-width percentage resolution. JS mapping matrix and native percentage/auto-margin fixtures passed. |
 | css.properties.margin-block-start | Logical-to-physical side/axis mapping, inherited mode/direction and declaration order; native length/auto/negative handling and containing-width percentage resolution. JS mapping matrix and native percentage/auto-margin fixtures passed. |
@@ -297,3 +297,15 @@ The completion follow-up above supersedes the former missing inline/grid, margin
 Validation: pnpm run test and pnpm run test:native passed. pnpm run build:ui, zig build and pnpm run test:smoke passed; smoke completed with 19 scene items. QuickJS restored at repository pin 6a9fe9af5ca0bf7c49ae697edef44864272317d1.
 
 Native snapshot transport: left/right/top/bottom and *Css/*Auto fields enter Style, resolveStyle resolves against containing dimensions, layoutOutOfFlowChildren consumes them. Logical mapping occurs before snapshot. Renderer singleton/select changes in 66908ed are retained.
+
+## Frozen browser reference completion
+
+Logical corner radii now map to physical corners with elliptical values preserved. Logical float/clear values reach real float exclusion, inline wrapping, BFC avoidance/enclosure and clearance layout. Vertical/sideways layout projects the inline/block axes, and positioned overconstraint resolution follows the containing block writing mode and direction.
+
+The 66 authored cases in `modules/ui_core/fixtures/positioning-source.json` were captured in Microsoft Edge **157.0.4341.46**, revision `a0c6bd61d7884b3c402a34c67d05100107a9e5e4`, Windows `10.0.26300 x64`, viewport 400x300, DPR 1. Ahem font SHA-256: `b719ecb31c5b21fc573c03f6421c74ac63c271a5a3ff841e34f9705fb94b8448`.
+
+`positioning-browser.json` freezes DOM rectangles and computed corner radii. `positioning-native.json` passes the same authored trees through the real JavaScript snapshot bridge. The native test compares geometry and resolved radii at 0.125px tolerance. All 66 cases pass within the 124-test native suite. Coverage includes shrink-to-fit text, reactive container sizes, calc/percentage insets, nested padding/borders, constraints, static block/inline/grid placement, fixed viewport/perspective, logical insets, radii, float/clear and BFC interactions across writing modes/directions.
+
+Cases are adapted from CSS specifications and guided by WPT logical-values-float-clear references recorded in the fixture metadata. This is representative independent browser evidence plus per-family regressions, not an exhaustive independent comparison for every compatibility key or a full WPT run.
+
+Regenerate with `uv run tools/capture_positioning_reference.py`, `node tools/capture_positioning_edge.mjs`, then `node tools/prepare_positioning_reference.mjs`. Run comparisons with `zig build test --summary all`. Recapture downloads Ahem and requires installed Edge; ordinary tests use committed frozen numbers and need neither.

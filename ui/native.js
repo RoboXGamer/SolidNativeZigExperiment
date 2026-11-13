@@ -124,7 +124,7 @@ function displayOf(node, style) {
   } else {
     resolvedDisplay = "flex";
   }
-  const isOutOfFlow = style.position === "absolute" || style.position === "fixed";
+  const isOutOfFlow = style.position === "absolute" || style.position === "fixed" || (style.float != null && style.float !== 'none');
   if (isOutOfFlow && resolvedDisplay !== "none" && resolvedDisplay !== "contents") {
     return blockifyDisplay(resolvedDisplay);
   }
@@ -662,6 +662,15 @@ export function physicalStyle(style, inherited = {}, currentVars = new Map(), no
       continue;
     }
     if (sizes[key]) { result[sizes[key]] = value; continue; }
+    const corner = key.match(/^border(Start|End)(Start|End)Radius$/);
+    if (corner) {
+      const block = logical['Block' + corner[1]];
+      const inline = logical['Inline' + corner[2]];
+      const topBottom = ['Top', 'Bottom'].includes(block) ? block : inline;
+      const leftRight = ['Left', 'Right'].includes(block) ? block : inline;
+      result['border' + topBottom + leftRight + 'Radius'] = value;
+      continue;
+    }
     const edge = key.match(/^(margin|padding|border|scrollMargin|scrollPadding)(InlineStart|InlineEnd|BlockStart|BlockEnd)(Width)?$/);
     if (edge && edge[1] !== 'border') { result[edge[1] + logical[edge[2]] + (edge[3] ?? "")] = value; continue; }
     const logicalBorder = key.match(/^border(Inline|Block)(Start|End)?(Width|Color|Style)?$/);

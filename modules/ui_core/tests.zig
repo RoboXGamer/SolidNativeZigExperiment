@@ -2,6 +2,33 @@ const std = @import("std");
 const root = @import("root.zig");
 const Scene = root.Scene;
 
+test "frozen Edge positioning and logical property oracle through JS bridge" {
+    const Expected = struct { id: u32, x: f32, y: f32, width: f32, height: f32, radii: [4][2]f32 };
+    const Fixture = struct { name: []const u8, scene: []const u8, expected: []const Expected };
+    const parsed = try std.json.parseFromSlice([]const Fixture, std.testing.allocator, @embedFile("fixtures/positioning-native.json"), .{});
+    defer parsed.deinit();
+    var failures: usize = 0;
+    for (parsed.value) |fixture| {
+        var scene = try Scene.initWithText(std.testing.allocator, fixture.scene, 400, 300, .{ .measure_fn = root.text.fixedMeasurer(1.0) });
+        defer scene.deinit();
+        for (fixture.expected) |expected| {
+            const actual = scene.find(expected.id) orelse return error.MissingOracleNode;
+            const geometry = [4]f32{ actual.bounds.x, actual.bounds.y, actual.bounds.width, actual.bounds.height };
+            const target = [4]f32{ expected.x, expected.y, expected.width, expected.height };
+            for (geometry, target, 0..) |got, want, axis| if (@abs(got - want) > 0.125) {
+                std.debug.print("ORACLE {s} node {d} axis {d}: native {d}, Edge {d}\n", .{ fixture.name, expected.id, axis, got, want });
+                failures += 1;
+            };
+            const radii = root.paint.resolvedRadii(actual.node, actual.bounds.width, actual.bounds.height);
+            for (expected.radii, 0..) |corner, i| if (@abs(radii.x[i] - corner[0]) > 0.125 or @abs(radii.y[i] - corner[1]) > 0.125) {
+                std.debug.print("ORACLE {s} node {d} corner {d}: native {d}/{d}, Edge {d}/{d}\n", .{ fixture.name, expected.id, i, radii.x[i], radii.y[i], corner[0], corner[1] });
+                failures += 1;
+            };
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 0), failures);
+}
+
 // These regression fixtures were written under the application testing pause.
 test "typed length arithmetic and missing contexts" {
     const sizing = root.sizing;

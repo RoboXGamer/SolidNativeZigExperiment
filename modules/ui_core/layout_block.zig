@@ -128,9 +128,10 @@ pub fn computeBlockLayout(
     for (n.children, 0..) |*child, i| {
         if (child.isOutOfFlow()) {
             if (children_out) |out| {
+                const inline_position = child.style.positionInline or std.mem.eql(u8, child.type, "text");
                 out[i] = .{
-                    .x = 0,
-                    .y = 0,
+                    .x = if (inline_position and in_inline_run) line_x else 0,
+                    .y = cursor_y + (if (in_inline_run and !inline_position) line_h else if (!in_inline_run) margin_strut.resolve() else 0),
                     .width = 0,
                     .height = 0,
                     .used_margin = .{},

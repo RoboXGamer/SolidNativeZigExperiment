@@ -456,7 +456,7 @@ function flexValues(style) {
 // physical declarations targeting the same side therefore obey last-declared
 // precedence; the mode and direction are computed for the whole style object.
 export function physicalStyle(style, inherited = {}, currentVars = new Map(), node = null) {
-  const mode = style.writingMode ?? inherited.writingMode ?? "horizontal-tb";
+  const mode = style.writingMode ?? style['writing-mode'] ?? inherited.writingMode ?? "horizontal-tb";
   const direction = style.direction ?? inherited.direction ?? "ltr";
   if (!["horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"].includes(mode) || !["ltr", "rtl"].includes(direction)) throw Error("Unsupported writing mode or direction");
   const vertical = mode !== "horizontal-tb";
@@ -472,6 +472,7 @@ export function physicalStyle(style, inherited = {}, currentVars = new Map(), no
   const result = { writingMode: mode, direction };
   for (let [key, value] of Object.entries(style)) {
     if (value == null) continue;
+    if (!key.startsWith('--') && !key.startsWith('@') && !key.startsWith(':')) key = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     if (key.startsWith("@media")) {
       const match = key.replace(/^@media\s*/i, "");
       if (matchMedia(match).matches && typeof value === "object" && value !== null) {
@@ -662,7 +663,41 @@ export function physicalStyle(style, inherited = {}, currentVars = new Map(), no
     }
     if (sizes[key]) { result[sizes[key]] = value; continue; }
     const edge = key.match(/^(margin|padding|border|scrollMargin|scrollPadding)(InlineStart|InlineEnd|BlockStart|BlockEnd)(Width)?$/);
-    if (edge) { result[edge[1] + logical[edge[2]] + (edge[3] ?? "")] = value; continue; }
+    if (edge && edge[1] !== 'border') { result[edge[1] + logical[edge[2]] + (edge[3] ?? "")] = value; continue; }
+    const logicalBorder = key.match(/^border(Inline|Block)(Start|End)?(Width|Color|Style)?$/);
+    if (logicalBorder) {
+      const sides = logicalBorder[2] ? [logical[logicalBorder[1] + logicalBorder[2]]] : [logical[logicalBorder[1] + 'Start'], logical[logicalBorder[1] + 'End']];
+      const suffix = logicalBorder[3];
+      sides.forEach(side => {
+        const prefix = 'border' + side;
+        if (!(prefix + 'Style' in result)) result[prefix + 'Style'] = prefix + 'Width' in result ? 'solid' : 'none';
+        if (!(prefix + 'Width' in result)) result[prefix + 'Width'] = 'medium';
+        if (!(prefix + 'Color' in result)) result[prefix + 'Color'] = 'currentColor';
+      });
+      if (suffix) {
+        const values = typeof value === 'string' ? splitSpacing(value.trim()) : [value];
+        if (!values.length || values.length > sides.length) throw Error(`Invalid logical border: ${value}`);
+        if (suffix === 'Style' && values.some(v => !['none', 'hidden', 'solid', 'double', 'dotted', 'dashed', 'groove', 'ridge', 'inset', 'outset'].includes(v))) throw Error(`Invalid border style: ${value}`);
+        if (suffix === 'Width' && values.some(v => typeof v === 'number' ? !Number.isFinite(v) || v < 0 : /^-/.test(v) || v.includes('%'))) throw Error(`Invalid border width: ${value}`);
+        sides.forEach((side, i) => { result['border' + side + suffix] = values[i] ?? values[0]; });
+      } else {
+        const styles = ['none', 'hidden', 'solid', 'double', 'dotted', 'dashed', 'groove', 'ridge', 'inset', 'outset'];
+        let width = 'medium', line = 'none', color = 'currentColor';
+        const seen = new Set();
+        for (const token of splitSpacing(String(value).trim())) {
+          const kind = styles.includes(token) ? 'style' : /^(thin|medium|thick)$|^(?:calc|min|max|clamp)\(|^[+\-.\d]/.test(token) ? 'width' : 'color';
+          if (seen.has(kind)) throw Error(`Invalid logical border: ${value}`);
+          seen.add(kind);
+          if (kind === 'style') line = token; else if (kind === 'width') width = token; else color = token;
+        }
+        sides.forEach(side => {
+          result['border' + side + 'Width'] = width;
+          result['border' + side + 'Style'] = line;
+          result['border' + side + 'Color'] = color;
+        });
+      }
+      continue;
+    }
     const pair = key.match(/^(margin|padding|border|scrollMargin|scrollPadding)(Inline|Block)(Width)?$/);
     if (pair) {
       const parts = typeof value === "string" ? splitSpacing(value.trim()) : [value];
@@ -1539,6 +1574,10 @@ export function snapshot(node, inherited = {}, inheritedVars = new Map(), quoteD
       borderRightColor: typeof style.borderRightColor === "string" ? style.borderRightColor : "",
       borderBottomColor: typeof style.borderBottomColor === "string" ? style.borderBottomColor : "",
       borderLeftColor: typeof style.borderLeftColor === "string" ? style.borderLeftColor : "",
+      borderTopStyle: style.borderTopStyle ?? 'solid',
+      borderRightStyle: style.borderRightStyle ?? 'solid',
+      borderBottomStyle: style.borderBottomStyle ?? 'solid',
+      borderLeftStyle: style.borderLeftStyle ?? 'solid',
       typographySpecified,
       interactionSpecified,
       letterSpacing:letterSpacing.number, letterSpacingCss:letterSpacing.css,
@@ -1604,6 +1643,7 @@ export function snapshot(node, inherited = {}, inheritedVars = new Map(), quoteD
       quotes: style.quotes ?? inherited.quotes ?? "auto",
       clipPath: typeof style.clipPath === "string" ? style.clipPath.trim() : "",
       position: typeof style.position === "string" ? style.position.trim().toLowerCase() : (isPopoverOpen(node) ? "fixed" : "static"),
+      positionInline: typeof style.display === 'string' && style.display.startsWith('inline'),
       zIndex: zIndexValue(style.zIndex) ?? (isPopoverOpen(node) ? 1000000 : null),
       gridTemplateColumnsCss: gridTemplateColumnsCss,
       gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),

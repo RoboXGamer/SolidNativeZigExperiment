@@ -1225,6 +1225,125 @@ test "fixed descendant scrolls with its transformed containing block" {
     try std.testing.expectApproxEqAbs(@as(f32, 10), scene.find(3).?.bounds.y, 0.01);
 }
 
+test "static block position ignores relative offsets and preserves collapsed margin strut" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","padding":10,"width":200,"height":120},"children":[{"id":2,"type":"column","style":{"position":"relative","top":30,"height":20,"marginBottom":12}},{"id":3,"type":"column","style":{"position":"absolute","width":15,"height":10}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 220, 140);
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 42), scene.find(3).?.bounds.y, 0.01);
+}
+
+test "inline positioned static location follows inline cursor" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":120},"children":[{"id":2,"type":"text","text":"abcd","style":{"fontSize":10}},{"id":3,"type":"column","style":{"position":"absolute","positionInline":true,"width":15,"height":10}}]}
+    ;
+    var scene = try Scene.initWithText(std.testing.allocator, json, 200, 120, .{ .measure_fn = root.text.fixedMeasurer(1.0) });
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 40), scene.find(3).?.bounds.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), scene.find(3).?.bounds.y, 0.01);
+}
+
+test "absolute grid child uses explicit grid area without adding tracks" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"40px 60px"},"children":[{"id":2,"type":"column","style":{"position":"absolute","gridColumn":"2 / 3","gridRow":"2 / 3","left":0,"right":0,"top":0,"bottom":0}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    const box = scene.find(2).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 80), box.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), box.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 120), box.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), box.height, 0.01);
+}
+
+test "logical border physical consumer resolves keywords and none before layout" {
+    const json =
+        \\{"id":1,"type":"root","style":{"width":100,"height":50,"borderTopWidthCss":"thick","borderTopStyle":"solid","borderRightWidthCss":"medium","borderRightStyle":"none","borderBottomWidthCss":"thin","borderBottomStyle":"double"}}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 100, 50);
+    defer scene.deinit();
+    const border = scene.find(1).?.node.border();
+    try std.testing.expectEqual(@as(f32, 5), border.top);
+    try std.testing.expectEqual(@as(f32, 0), border.right);
+    try std.testing.expectEqual(@as(f32, 1), border.bottom);
+}
+
+test "logical border styles reach native raster pixels" {
+    inline for (.{ "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset", "none", "hidden" }) |style| {
+        const node = root.Node{ .id = 1, .type = "column", .style = .{ .borderWidth = 9, .borderTopStyle = style, .borderRightStyle = "none", .borderBottomStyle = "none", .borderLeftStyle = "none", .borderTopColor = "currentColor", .color = "#808080" } };
+        const bitmap = try root.paint.borderBitmap(std.testing.allocator, 80, 30, &node);
+        defer std.testing.allocator.free(bitmap.pixels);
+        var painted: usize = 0;
+        for (bitmap.pixels) |pixel| if (pixel[3] > 0) {
+            painted += 1;
+        };
+        if (std.mem.eql(u8, style, "none") or std.mem.eql(u8, style, "hidden")) {
+            try std.testing.expectEqual(@as(usize, 0), painted);
+        } else {
+            try std.testing.expect(painted > 0);
+            if (std.mem.eql(u8, style, "double")) try std.testing.expectEqual(@as(u8, 0), bitmap.pixels[4 * 80 + 20][3]);
+            if (std.mem.eql(u8, style, "dashed")) try std.testing.expectEqual(@as(u8, 0), bitmap.pixels[4 * 80 + 40][3]);
+            if (std.mem.eql(u8, style, "solid")) try std.testing.expectEqual([4]u8{ 128, 128, 128, 255 }, bitmap.pixels[4 * 80 + 20]);
+        }
+    }
+}
+
+test "percentage padding and margins use containing width on both physical axes" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":200,"height":80},"children":[{"id":2,"type":"column","style":{"height":10,"paddingTopCss":"10%","paddingBottomCss":"5%","marginTopCss":"5%"}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 80);
+    defer scene.deinit();
+    const node = scene.find(2).?.node;
+    try std.testing.expectApproxEqAbs(@as(f32, 20), node.padding().top, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), node.padding().bottom, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), node.margin().top, 0.01);
+}
+
+test "perspective establishes nearest fixed containing block through static ancestors" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","padding":20,"width":200,"height":150},"children":[{"id":2,"type":"column","style":{"display":"block","perspective":400,"padding":10,"width":100,"height":80},"children":[{"id":3,"type":"column","style":{"height":50},"children":[{"id":4,"type":"column","style":{"position":"fixed","left":5,"top":7,"width":10,"height":10}}]}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 240, 190);
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 25), scene.find(4).?.bounds.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 27), scene.find(4).?.bounds.y, 0.01);
+}
+
+test "positioned negative free space assigns automatic margins in LTR and RTL" {
+    inline for (.{ "ltr", "rtl" }) |direction| {
+        const json = try std.fmt.allocPrint(std.testing.allocator, "{{\"id\":1,\"type\":\"root\",\"style\":{{\"display\":\"block\",\"position\":\"relative\",\"direction\":\"{s}\",\"width\":100,\"height\":100}},\"children\":[{{\"id\":2,\"type\":\"column\",\"style\":{{\"position\":\"absolute\",\"left\":10,\"right\":10,\"top\":0,\"bottom\":0,\"width\":120,\"height\":120,\"marginLeftAuto\":true,\"marginRightAuto\":true,\"marginTopAuto\":true,\"marginBottomAuto\":true}}}}]}}", .{direction});
+        defer std.testing.allocator.free(json);
+        var scene = try Scene.init(std.testing.allocator, json, 100, 100);
+        defer scene.deinit();
+        try std.testing.expectApproxEqAbs(if (std.mem.eql(u8, direction, "rtl")) @as(f32, -30) else @as(f32, 10), scene.find(2).?.bounds.x, 0.01);
+        try std.testing.expectApproxEqAbs(@as(f32, -10), scene.find(2).?.bounds.y, 0.01);
+    }
+}
+
+test "absolute named grid area uses the same lines as in-flow placement" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"40px 60px","gridTemplateAreas":"\"a b\" \"c d\""},"children":[{"id":2,"type":"column","style":{"position":"absolute","gridArea":"d","left":0,"right":0,"top":0,"bottom":0}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    const box = scene.find(2).?.bounds;
+    try std.testing.expectApproxEqAbs(@as(f32, 80), box.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), box.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 120), box.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), box.height, 0.01);
+}
+
+test "RTL grid static position uses selected area width" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","direction":"rtl","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"100px"},"children":[{"id":2,"type":"column","style":{"position":"absolute","gridColumn":"2 / 3","width":40,"height":20}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 80), scene.find(2).?.bounds.x, 0.01);
+}
+
 test "opposing absolute calc and percent insets stretch within padding box" {
     const json =
         \\{"id":1,"type":"root","style":{"display":"block","position":"relative","boxSizing":"border-box","width":200,"height":100,"borderLeftWidth":5,"borderRightWidth":5},"children":[{"id":2,"type":"column","style":{"position":"absolute","leftCss":"calc(10% - 4px)","right":10,"top":0,"bottom":0,"marginLeft":3,"marginRight":7}}]}

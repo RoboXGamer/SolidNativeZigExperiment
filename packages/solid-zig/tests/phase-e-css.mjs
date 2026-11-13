@@ -157,6 +157,22 @@ for (const [writingMode, direction, start, end] of [
   assert.equal(physicalStyle({ [start]: 9, insetInlineStart: 4 }, { writingMode, direction })[start], 4);
 }
 assert.throws(() => physicalStyle({ insetInline: '1px 2px 3px' }));
+assert.throws(() => physicalStyle({ borderInlineStyle: 'banana' }));
+assert.throws(() => physicalStyle({ borderBlockWidth: '-1px' }));
+assert.throws(() => physicalStyle({ borderInlineWidth: '10%' }));
+assert.throws(() => physicalStyle({ borderBlock: 'solid dotted red' }));
+assert.equal(physicalStyle({ borderInlineStyle: 'solid' }).borderLeftWidth, 'medium');
+assert.equal(physicalStyle({ borderInlineWidth: 'thick' }).borderLeftStyle, 'none');
+{
+  const authored = { insetInlineStart: 7, borderInlineStart: '3px dashed red', inlineSize: 'min-content' };
+  const ltr = snapshot(node(authored), { writingMode: 'horizontal-tb', direction: 'ltr' }).style;
+  const rtl = snapshot(node(authored), { writingMode: 'horizontal-tb', direction: 'rtl' }).style;
+  assert.equal(ltr.left, 7);
+  assert.equal(ltr.borderLeftStyle, 'dashed');
+  assert.equal(rtl.right, 7);
+  assert.equal(rtl.borderRightStyle, 'dashed');
+  assert.equal(rtl.widthCss, 'min-content');
+}
 assert.equal(physicalStyle({ insetBlock: 'calc(10% - 2px) auto' }).top, 'calc(10% - 2px)');
 for (const [writingMode, blockStart, blockEnd, ltrStart, ltrEnd] of [
   ['horizontal-tb', 'top', 'bottom', 'left', 'right'],
@@ -168,6 +184,19 @@ for (const [writingMode, blockStart, blockEnd, ltrStart, ltrEnd] of [
   for (const direction of ['ltr', 'rtl']) {
     const [inlineStart, inlineEnd] = direction === 'ltr' ? [ltrStart, ltrEnd] : [ltrEnd, ltrStart];
     const inherited = { writingMode, direction };
+    for (const [logicalSide, physicalSide] of [['BlockStart', blockStart], ['BlockEnd', blockEnd], ['InlineStart', inlineStart], ['InlineEnd', inlineEnd]]) {
+      const cap = physicalSide[0].toUpperCase() + physicalSide.slice(1);
+      for (const line of ['none', 'hidden', 'solid', 'double', 'dotted', 'dashed', 'groove', 'ridge', 'inset', 'outset']) {
+        const mapped = physicalStyle({ ['border' + logicalSide]: `thick ${line} currentColor` }, inherited);
+        assert.equal(mapped['border' + cap + 'Width'], 'thick');
+        assert.equal(mapped['border' + cap + 'Style'], line);
+        assert.equal(mapped['border' + cap + 'Color'], 'currentColor');
+      }
+      assert.equal(physicalStyle({ ['border' + logicalSide + 'Color']: 'transparent' }, inherited)['border' + cap + 'Color'], 'transparent');
+      assert.equal(physicalStyle({ ['padding' + logicalSide]: '10%', ['margin' + logicalSide]: 'auto' }, inherited)['padding' + cap], '10%');
+    }
+    assert.equal(physicalStyle({ 'border-block-color': 'red blue' }, inherited)['border' + blockStart[0].toUpperCase() + blockStart.slice(1) + 'Color'], 'red');
+    assert.equal(physicalStyle({ inlineSize: 'min-content', minBlockSize: 0, maxInlineSize: 'none' }, inherited)[writingMode === 'horizontal-tb' ? 'width' : 'height'], 'min-content');
     for (const names of [
       ['insetBlockStart', 'insetBlockEnd', 'insetInlineStart', 'insetInlineEnd'],
       ['inset-block-start', 'inset-block-end', 'inset-inline-start', 'inset-inline-end'],

@@ -203,6 +203,7 @@ pub fn borderBitmap(a: std.mem.Allocator, w: usize, h: usize, n: *const core.Nod
     const inner = box.inset(border);
     const inner_radius = insetRadii(radius, border, inner.width, inner.height);
     const values = .{ n.style.borderTopColor, n.style.borderRightColor, n.style.borderBottomColor, n.style.borderLeftColor };
+    const styles = [_][]const u8{ n.style.borderTopStyle, n.style.borderRightStyle, n.style.borderBottomStyle, n.style.borderLeftStyle };
     var colors: [4]Color = undefined;
     inline for (values, 0..) |value, i| colors[i] = currentColor(n, if (value.len > 0) value else n.style.borderColor);
     for (0..h) |y| for (0..w) |x| {
@@ -221,8 +222,29 @@ pub fn borderBitmap(a: std.mem.Allocator, w: usize, h: usize, n: *const core.Nod
             const yy = @as(f32, @floatFromInt(y)) + sy;
             if (ellipticalContains(box, radius, xx, yy) and !ellipticalContains(inner, inner_radius, xx, yy)) covered += 0.25;
         };
-        pixels[y * w + x] = colors[side];
-        pixels[y * w + x][3] = @intFromFloat(@as(f32, @floatFromInt(colors[side][3])) * covered);
+        const style = styles[side];
+        const widths = [_]f32{ border.top, border.right, border.bottom, border.left };
+        const width = widths[side];
+        const along = if (side == 0 or side == 2) px else py;
+        if (std.mem.eql(u8, style, "double") and width >= 3 and distance >= 1.0 / 3.0 and distance < 2.0 / 3.0) covered = 0;
+        if (std.mem.eql(u8, style, "dashed") and width > 0 and @mod(along, 6 * width) >= 3 * width) covered = 0;
+        if (std.mem.eql(u8, style, "dotted") and width > 0) {
+            const tangent = @mod(along + width / 2, 2 * width) - width;
+            const across = (distance - 0.5) * width;
+            if (tangent * tangent + across * across > width * width / 4) covered = 0;
+        }
+        var color = colors[side];
+        const inset_style = std.mem.eql(u8, style, "inset");
+        const outset_style = std.mem.eql(u8, style, "outset");
+        const groove = std.mem.eql(u8, style, "groove");
+        const ridge = std.mem.eql(u8, style, "ridge");
+        if (inset_style or outset_style or groove or ridge) {
+            var light = (side == 0 or side == 3) != (inset_style or groove);
+            if ((groove or ridge) and distance >= 0.5) light = !light;
+            color = shade(color, light);
+        }
+        pixels[y * w + x] = color;
+        pixels[y * w + x][3] = @intFromFloat(@as(f32, @floatFromInt(color[3])) * covered);
     };
     return .{ .width = w, .height = h, .pixels = pixels };
 }

@@ -141,11 +141,19 @@ pub const Node = struct {
     pub fn border(self: *const Node) Edges {
         const z = self.style.zoom;
         return .{
-            .top = (self.style.borderTopWidth orelse self.style.borderWidth) * z,
-            .right = (self.style.borderRightWidth orelse self.style.borderWidth) * z,
-            .bottom = (self.style.borderBottomWidth orelse self.style.borderWidth) * z,
-            .left = (self.style.borderLeftWidth orelse self.style.borderWidth) * z,
+            .top = borderSizeForStyle(self.style.borderTopStyle, self.style.borderTopWidth orelse self.style.borderWidth) * z,
+            .right = borderSizeForStyle(self.style.borderRightStyle, self.style.borderRightWidth orelse self.style.borderWidth) * z,
+            .bottom = borderSizeForStyle(self.style.borderBottomStyle, self.style.borderBottomWidth orelse self.style.borderWidth) * z,
+            .left = borderSizeForStyle(self.style.borderLeftStyle, self.style.borderLeftWidth orelse self.style.borderWidth) * z,
         };
+    }
+
+    fn borderSizeForStyle(style: []const u8, width: f32) f32 {
+        return if (std.mem.eql(u8, style, "none") or std.mem.eql(u8, style, "hidden")) 0 else width;
+    }
+
+    pub fn establishesFixedContainingBlock(self: *const Node) bool {
+        return (self.style.transform.len > 0 and !std.mem.eql(u8, self.style.transform, "none")) or (self.style.perspective orelse 0) > 0;
     }
 
     /// Fixed margin lengths; automatic sides resolve to zero until allocated.
@@ -413,6 +421,7 @@ pub const Scene = struct {
     root: *Node,
     items: std.ArrayList(Item) = .empty,
     index: std.AutoHashMapUnmanaged(u32, usize) = .empty,
+    positioned_areas: std.AutoHashMapUnmanaged(u32, Rect) = .empty,
     /// Backend text metrics; defaults to the headless estimator.
     text: Text = .{},
     length_context: sizing.Context = .{},
@@ -807,8 +816,10 @@ pub const Scene = struct {
                 ctx.font_size = n.fontSize();
                 ctx.percentage = if (std.mem.eql(u8, name, "height") or std.mem.eql(u8, name, "minHeight") or std.mem.eql(u8, name, "maxHeight") or std.mem.eql(u8, name, "rowGap") or std.mem.eql(u8, name, "top") or std.mem.eql(u8, name, "bottom") or std.mem.endsWith(u8, name, "Top") or std.mem.endsWith(u8, name, "Bottom")) containing_height else if (std.mem.eql(u8, name, "width") or std.mem.eql(u8, name, "minWidth") or std.mem.eql(u8, name, "maxWidth") or std.mem.eql(u8, name, "columnGap") or std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right") or std.mem.endsWith(u8, name, "Left") or std.mem.endsWith(u8, name, "Right")) containing_width else inline_size;
                 if (std.mem.eql(u8, name, "lineHeight")) ctx.percentage = n.fontSize();
+                if (std.mem.startsWith(u8, name, "padding") or std.mem.startsWith(u8, name, "margin")) ctx.percentage = containing_width;
                 const is_fit_function = std.mem.startsWith(u8, css, "fit-content(") and std.mem.endsWith(u8, css, ")");
-                const value: sizing.Resolution = if (is_fit_function) .{ .keyword = .fit_content } else try sizing.resolve(css, ctx);
+                const border_keyword: ?f32 = if (!std.mem.startsWith(u8, name, "border")) null else if (std.mem.eql(u8, css, "thin")) 1 else if (std.mem.eql(u8, css, "medium")) 3 else if (std.mem.eql(u8, css, "thick")) 5 else null;
+                const value: sizing.Resolution = if (border_keyword) |v| .{ .length = v } else if (is_fit_function) .{ .keyword = .fit_content } else try sizing.resolve(css, ctx);
                 switch (value) {
                     .length => |number| {
                         if (number < 0 and !allow_negative) return error.NegativeSize;
@@ -1418,7 +1429,7 @@ pub const Scene = struct {
         const fixed = std.mem.eql(u8, child.style.position, "fixed");
         var cur_item = parent_item;
         while (true) {
-            const transformed = cur_item.node.style.transform.len > 0 and !std.mem.eql(u8, cur_item.node.style.transform, "none");
+            const transformed = cur_item.node.establishesFixedContainingBlock();
             if (transformed or (!fixed and cur_item.node.isPositioned())) {
                 return cur_item.node.paddingBox(cur_item.bounds);
             }
@@ -1432,12 +1443,15 @@ pub const Scene = struct {
 
     pub fn layoutOutOfFlowChildren(self: *Scene, n: *const Node, bounds: Rect) anyerror!void {
         const parent_item = self.find(n.id) orelse Item{ .node = n, .bounds = bounds };
+        const block = std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root");
+        const static_positions = if (block) try self.arena.allocator().alloc(@import("layout_block.zig").BlockChildLayout, n.children.len) else null;
+        if (static_positions) |positions| _ = @import("layout_block.zig").computeBlockLayout(self, n, n.contentBox(bounds).width, positions);
         for (n.children, 0..) |*source_child, child_index| {
             if (!source_child.isOutOfFlow()) continue;
-            const cb = self.findContainingBlock(source_child, parent_item);
+            const cb = self.positioned_areas.get(source_child.id) orelse self.findContainingBlock(source_child, parent_item);
             const child = try self.arena.allocator().create(Node);
             child.* = source_child.*;
-            try self.resolveStyle(child, self.length_context, cb.width, cb.height, cb.width);
+            try self.resolveStyle(child, self.length_context, cb.width, cb.height, if (std.mem.eql(u8, n.style.writingMode, "horizontal-tb")) cb.width else cb.height);
             const child_mg = child.margin();
             const child_frame_x = child.padding().horizontal() + child.border().horizontal();
             const child_frame_y = child.padding().vertical() + child.border().vertical();
@@ -1446,15 +1460,16 @@ pub const Scene = struct {
             // Auto insets use the hypothetical normal-flow location, which can
             // differ from the positioned ancestor's containing-block origin.
             const content = n.contentBox(bounds);
+            const grid_x = self.positioned_areas.contains(source_child.id) and (child.style.gridColumn.len > 0 or child.style.gridColumnStart != null or child.style.gridColumnEnd != null or child.style.gridArea.len > 0);
+            const grid_y = self.positioned_areas.contains(source_child.id) and (child.style.gridRow.len > 0 or child.style.gridRowStart != null or child.style.gridRowEnd != null or child.style.gridArea.len > 0);
+            const static_width = if (grid_x) cb.width else content.width;
             var static_x = content.x;
             var static_y = content.y;
-            if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
-                for (n.children[0..child_index]) |*preceding| {
-                    if (preceding.isOutOfFlow()) continue;
-                    if (self.find(preceding.id)) |item| {
-                        static_y = item.bounds.bottom() + item.used_margin.bottom;
-                    }
-                }
+            if (grid_x) static_x = cb.x;
+            if (grid_y) static_y = cb.y;
+            if (static_positions) |positions| {
+                static_x += positions[child_index].x;
+                static_y += positions[child_index].y;
             }
 
             // Sizing
@@ -1466,7 +1481,7 @@ pub const Scene = struct {
             } else {
                 // CSS shrink-to-fit uses the space remaining after the
                 // definite inset, not the entire containing block.
-                const inset_space = if (left_inset) |v| v else if (right_inset) |v| v else if (std.mem.eql(u8, parent_item.node.style.direction, "rtl")) cb.right() - (static_x + content.width) else static_x - cb.x;
+                const inset_space = if (left_inset) |v| v else if (right_inset) |v| v else if (std.mem.eql(u8, parent_item.node.style.direction, "rtl")) cb.right() - (static_x + static_width) else static_x - cb.x;
                 const available = @max(0, cb.width - inset_space - child_mg.horizontal());
                 w = child.constrain(self.intrinsicWidthFor(child, .{ .definite = available }), true);
             }
@@ -1500,7 +1515,7 @@ pub const Scene = struct {
             }
 
             // Placement
-            var x: f32 = if (std.mem.eql(u8, parent_item.node.style.direction, "rtl") and !std.mem.eql(u8, n.style.display, "flex")) static_x + content.width - w - child_mg.right else static_x + child_mg.left;
+            var x: f32 = if (std.mem.eql(u8, parent_item.node.style.direction, "rtl") and !std.mem.eql(u8, n.style.display, "flex")) static_x + static_width - w - child_mg.right else static_x + child_mg.left;
             if (!child.style.leftAuto and child.style.left != null and !(std.mem.eql(u8, parent_item.node.style.direction, "rtl") and !child.style.rightAuto and child.style.right != null)) {
                 x = cb.x + child.style.left.? + child_mg.left;
             } else if (!child.style.rightAuto and child.style.right != null) {
@@ -1530,10 +1545,17 @@ pub const Scene = struct {
             const free_x = cb.width - left - right - w - child_mg.horizontal();
             const free_y = cb.height - top - bottom - h - child_mg.vertical();
             if (child.style.left != null and child.style.right != null) {
-                if (child.style.marginLeftAuto and child.style.marginRightAuto and free_x > 0) x += free_x / 2 else if (child.style.marginLeftAuto and free_x > 0) x += free_x;
+                if (child.style.marginLeftAuto and child.style.marginRightAuto) {
+                    const shift = if (free_x >= 0) free_x / 2 else if (std.mem.eql(u8, parent_item.node.style.direction, "rtl")) free_x else 0;
+                    x = cb.x + left + shift;
+                } else if (child.style.marginLeftAuto) {
+                    x = cb.x + left + free_x;
+                } else if (child.style.marginRightAuto) {
+                    x = cb.x + left + child_mg.left;
+                }
             }
             if (child.style.top != null and child.style.bottom != null) {
-                if (child.style.marginTopAuto and child.style.marginBottomAuto and free_y > 0) y += free_y / 2 else if (child.style.marginTopAuto and free_y > 0) y += free_y;
+                if (child.style.marginTopAuto and child.style.marginBottomAuto) y = cb.y + top + free_y / 2 else if (child.style.marginTopAuto) y = cb.y + top + free_y;
             }
             const justify = child.style.justifySelf;
             const align_self = child.style.alignSelf;
@@ -1751,7 +1773,7 @@ pub const Scene = struct {
                 const index = self.index.get(pid) orelse break;
                 const p = self.items.items[index];
                 if (fixed) {
-                    if (p.node.style.transform.len > 0 and !std.mem.eql(u8, p.node.style.transform, "none")) fixed = false;
+                    if (p.node.establishesFixedContainingBlock()) fixed = false;
                 }
                 if (!fixed) if (offsets.get(pid)) |off| {
                     dx -= off.x;
@@ -1931,7 +1953,7 @@ pub const Scene = struct {
         var current = item;
         var fixed = false;
         while (true) {
-            const transformed = current.node.style.transform.len > 0 and !std.mem.eql(u8, current.node.style.transform, "none");
+            const transformed = current.node.establishesFixedContainingBlock();
             if (current.node.id == ancestor.node.id) return !fixed or transformed;
             if (std.mem.eql(u8, current.node.style.position, "fixed")) fixed = true;
             if (fixed and transformed) fixed = false;

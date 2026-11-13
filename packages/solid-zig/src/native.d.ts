@@ -194,6 +194,18 @@ export interface NativeStyle {
   bottom?: NativeLength;
   left?: NativeLength;
   inset?: NativeLength;
+  insetInline?: NativeLength;
+  insetBlock?: NativeLength;
+  insetInlineStart?: NativeLength;
+  insetInlineEnd?: NativeLength;
+  insetBlockStart?: NativeLength;
+  insetBlockEnd?: NativeLength;
+  "inset-inline"?: NativeLength;
+  "inset-block"?: NativeLength;
+  "inset-inline-start"?: NativeLength;
+  "inset-inline-end"?: NativeLength;
+  "inset-block-start"?: NativeLength;
+  "inset-block-end"?: NativeLength;
   zIndex?: number | string;
   detailsContent?: NativeStyle;
   activeViewTransition?: NativeStyle;

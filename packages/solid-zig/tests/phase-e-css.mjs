@@ -140,3 +140,25 @@ const node = style => ({ id: 1, type: "column", text: "", props: { style }, chil
 }
 
 console.log("Phase E CSS bridge tests passed successfully!");
+
+// CSS Logical 1 flow-relative inset mapping, including sideways-lr's reversed inline axis.
+for (const [writingMode, direction, start, end] of [
+  ['horizontal-tb', 'ltr', 'left', 'right'],
+  ['horizontal-tb', 'rtl', 'right', 'left'],
+  ['vertical-rl', 'ltr', 'top', 'bottom'],
+  ['vertical-lr', 'rtl', 'bottom', 'top'],
+  ['sideways-lr', 'ltr', 'bottom', 'top'],
+  ['sideways-rl', 'rtl', 'bottom', 'top'],
+]) {
+  const style = physicalStyle({ 'inset-inline': 'auto -10%', insetInlineStart: 0 }, { writingMode, direction });
+  assert.equal(style[start], 0);
+  assert.equal(style[end], '-10%');
+  assert.equal(physicalStyle({ insetInlineStart: 4, [start]: 9 }, { writingMode, direction })[start], 9);
+  assert.equal(physicalStyle({ [start]: 9, insetInlineStart: 4 }, { writingMode, direction })[start], 4);
+}
+assert.throws(() => physicalStyle({ insetInline: '1px 2px 3px' }));
+assert.equal(physicalStyle({ insetBlock: 'calc(10% - 2px) auto' }).top, 'calc(10% - 2px)');
+for (const position of ['absolute', 'fixed']) {
+  assert.equal(snapshot(node({ position, display: 'inline-flex' })).style.display, 'flex');
+  assert.equal(snapshot(node({ position, display: 'inline' })).style.display, 'block');
+}

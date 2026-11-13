@@ -69,43 +69,66 @@ function flexDirectionOf(node, style) {
   return ["row", "label", "button", "input", "option"].includes(node.type) ? "row" : "column";
 }
 
+function blockifyDisplay(d) {
+  if (d === "inline" || d === "inline-block") return "block";
+  if (d === "inline-flex") return "flex";
+  if (d === "inline-grid") return "grid";
+  if (d === "inline-table") return "table";
+  return d;
+}
+
 function displayOf(node, style) {
   if (node.props?.popover != null && !isPopoverOpen(node)) return "none";
   let d = style.display;
+  let resolvedDisplay = null;
   if (typeof d === "string") {
     const tokens = d.trim().toLowerCase().split(/\s+/);
     if (tokens.length === 2) {
       const [first, second] = tokens;
       const outside = ["block", "inline"].includes(first) ? first : (["block", "inline"].includes(second) ? second : null);
       const inside = ["flow", "flow-root", "flex", "grid", "table", "ruby"].includes(second) ? second : (["flow", "flow-root", "flex", "grid", "table", "ruby"].includes(first) ? first : null);
-      if (outside === "block" && inside === "flow") return "block";
-      if (outside === "inline" && inside === "flow") return "inline";
-      if (outside === "block" && inside === "flow-root") return "flow-root";
-      if (outside === "inline" && inside === "flow-root") return "inline-block";
-      if (outside === "block" && inside === "flex") return "flex";
-      if (outside === "inline" && inside === "flex") return "inline-flex";
-      if (outside === "block" && inside === "grid") return "grid";
-      if (outside === "inline" && inside === "grid") return "inline-grid";
-      if (outside === "inline" && inside === "table") return "inline-table";
-      if (outside === "block" && inside === "table") return "table";
-      if (first === "inline" && second === "block") return "inline-block";
-      if (first === "block" && second === "inline") return "inline-block";
+      if (outside === "block" && inside === "flow") resolvedDisplay = "block";
+      else if (outside === "inline" && inside === "flow") resolvedDisplay = "inline";
+      else if (outside === "block" && inside === "flow-root") resolvedDisplay = "flow-root";
+      else if (outside === "inline" && inside === "flow-root") resolvedDisplay = "inline-block";
+      else if (outside === "block" && inside === "flex") resolvedDisplay = "flex";
+      else if (outside === "inline" && inside === "flex") resolvedDisplay = "inline-flex";
+      else if (outside === "block" && inside === "grid") resolvedDisplay = "grid";
+      else if (outside === "inline" && inside === "grid") resolvedDisplay = "inline-grid";
+      else if (outside === "inline" && inside === "table") resolvedDisplay = "inline-table";
+      else if (outside === "block" && inside === "table") resolvedDisplay = "table";
+      else if (first === "inline" && second === "block") resolvedDisplay = "inline-block";
+      else if (first === "block" && second === "inline") resolvedDisplay = "inline-block";
+      else resolvedDisplay = d;
     } else if (tokens.length === 1) {
-      return tokens[0];
+      resolvedDisplay = tokens[0];
+    } else {
+      resolvedDisplay = d;
     }
-    return d;
+  } else if (node.type === "text") {
+    resolvedDisplay = "block";
+  } else if (node.type === "grid") {
+    resolvedDisplay = "grid";
+  } else if (node.type === "table") {
+    resolvedDisplay = "table";
+  } else if (node.type === "caption") {
+    resolvedDisplay = "table-caption";
+  } else if (["thead", "tbody", "tfoot"].includes(node.type)) {
+    resolvedDisplay = "table-row-group";
+  } else if (node.type === "tr") {
+    resolvedDisplay = "table-row";
+  } else if (["td", "th"].includes(node.type)) {
+    resolvedDisplay = "table-cell";
+  } else if (node.type === "option" && node.parent?.type === "select") {
+    resolvedDisplay = node.parent._open ? "flex" : "none";
+  } else {
+    resolvedDisplay = "flex";
   }
-  if (node.type === "text") return "block";
-  if (node.type === "grid") return "grid";
-  if (node.type === "table") return "table";
-  if (node.type === "caption") return "table-caption";
-  if (["thead", "tbody", "tfoot"].includes(node.type)) return "table-row-group";
-  if (node.type === "tr") return "table-row";
-  if (["td", "th"].includes(node.type)) return "table-cell";
-  if (node.type === "option" && node.parent?.type === "select") {
-    return node.parent._open ? "flex" : "none";
+  const isOutOfFlow = style.position === "absolute" || style.position === "fixed";
+  if (isOutOfFlow && resolvedDisplay !== "none" && resolvedDisplay !== "contents") {
+    return blockifyDisplay(resolvedDisplay);
   }
-  return "flex";
+  return resolvedDisplay;
 }
 
 function spacingValue(value, { auto = false, negative = false } = {}) {
@@ -590,16 +613,34 @@ export function physicalStyle(style, inherited = {}, currentVars = new Map(), no
       for (const [letter, side] of [["t", "top"], ["r", "right"], ["b", "bottom"], ["l", "left"]]) result[side] = sides[letter];
       continue;
     }
-    if (key === "insetInline") {
-      const parts = typeof value === "string" ? splitSpacing(value.trim()) : [value];
-      result[vertical ? (direction === "ltr" ? "top" : "bottom") : (direction === "ltr" ? "left" : "right")] = parts[0];
-      result[vertical ? (direction === "ltr" ? "bottom" : "top") : (direction === "ltr" ? "right" : "left")] = parts[1] ?? parts[0];
+    if (key === "insetInline" || key === "inset-inline") {
+      const parts = (typeof value === "string" ? splitSpacing(value.trim()) : [value]).map(v => spacingValue(v, { auto: true, negative: true }));
+      if (parts.length < 1 || parts.length > 2) throw Error(`Invalid logical sides: ${value}`);
+      result[logical.InlineStart.toLowerCase()] = parts[0];
+      result[logical.InlineEnd.toLowerCase()] = parts[1] ?? parts[0];
       continue;
     }
-    if (key === "insetBlock") {
-      const parts = typeof value === "string" ? splitSpacing(value.trim()) : [value];
-      result[vertical ? (mode === "vertical-rl" ? "right" : "left") : "top"] = parts[0];
-      result[vertical ? (mode === "vertical-rl" ? "left" : "right") : "bottom"] = parts[1] ?? parts[0];
+    if (key === "insetBlock" || key === "inset-block") {
+      const parts = (typeof value === "string" ? splitSpacing(value.trim()) : [value]).map(v => spacingValue(v, { auto: true, negative: true }));
+      if (parts.length < 1 || parts.length > 2) throw Error(`Invalid logical sides: ${value}`);
+      result[logical.BlockStart.toLowerCase()] = parts[0];
+      result[logical.BlockEnd.toLowerCase()] = parts[1] ?? parts[0];
+      continue;
+    }
+    if (key === "insetInlineStart" || key === "inset-inline-start") {
+      result[logical.InlineStart.toLowerCase()] = spacingValue(value, { auto: true, negative: true });
+      continue;
+    }
+    if (key === "insetInlineEnd" || key === "inset-inline-end") {
+      result[logical.InlineEnd.toLowerCase()] = spacingValue(value, { auto: true, negative: true });
+      continue;
+    }
+    if (key === "insetBlockStart" || key === "inset-block-start") {
+      result[logical.BlockStart.toLowerCase()] = spacingValue(value, { auto: true, negative: true });
+      continue;
+    }
+    if (key === "insetBlockEnd" || key === "inset-block-end") {
+      result[logical.BlockEnd.toLowerCase()] = spacingValue(value, { auto: true, negative: true });
       continue;
     }
     if (key === "margin" || key === "padding" || key === "borderWidth" || key === "border" || key === "scrollMargin" || key === "scrollPadding") {

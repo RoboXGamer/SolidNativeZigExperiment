@@ -158,6 +158,33 @@ for (const [writingMode, direction, start, end] of [
 }
 assert.throws(() => physicalStyle({ insetInline: '1px 2px 3px' }));
 assert.equal(physicalStyle({ insetBlock: 'calc(10% - 2px) auto' }).top, 'calc(10% - 2px)');
+for (const [writingMode, blockStart, blockEnd, ltrStart, ltrEnd] of [
+  ['horizontal-tb', 'top', 'bottom', 'left', 'right'],
+  ['vertical-rl', 'right', 'left', 'top', 'bottom'],
+  ['vertical-lr', 'left', 'right', 'top', 'bottom'],
+  ['sideways-rl', 'right', 'left', 'top', 'bottom'],
+  ['sideways-lr', 'left', 'right', 'bottom', 'top'],
+]) {
+  for (const direction of ['ltr', 'rtl']) {
+    const [inlineStart, inlineEnd] = direction === 'ltr' ? [ltrStart, ltrEnd] : [ltrEnd, ltrStart];
+    const inherited = { writingMode, direction };
+    for (const names of [
+      ['insetBlockStart', 'insetBlockEnd', 'insetInlineStart', 'insetInlineEnd'],
+      ['inset-block-start', 'inset-block-end', 'inset-inline-start', 'inset-inline-end'],
+    ]) {
+      const mapped = physicalStyle(Object.fromEntries(names.map((name, i) => [name, i + 1])), inherited);
+      assert.equal(mapped[blockStart], 1);
+      assert.equal(mapped[blockEnd], 2);
+      assert.equal(mapped[inlineStart], 3);
+      assert.equal(mapped[inlineEnd], 4);
+    }
+    const mapped = physicalStyle({ 'inset-block': '0 auto', 'inset-inline': '-5px 20%' }, inherited);
+    assert.equal(mapped[blockStart], '0');
+    assert.equal(mapped[blockEnd], 'auto');
+    assert.equal(mapped[inlineStart], '-5px');
+    assert.equal(mapped[inlineEnd], '20%');
+  }
+}
 for (const position of ['absolute', 'fixed']) {
   assert.equal(snapshot(node({ position, display: 'inline-flex' })).style.display, 'flex');
   assert.equal(snapshot(node({ position, display: 'inline' })).style.display, 'block');

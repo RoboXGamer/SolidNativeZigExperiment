@@ -1432,7 +1432,7 @@ pub const Scene = struct {
 
     pub fn layoutOutOfFlowChildren(self: *Scene, n: *const Node, bounds: Rect) anyerror!void {
         const parent_item = self.find(n.id) orelse Item{ .node = n, .bounds = bounds };
-        for (n.children) |*source_child| {
+        for (n.children, 0..) |*source_child, child_index| {
             if (!source_child.isOutOfFlow()) continue;
             const cb = self.findContainingBlock(source_child, parent_item);
             const child = try self.arena.allocator().create(Node);
@@ -1441,6 +1441,21 @@ pub const Scene = struct {
             const child_mg = child.margin();
             const child_frame_x = child.padding().horizontal() + child.border().horizontal();
             const child_frame_y = child.padding().vertical() + child.border().vertical();
+            const left_inset = if (child.style.leftAuto) null else child.style.left;
+            const right_inset = if (child.style.rightAuto) null else child.style.right;
+            // Auto insets use the hypothetical normal-flow location, which can
+            // differ from the positioned ancestor's containing-block origin.
+            const content = n.contentBox(bounds);
+            var static_x = content.x;
+            var static_y = content.y;
+            if (std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root")) {
+                for (n.children[0..child_index]) |*preceding| {
+                    if (preceding.isOutOfFlow()) continue;
+                    if (self.find(preceding.id)) |item| {
+                        static_y = item.bounds.bottom() + item.used_margin.bottom;
+                    }
+                }
+            }
 
             // Sizing
             var w: f32 = undefined;
@@ -1449,7 +1464,11 @@ pub const Scene = struct {
             } else if (child.style.left != null and child.style.right != null and !child.style.leftAuto and !child.style.rightAuto) {
                 w = child.constrain(@max(0, cb.width - child.style.left.? - child.style.right.? - child_mg.horizontal()), true);
             } else {
-                w = child.constrain(self.intrinsicWidthFor(child, .{ .definite = @max(0, cb.width - child_mg.horizontal()) }), true);
+                // CSS shrink-to-fit uses the space remaining after the
+                // definite inset, not the entire containing block.
+                const inset_space = if (left_inset) |v| v else if (right_inset) |v| v else if (std.mem.eql(u8, parent_item.node.style.direction, "rtl")) cb.right() - (static_x + content.width) else static_x - cb.x;
+                const available = @max(0, cb.width - inset_space - child_mg.horizontal());
+                w = child.constrain(self.intrinsicWidthFor(child, .{ .definite = available }), true);
             }
 
             try self.prepareChildren(child, @max(0, w - child_frame_x), if (child.style.height) |v| @max(0, child.borderSize(v, child_frame_y) - child_frame_y) else null);
@@ -1462,15 +1481,33 @@ pub const Scene = struct {
                 h = child.constrain(self.naturalHeightForWidth(child, w), false);
             }
 
+            // A flex child's static-position rectangle treats it as the sole
+            // flex item, without letting it consume space in the flex layout.
+            if (std.mem.eql(u8, n.style.display, "flex")) {
+                const row = std.mem.startsWith(u8, n.style.flexDirection, "row");
+                const reverse = std.mem.endsWith(u8, n.style.flexDirection, "reverse");
+                const rtl = std.mem.eql(u8, n.style.direction, "rtl");
+                const main_reverse = if (row) reverse != rtl else reverse;
+                const main_free = if (row) content.width - w - child_mg.horizontal() else content.height - h - child_mg.vertical();
+                const cross_free = if (row) content.height - h - child_mg.vertical() else content.width - w - child_mg.horizontal();
+                const justify = n.style.justifyContent;
+                const main_shift = if (std.mem.eql(u8, justify, "center") or std.mem.eql(u8, justify, "space-around") or std.mem.eql(u8, justify, "space-evenly")) main_free / 2 else if (std.mem.eql(u8, justify, "flex-end")) (if (main_reverse) @as(f32, 0) else main_free) else if (main_reverse) main_free else 0;
+                const alignment = if (std.mem.eql(u8, child.style.alignSelf, "auto")) n.style.alignItems else child.style.alignSelf;
+                const cross_reverse = !row and rtl;
+                const cross_shift = if (std.mem.eql(u8, alignment, "center")) cross_free / 2 else if (std.mem.eql(u8, alignment, "flex-end") or std.mem.eql(u8, alignment, "end")) (if (cross_reverse) @as(f32, 0) else cross_free) else if (cross_reverse) cross_free else 0;
+                static_x = content.x + if (row) main_shift else cross_shift;
+                static_y = content.y + if (row) cross_shift else main_shift;
+            }
+
             // Placement
-            var x: f32 = cb.x + child_mg.left;
+            var x: f32 = if (std.mem.eql(u8, parent_item.node.style.direction, "rtl") and !std.mem.eql(u8, n.style.display, "flex")) static_x + content.width - w - child_mg.right else static_x + child_mg.left;
             if (!child.style.leftAuto and child.style.left != null and !(std.mem.eql(u8, parent_item.node.style.direction, "rtl") and !child.style.rightAuto and child.style.right != null)) {
                 x = cb.x + child.style.left.? + child_mg.left;
             } else if (!child.style.rightAuto and child.style.right != null) {
                 x = cb.right() - child.style.right.? - w - child_mg.right;
             }
 
-            var y: f32 = cb.y + child_mg.top;
+            var y: f32 = static_y + child_mg.top;
             if (!child.style.topAuto and child.style.top != null) {
                 y = cb.y + child.style.top.? + child_mg.top;
             } else if (!child.style.bottomAuto and child.style.bottom != null) {
@@ -1715,10 +1752,11 @@ pub const Scene = struct {
                 const p = self.items.items[index];
                 if (fixed) {
                     if (p.node.style.transform.len > 0 and !std.mem.eql(u8, p.node.style.transform, "none")) fixed = false;
-                } else if (offsets.get(pid)) |off| {
+                }
+                if (!fixed) if (offsets.get(pid)) |off| {
                     dx -= off.x;
                     dy -= off.y;
-                }
+                };
                 // A fixed subtree must stay together; ancestors outside it cannot scroll its descendants.
                 if (std.mem.eql(u8, p.node.style.position, "fixed")) fixed = true;
                 parent = p.parent_id;

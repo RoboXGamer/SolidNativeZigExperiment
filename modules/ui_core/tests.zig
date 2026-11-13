@@ -1147,8 +1147,6 @@ test "CSS transitions and cubic-bezier interpolation (ANIM-01)" {
     try std.testing.expectEqual(@as(u8, 127), mid[2]);
 }
 
-
-
 test "absolute RTL overconstraint honors right inset" {
     const json =
         \\{"id":1,"type":"root","style":{"display":"block","position":"relative","direction":"rtl","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"position":"absolute","left":10,"right":20,"top":0,"width":50,"height":10}}]}
@@ -1156,6 +1154,75 @@ test "absolute RTL overconstraint honors right inset" {
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
     try std.testing.expectEqual(@as(f32, 130), scene.find(2).?.bounds.x);
+}
+
+test "absolute shrink-to-fit subtracts the definite inset" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":100},"children":[{"id":2,"type":"text","text":"aaaa aaaa aaaa","style":{"position":"absolute","left":130,"top":0,"fontSize":10}}]}
+    ;
+    var scene = try Scene.initWithText(std.testing.allocator, json, 200, 100, .{ .measure_fn = root.text.fixedMeasurer(1.0) });
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 70), scene.find(2).?.bounds.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 130), scene.find(2).?.bounds.x, 0.01);
+}
+
+test "absolute auto insets retain block static position after preceding sibling" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":100,"padding":10},"children":[{"id":2,"type":"column","style":{"height":20}},{"id":3,"type":"column","style":{"position":"absolute","width":30,"height":15}},{"id":4,"type":"column","style":{"height":10}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 220, 120);
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 10), scene.find(3).?.bounds.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), scene.find(3).?.bounds.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), scene.find(4).?.bounds.y, 0.01);
+}
+
+test "fixed uses transformed ancestor padding box rather than viewport" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":300,"height":200,"padding":20},"children":[{"id":2,"type":"column","style":{"display":"block","transform":"translateX(0px)","width":150,"height":100,"borderWidth":5},"children":[{"id":3,"type":"column","style":{"position":"fixed","left":10,"top":12,"width":30,"height":15}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 340, 240);
+    defer scene.deinit();
+    const parent = scene.find(2).?;
+    const child = scene.find(3).?;
+    try std.testing.expectApproxEqAbs(parent.bounds.x + 15, child.bounds.x, 0.01);
+    try std.testing.expectApproxEqAbs(parent.bounds.y + 17, child.bounds.y, 0.01);
+}
+
+test "absolute flex static position uses sole-item alignment without consuming flow space" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"center","alignItems":"center","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"position":"absolute","width":40,"height":20}},{"id":3,"type":"column","style":{"width":60,"height":30}}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 100);
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 80), scene.find(2).?.bounds.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), scene.find(2).?.bounds.y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 70), scene.find(3).?.bounds.x, 0.01);
+}
+
+test "right-inset shrink-to-fit still honors intrinsic minimum" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":100},"children":[{"id":2,"type":"text","text":"aaaa aaaa aaaa","style":{"position":"absolute","right":130,"top":0,"fontSize":10}},{"id":3,"type":"text","text":"aaaa","style":{"position":"absolute","right":190,"top":40,"fontSize":10}}]}
+    ;
+    var scene = try Scene.initWithText(std.testing.allocator, json, 200, 100, .{ .measure_fn = root.text.fixedMeasurer(1.0) });
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 70), scene.find(2).?.bounds.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), scene.find(2).?.bounds.x, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), scene.find(3).?.bounds.width, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, -30), scene.find(3).?.bounds.x, 0.01);
+}
+
+test "fixed descendant scrolls with its transformed containing block" {
+    const json =
+        \\{"id":1,"type":"root","style":{"display":"block","width":200,"height":150},"children":[{"id":2,"type":"column","style":{"display":"block","transform":"translateX(0px)","overflow":"scroll","width":150,"height":100},"children":[{"id":3,"type":"column","style":{"position":"fixed","left":10,"top":40,"width":30,"height":15}},{"id":4,"type":"column","style":{"height":300}}]}]}
+    ;
+    var scene = try Scene.init(std.testing.allocator, json, 200, 150);
+    defer scene.deinit();
+    var offsets = std.AutoHashMap(u32, root.ScrollOffset).init(std.testing.allocator);
+    defer offsets.deinit();
+    try offsets.put(2, .{ .y = 30 });
+    scene.applyScrollOffsets(&offsets);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), scene.find(3).?.bounds.y, 0.01);
 }
 
 test "opposing absolute calc and percent insets stretch within padding box" {

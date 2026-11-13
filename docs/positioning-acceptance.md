@@ -2,10 +2,21 @@
 
 Issues #1, #86 and #155 remain open. This draft provides partial implementation evidence, not complete conformance.
 
+## Direct implementation follow-up
+
+- Auto-width absolute boxes now subtract a definite left/right inset before applying `min(max-content, max(min-content, available))`. Intrinsic minimum overflow is retained.
+- Auto-inset block children use the parent content origin and preceding in-flow sibling's trailing edge rather than the containing block origin. Absolutely positioned siblings do not consume flow space.
+- Flex static placement uses sole-item main/cross alignment for the covered horizontal writing-mode cases.
+- Fixed descendants of transformed scroll containers now receive the transformed container's own scroll offset; viewport-fixed descendants retain their scroll independence.
+- Six native geometry regressions cover these changes and transformed padding-box placement. JS fixtures cover both inset naming forms, all five writing modes in LTR/RTL, zero/auto/negative/percentage values and declaration order.
+- Final checks: `zig build test --summary all` passed 113/113; `pnpm run test`, `pnpm run test:native` (eight framebuffer checks), `pnpm run build:ui`, `zig build`, and `pnpm run test:smoke` passed (19 scene items).
+
+Remaining acceptance boundaries are explicit below: complete inline/grid static positioning, margin-collapse interactions, nested perspective/transform combinations, and the broader logical border/sizing/painting keys are not established by these fixtures. Inset geometry evidence must not be attributed to border styles named `inset`.
+
 | Eligible key | Implementation / executed evidence |
 | --- | --- |
-| css.properties.position.absolute | scene.zig; POS-02 padding-box/out-of-flow, RTL overconstraint, calc/percent opposing-inset stretch native fixtures passed; static-position/shrink-to-fit and full mode matrix unverified |
-| css.properties.position.fixed | scene.zig; POS-03 viewport scroll independence passed; transformed ancestor matrix unverified |
+| css.properties.position.absolute | scene.zig; POS-02 padding-box/out-of-flow, RTL overconstraint, calc/percent opposing-inset stretch; definite left/right inset shrink-to-fit, intrinsic-minimum overflow, block static placement after a sibling, flex sole-item centered static placement passed native geometry fixtures. Full writing-mode, inline/grid static-position and margin-collapse matrix remains unverified. |
+| css.properties.position.fixed | scene.zig; POS-03 viewport scroll independence; transformed ancestor padding-box placement and scrolling with its transformed containing block passed native geometry fixtures. Broader nested-transform/perspective matrix remains unverified. |
 | css.properties.block-size | Unverified in this milestone; remains open |
 | css.properties.block-size.fit-content | Unverified in this milestone; remains open |
 | css.properties.block-size.max-content | Unverified in this milestone; remains open |
@@ -24,7 +35,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-block-end-style.double | Unverified in this milestone; remains open |
 | css.properties.border-block-end-style.groove | Unverified in this milestone; remains open |
 | css.properties.border-block-end-style.hidden | Unverified in this milestone; remains open |
-| css.properties.border-block-end-style.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-block-end-style.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-block-end-style.none | Unverified in this milestone; remains open |
 | css.properties.border-block-end-style.outset | Unverified in this milestone; remains open |
 | css.properties.border-block-end-style.ridge | Unverified in this milestone; remains open |
@@ -39,7 +50,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-block-end.double | Unverified in this milestone; remains open |
 | css.properties.border-block-end.groove | Unverified in this milestone; remains open |
 | css.properties.border-block-end.hidden | Unverified in this milestone; remains open |
-| css.properties.border-block-end.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-block-end.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-block-end.medium | Unverified in this milestone; remains open |
 | css.properties.border-block-end.none | Unverified in this milestone; remains open |
 | css.properties.border-block-end.outset | Unverified in this milestone; remains open |
@@ -58,7 +69,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-block-start-style.double | Unverified in this milestone; remains open |
 | css.properties.border-block-start-style.groove | Unverified in this milestone; remains open |
 | css.properties.border-block-start-style.hidden | Unverified in this milestone; remains open |
-| css.properties.border-block-start-style.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-block-start-style.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-block-start-style.none | Unverified in this milestone; remains open |
 | css.properties.border-block-start-style.outset | Unverified in this milestone; remains open |
 | css.properties.border-block-start-style.ridge | Unverified in this milestone; remains open |
@@ -73,7 +84,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-block-start.double | Unverified in this milestone; remains open |
 | css.properties.border-block-start.groove | Unverified in this milestone; remains open |
 | css.properties.border-block-start.hidden | Unverified in this milestone; remains open |
-| css.properties.border-block-start.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-block-start.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-block-start.medium | Unverified in this milestone; remains open |
 | css.properties.border-block-start.none | Unverified in this milestone; remains open |
 | css.properties.border-block-start.outset | Unverified in this milestone; remains open |
@@ -88,7 +99,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-block-style.double | Unverified in this milestone; remains open |
 | css.properties.border-block-style.groove | Unverified in this milestone; remains open |
 | css.properties.border-block-style.hidden | Unverified in this milestone; remains open |
-| css.properties.border-block-style.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-block-style.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-block-style.none | Unverified in this milestone; remains open |
 | css.properties.border-block-style.outset | Unverified in this milestone; remains open |
 | css.properties.border-block-style.ridge | Unverified in this milestone; remains open |
@@ -103,7 +114,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-block.double | Unverified in this milestone; remains open |
 | css.properties.border-block.groove | Unverified in this milestone; remains open |
 | css.properties.border-block.hidden | Unverified in this milestone; remains open |
-| css.properties.border-block.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-block.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-block.medium | Unverified in this milestone; remains open |
 | css.properties.border-block.none | Unverified in this milestone; remains open |
 | css.properties.border-block.outset | Unverified in this milestone; remains open |
@@ -128,7 +139,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-inline-end-style.double | Unverified in this milestone; remains open |
 | css.properties.border-inline-end-style.groove | Unverified in this milestone; remains open |
 | css.properties.border-inline-end-style.hidden | Unverified in this milestone; remains open |
-| css.properties.border-inline-end-style.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-inline-end-style.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-inline-end-style.none | Unverified in this milestone; remains open |
 | css.properties.border-inline-end-style.outset | Unverified in this milestone; remains open |
 | css.properties.border-inline-end-style.ridge | Unverified in this milestone; remains open |
@@ -143,7 +154,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-inline-end.double | Unverified in this milestone; remains open |
 | css.properties.border-inline-end.groove | Unverified in this milestone; remains open |
 | css.properties.border-inline-end.hidden | Unverified in this milestone; remains open |
-| css.properties.border-inline-end.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-inline-end.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-inline-end.medium | Unverified in this milestone; remains open |
 | css.properties.border-inline-end.none | Unverified in this milestone; remains open |
 | css.properties.border-inline-end.outset | Unverified in this milestone; remains open |
@@ -162,7 +173,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-inline-start-style.double | Unverified in this milestone; remains open |
 | css.properties.border-inline-start-style.groove | Unverified in this milestone; remains open |
 | css.properties.border-inline-start-style.hidden | Unverified in this milestone; remains open |
-| css.properties.border-inline-start-style.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-inline-start-style.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-inline-start-style.none | Unverified in this milestone; remains open |
 | css.properties.border-inline-start-style.outset | Unverified in this milestone; remains open |
 | css.properties.border-inline-start-style.ridge | Unverified in this milestone; remains open |
@@ -177,7 +188,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-inline-start.double | Unverified in this milestone; remains open |
 | css.properties.border-inline-start.groove | Unverified in this milestone; remains open |
 | css.properties.border-inline-start.hidden | Unverified in this milestone; remains open |
-| css.properties.border-inline-start.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-inline-start.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-inline-start.medium | Unverified in this milestone; remains open |
 | css.properties.border-inline-start.none | Unverified in this milestone; remains open |
 | css.properties.border-inline-start.outset | Unverified in this milestone; remains open |
@@ -192,7 +203,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-inline-style.double | Unverified in this milestone; remains open |
 | css.properties.border-inline-style.groove | Unverified in this milestone; remains open |
 | css.properties.border-inline-style.hidden | Unverified in this milestone; remains open |
-| css.properties.border-inline-style.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-inline-style.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-inline-style.none | Unverified in this milestone; remains open |
 | css.properties.border-inline-style.outset | Unverified in this milestone; remains open |
 | css.properties.border-inline-style.ridge | Unverified in this milestone; remains open |
@@ -207,7 +218,7 @@ Issues #1, #86 and #155 remain open. This draft provides partial implementation 
 | css.properties.border-inline.double | Unverified in this milestone; remains open |
 | css.properties.border-inline.groove | Unverified in this milestone; remains open |
 | css.properties.border-inline.hidden | Unverified in this milestone; remains open |
-| css.properties.border-inline.inset | native.js physicalStyle/snapshot; phase-e-css authoring tests. Native physical inset calc/percent/stretch fixture; exhaustive logical geometry unverified |
+| css.properties.border-inline.inset | Unverified: border style keyword; inset positioning geometry is not evidence for this key |
 | css.properties.border-inline.medium | Unverified in this milestone; remains open |
 | css.properties.border-inline.none | Unverified in this milestone; remains open |
 | css.properties.border-inline.outset | Unverified in this milestone; remains open |

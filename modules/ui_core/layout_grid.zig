@@ -724,6 +724,27 @@ fn compute(
         cur_y += row_heights[r] + (if (all_rows[r].auto_fit and row_heights[r] == 0) @as(f32, 0) else y_pack.gap);
     }
 
+    // Positioned children reference existing grid lines without contributing
+    // tracks or participating in auto-placement.
+    if (n.isPositioned() or n.establishesFixedContainingBlock()) for (out_of_flow_children.items) |child| {
+        if (std.mem.eql(u8, child.style.position, "fixed") and !n.establishesFixedContainingBlock()) continue;
+        const padding_box = n.paddingBox(bounds);
+        const x_axis = positionedAxis(child.style.gridColumn, child.style.gridColumnStart, child.style.gridColumnEnd, all_cols, col_offsets, col_widths, origin_x, padding_box.x, padding_box.right());
+        const y_axis = positionedAxis(child.style.gridRow, child.style.gridRowStart, child.style.gridRowEnd, all_rows, row_offsets, row_heights, origin_y, padding_box.y, padding_box.bottom());
+        var area = Rect{ .x = x_axis[0], .y = y_axis[0], .width = @max(0, x_axis[1] - x_axis[0]), .height = @max(0, y_axis[1] - y_axis[0]) };
+        for (areas) |named| if (std.mem.eql(u8, child.style.gridArea, named.name) and named.col_end <= num_cols and named.row_end <= num_rows) {
+            area = .{
+                .x = origin_x + col_offsets[named.col_start],
+                .y = origin_y + row_offsets[named.row_start],
+                .width = col_offsets[named.col_end - 1] + col_widths[named.col_end - 1] - col_offsets[named.col_start],
+                .height = row_offsets[named.row_end - 1] + row_heights[named.row_end - 1] - row_offsets[named.row_start],
+            };
+            break;
+        };
+        if (std.mem.eql(u8, n.style.direction, "rtl")) area.x = bounds.x + bounds.width - (area.x - bounds.x) - area.width;
+        try scene.positioned_areas.put(allocator, child.id, area);
+    };
+
     for (item_spans.items) |s| {
         const child = s.child;
         const margin = child.margin();
@@ -809,6 +830,30 @@ fn compute(
         try scene.layout(child, .{ .x = item_x, .y = item_y, .width = w, .height = h }, n.id);
     }
     return cur_y - row_gap;
+}
+
+fn positionedAxis(css: []const u8, start_number: ?i32, end_number: ?i32, tracks: []const TrackDef, offsets: []const f32, sizes: []const f32, origin: f32, fallback_start: f32, fallback_end: f32) [2]f32 {
+    var parts = std.mem.splitScalar(u8, css, '/');
+    const first = parseLineOrSpan(parts.next() orelse "auto", tracks);
+    const last = parseLineOrSpan(parts.next() orelse "auto", tracks);
+    var start = if (start_number) |v| numericLine(v, tracks.len) else if (first) |p| p.line else null;
+    var end = if (end_number) |v| numericLine(v, tracks.len) else if (last) |p| p.line else null;
+    if (start != null and end == null and last != null and last.?.line == null) end = start.? + last.?.span;
+    if (end != null and start == null and first != null and first.?.line == null and end.? >= first.?.span) start = end.? - first.?.span;
+    var result = [2]f32{ fallback_start, fallback_end };
+    if (start) |line| if (line <= tracks.len) {
+        result[0] = origin + if (line < offsets.len) offsets[line] else if (sizes.len > 0) offsets[sizes.len - 1] + sizes[sizes.len - 1] else 0;
+    };
+    if (end) |line| if (line <= tracks.len) {
+        result[1] = origin + if (line == 0) @as(f32, 0) else offsets[line - 1] + sizes[line - 1];
+    };
+    return result;
+}
+
+fn numericLine(value: i32, count: usize) ?usize {
+    if (value == 0) return null;
+    const index = if (value > 0) value - 1 else @as(i32, @intCast(count)) + 1 + value;
+    return if (index >= 0 and index <= count) @intCast(index) else null;
 }
 
 fn distributeFractions(defs: []const TrackDef, sizes: []f32, available: f32) void {

@@ -55,6 +55,7 @@ pub fn collapsePair(a: f32, b: f32) f32 {
 /// - overflow: hidden, scroll, auto establish a BFC.
 /// - overflow: visible and overflow: clip do NOT establish a BFC.
 pub fn establishesBfc(n: *const Node) bool {
+    if (!std.mem.eql(u8, n.style.float, "none")) return true;
     if (std.mem.eql(u8, n.style.display, "flow-root")) return true;
     if (root.layout_multicol.isMulticolContainer(n)) return true;
     const ox = n.effectiveOverflowX();
@@ -101,14 +102,48 @@ pub const BlockLayoutOutput = struct {
     is_empty: bool,
 };
 
+fn floatSide(value: []const u8, parent: *const Node) ?bool {
+    const rtl = std.mem.eql(u8, parent.style.direction, "rtl");
+    if (std.mem.eql(u8, value, "left")) return false;
+    if (std.mem.eql(u8, value, "right")) return true;
+    if (std.mem.eql(u8, value, "inline-start")) return rtl;
+    if (std.mem.eql(u8, value, "inline-end")) return !rtl;
+    return null;
+}
+
+const FloatSpace = struct { left: f32 = 0, right: f32, next: ?f32 = null };
+fn floatSpace(n: *const Node, positions: []const BlockChildLayout, upto: usize, width: f32, y: f32, height: f32) FloatSpace {
+    var space = FloatSpace{ .right = width };
+    for (n.children[0..upto], positions[0..upto]) |*child, position| {
+        const right = floatSide(child.style.float, n) orelse continue;
+        if (child.isOutOfFlow()) continue;
+        const margin = position.used_margin;
+        const top = position.y - margin.top;
+        const bottom = position.y + position.height + margin.bottom;
+        if (bottom <= y or top >= y + @max(0.001, height)) continue;
+        if (right) space.right = @min(space.right, position.x - margin.left) else space.left = @max(space.left, position.x + position.width + margin.right);
+        if (space.next == null or bottom < space.next.?) space.next = bottom;
+    }
+    return space;
+}
+
 /// Computes block layout sizing, margin collapsing, line boxes, and positioning.
 /// Used both for measuring natural height and for the final layout pass.
 pub fn computeBlockLayout(
     scene: *const Scene,
     n: *const Node,
     inner_width: f32,
-    children_out: ?[]BlockChildLayout,
+    children_output: ?[]BlockChildLayout,
 ) BlockLayoutOutput {
+    var has_float = false;
+    for (n.children) |*child| if (!child.isOutOfFlow() and floatSide(child.style.float, n) != null) {
+        has_float = true;
+    };
+    // Measurement and layout use the same exclusions, including when a caller
+    // requests only height. Scratch storage is released on every measurement.
+    const scratch = if (children_output == null and has_float) std.heap.page_allocator.alloc(BlockChildLayout, n.children.len) catch @panic("float layout scratch allocation failed") else null;
+    defer if (scratch) |positions| std.heap.page_allocator.free(positions);
+    const children_out = children_output orelse scratch;
     const pad = n.padding();
     const bd = n.border();
     const bfc = establishesBfc(n);
@@ -128,9 +163,10 @@ pub fn computeBlockLayout(
     for (n.children, 0..) |*child, i| {
         if (child.isOutOfFlow()) {
             if (children_out) |out| {
+                const inline_position = child.style.positionInline or std.mem.eql(u8, child.type, "text");
                 out[i] = .{
-                    .x = 0,
-                    .y = 0,
+                    .x = if (inline_position and in_inline_run) line_x else 0,
+                    .y = cursor_y + (if (in_inline_run and !inline_position) line_h else if (!in_inline_run) margin_strut.resolve() else 0),
                     .width = 0,
                     .height = 0,
                     .used_margin = .{},
@@ -143,6 +179,38 @@ pub fn computeBlockLayout(
         const child_bd = child.border();
         const child_pad = child.padding();
         const child_inset_x = child_pad.horizontal() + child_bd.horizontal();
+
+        if (children_out) |positions| {
+            if (!std.mem.eql(u8, child.style.clear, "none")) {
+                const side = floatSide(child.style.clear, n);
+                var clearance = cursor_y;
+                for (n.children[0..i], positions[0..i]) |*previous, position| {
+                    const previous_side = floatSide(previous.style.float, n) orelse continue;
+                    if (previous.isOutOfFlow()) continue;
+                    if (std.mem.eql(u8, child.style.clear, "both") or side == previous_side) clearance = @max(clearance, position.y + position.height + position.used_margin.bottom);
+                }
+                if (clearance > cursor_y) {
+                    cursor_y = clearance;
+                    line_x = 0;
+                    line_h = 0;
+                    in_inline_run = false;
+                    margin_strut = CollapsibleMarginSet.zero;
+                    has_in_flow_content = true;
+                }
+            }
+            if (floatSide(child.style.float, n)) |right| {
+                var y = cursor_y;
+                const width = child.constrain(if (child.style.width) |value| child.borderSize(value, child_inset_x) else scene.intrinsicWidthFor(child, .{ .definite = @max(0, inner_width - child_mg.horizontal()) }), true);
+                const height = scene.naturalHeightForWidth(child, width);
+                var space = floatSpace(n, positions, i, inner_width, y, height + child_mg.vertical());
+                while (width + child_mg.horizontal() > space.right - space.left and space.next != null) {
+                    y = space.next.?;
+                    space = floatSpace(n, positions, i, inner_width, y, height + child_mg.vertical());
+                }
+                positions[i] = .{ .x = if (right) space.right - width - child_mg.right else space.left + child_mg.left, .y = y + child_mg.top, .width = width, .height = height, .used_margin = child_mg, .is_empty = false };
+                continue;
+            }
+        }
 
         if (isInlineLevel(child)) {
             // Inline box formatting context
@@ -163,7 +231,23 @@ pub fn computeBlockLayout(
             const child_h = scene.naturalHeightForWidth(child, child_w);
             const item_outer_w = child_w + child_mg.horizontal();
 
-            if (in_inline_run and inner_width > 0 and line_x + item_outer_w > inner_width and i > line_start) {
+            var float_left: f32 = 0;
+            var float_right = inner_width;
+            if (children_out) |positions| {
+                var space = floatSpace(n, positions, i, inner_width, cursor_y, child_h + child_mg.vertical());
+                while (item_outer_w > space.right - space.left and space.next != null) {
+                    cursor_y = @max(cursor_y + line_h, space.next.?);
+                    line_x = 0;
+                    line_h = 0;
+                    in_inline_run = false;
+                    space = floatSpace(n, positions, i, inner_width, cursor_y, child_h + child_mg.vertical());
+                }
+                float_left = space.left;
+                float_right = space.right;
+                line_x = @max(line_x, float_left);
+            }
+
+            if (in_inline_run and inner_width > 0 and line_x + item_outer_w > float_right and i > line_start) {
                 // Wrap to a new line box
                 const free_line_x = inner_width - line_x;
                 if (children_out) |out| {
@@ -173,7 +257,7 @@ pub fn computeBlockLayout(
                     }
                 }
                 cursor_y += line_h;
-                line_x = 0;
+                line_x = if (children_out) |positions| floatSpace(n, positions, i, inner_width, cursor_y, child_h + child_mg.vertical()).left else 0;
                 line_h = 0;
                 line_start = i;
             }
@@ -191,7 +275,7 @@ pub fn computeBlockLayout(
                 margin_strut = CollapsibleMarginSet.zero;
                 in_inline_run = true;
                 line_start = i;
-                line_x = if (is_first_content) (n.style.textIndent orelse 0) else 0;
+                line_x = float_left + if (is_first_content) (n.style.textIndent orelse 0) else @as(f32, 0);
                 line_h = 0;
             }
 
@@ -243,7 +327,25 @@ pub fn computeBlockLayout(
             }
         }
 
-        const free_x = inner_width - child_w - child_mg.horizontal();
+        var available_width = inner_width;
+        var float_offset: f32 = 0;
+        if (establishesBfc(child)) if (children_out) |positions| {
+            var y = cursor_y + margin_strut.resolve() + child_mg.top;
+            var space = floatSpace(n, positions, i, inner_width, y, scene.naturalHeightForWidth(child, child_w) + child_mg.vertical());
+            if (child.style.width == null) child_w = child.constrain(@max(0, space.right - space.left - child_mg.horizontal()), true);
+            while (child_w + child_mg.horizontal() > space.right - space.left and space.next != null) {
+                y = space.next.?;
+                space = floatSpace(n, positions, i, inner_width, y, scene.naturalHeightForWidth(child, child_w) + child_mg.vertical());
+            }
+            const next_cursor = y - margin_strut.resolve() - child_mg.top;
+            if (next_cursor > cursor_y) {
+                cursor_y = next_cursor;
+                has_in_flow_content = true;
+            }
+            available_width = space.right - space.left;
+            float_offset = space.left;
+        };
+        const free_x = available_width - child_w - child_mg.horizontal();
         var auto_left: f32 = 0;
         var auto_right: f32 = 0;
         if (child.style.marginLeftAuto and child.style.marginRightAuto) {
@@ -305,7 +407,7 @@ pub fn computeBlockLayout(
             used_margin.left += auto_left;
             used_margin.right += auto_right;
             out[i] = .{
-                .x = child_mg.left + auto_left,
+                .x = float_offset + child_mg.left + auto_left + (if (std.mem.eql(u8, n.style.direction, "rtl") and !child.style.marginLeftAuto and !child.style.marginRightAuto) free_x else @as(f32, 0)),
                 .y = child_y,
                 .width = child_w,
                 .height = child_h,
@@ -348,6 +450,12 @@ pub fn computeBlockLayout(
             consumed_height = cursor_y + margin_strut.resolve();
         }
     }
+
+    if (bfc) if (children_out) |positions| {
+        for (n.children, positions) |*child, position| {
+            if (!child.isOutOfFlow() and floatSide(child.style.float, n) != null) consumed_height = @max(consumed_height, position.y + position.height + position.used_margin.bottom);
+        }
+    };
 
     return .{
         .consumed_height = consumed_height,
@@ -408,12 +516,22 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
         }
     }
 
-    const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
-    _ = computeBlockLayout(self, n, inner_width, child_layouts);
-
     const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
-    const is_v_rl = std.mem.eql(u8, n.style.writingMode, "vertical-rl");
+    const is_v_rl = std.mem.endsWith(u8, n.style.writingMode, "-rl");
     const content_width = bounds.width - pad.horizontal() - bd.horizontal();
+    const content_height = bounds.height - pad.vertical() - bd.vertical();
+    const child_layouts = try self.arena.allocator().alloc(BlockChildLayout, count);
+    if (vertical) {
+        var projected = n.*;
+        projected.children = try self.arena.allocator().dupe(Node, n.children);
+        const sideways_lr = std.mem.eql(u8, n.style.writingMode, "sideways-lr");
+        if (sideways_lr) projected.style.direction = if (std.mem.eql(u8, n.style.direction, "rtl")) "ltr" else "rtl";
+        projectDimensions(&projected, is_v_rl);
+        for (projected.children) |*child| projectDimensions(child, is_v_rl);
+        _ = computeBlockLayout(self, &projected, content_height, child_layouts);
+    } else {
+        _ = computeBlockLayout(self, n, inner_width, child_layouts);
+    }
 
     for (n.children, 0..) |*child, i| {
         if (child.isOutOfFlow()) continue;
@@ -430,6 +548,49 @@ pub fn layout(self: *Scene, n: *const Node, bounds: Rect, inner_width: f32) anye
             .height = cl.height,
         };
         try self.layout(child, child_rect, n.id);
-        self.setUsedMargin(child.id, cl.used_margin);
+        self.setUsedMargin(child.id, if (vertical) .{
+            .top = cl.used_margin.left,
+            .right = if (is_v_rl) cl.used_margin.top else cl.used_margin.bottom,
+            .bottom = cl.used_margin.right,
+            .left = if (is_v_rl) cl.used_margin.bottom else cl.used_margin.top,
+        } else cl.used_margin);
     }
+}
+
+// Block/float algorithms operate in inline/block coordinates. Preserve the
+// original physical styles for scene layout and painting after projection.
+fn projectDimensions(n: *Node, block_reverse: bool) void {
+    inline for (.{ .{ "width", "height" }, .{ "minWidth", "minHeight" }, .{ "maxWidth", "maxHeight" } }) |pair| {
+        std.mem.swap(?f32, &@field(n.style, pair[0]), &@field(n.style, pair[1]));
+        std.mem.swap(?[]const u8, &@field(n.style, pair[0] ++ "Css"), &@field(n.style, pair[1] ++ "Css"));
+    }
+    inline for (.{ "Style", "Color" }) |suffix| {
+        const top = @field(n.style, "borderTop" ++ suffix);
+        const right = @field(n.style, "borderRight" ++ suffix);
+        const bottom = @field(n.style, "borderBottom" ++ suffix);
+        const left = @field(n.style, "borderLeft" ++ suffix);
+        @field(n.style, "borderTop" ++ suffix) = if (block_reverse) right else left;
+        @field(n.style, "borderBottom" ++ suffix) = if (block_reverse) left else right;
+        @field(n.style, "borderLeft" ++ suffix) = top;
+        @field(n.style, "borderRight" ++ suffix) = bottom;
+    }
+    inline for (.{ "padding", "margin", "border" }) |prefix| {
+        const suffix = comptime if (std.mem.eql(u8, prefix, "border")) "Width" else "";
+        const top = @field(n.style, prefix ++ "Top" ++ suffix);
+        const right = @field(n.style, prefix ++ "Right" ++ suffix);
+        const bottom = @field(n.style, prefix ++ "Bottom" ++ suffix);
+        const left = @field(n.style, prefix ++ "Left" ++ suffix);
+        @field(n.style, prefix ++ "Top" ++ suffix) = if (block_reverse) right else left;
+        @field(n.style, prefix ++ "Bottom" ++ suffix) = if (block_reverse) left else right;
+        @field(n.style, prefix ++ "Left" ++ suffix) = top;
+        @field(n.style, prefix ++ "Right" ++ suffix) = bottom;
+    }
+    const mt = n.style.marginTopAuto;
+    const mr = n.style.marginRightAuto;
+    const mb = n.style.marginBottomAuto;
+    const ml = n.style.marginLeftAuto;
+    n.style.marginTopAuto = if (block_reverse) mr else ml;
+    n.style.marginBottomAuto = if (block_reverse) ml else mr;
+    n.style.marginLeftAuto = mt;
+    n.style.marginRightAuto = mb;
 }

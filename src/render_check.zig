@@ -39,6 +39,12 @@ pub fn main() !void {
     defer rl.closeWindow();
     var renderer = try Renderer.init(std.heap.page_allocator);
     defer renderer.deinit();
+    const mapped_image = try frame(&renderer,
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"width":64,"height":64,"backgroundColor":"oklch(0.7 0.4 30)"}}]}
+    );
+    const mapped_pixel = rl.getImageColor(mapped_image, 20, 20);
+    try check(mapped_pixel.r == 255 and @abs(@as(i16, mapped_pixel.g) - 88) <= 1 and @abs(@as(i16, mapped_pixel.b) - 67) <= 1, "OKLCH mapped scene background framebuffer reference");
+    rl.unloadImage(mapped_image);
     var text_cache = backend.Cache.init(std.heap.page_allocator);
     defer text_cache.deinit();
     // Exercise the same shaped glyph rasterizer used by application paint.

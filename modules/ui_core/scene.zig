@@ -1464,7 +1464,7 @@ pub const Scene = struct {
 
             // Placement
             var x: f32 = cb.x + child_mg.left;
-            if (!child.style.leftAuto and child.style.left != null) {
+            if (!child.style.leftAuto and child.style.left != null and !(std.mem.eql(u8, parent_item.node.style.direction, "rtl") and !child.style.rightAuto and child.style.right != null)) {
                 x = cb.x + child.style.left.? + child_mg.left;
             } else if (!child.style.rightAuto and child.style.right != null) {
                 x = cb.right() - child.style.right.? - w - child_mg.right;

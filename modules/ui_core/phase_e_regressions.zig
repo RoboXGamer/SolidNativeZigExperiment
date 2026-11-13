@@ -220,3 +220,12 @@ test "review: column auto flow wraps at explicit row boundary" {
     try std.testing.expectApproxEqAbs(@as(f32, 50), b.x, 0.01);
     try std.testing.expectApproxEqAbs(@as(f32, 0), b.y, 0.01);
 }
+
+test "absolute horizontal overconstraint honors containing block RTL direction" {
+    // CSS 2.1 10.3.7: ignore left when all three are definite in an RTL containing block.
+    var scene = try ui.Scene.init(std.testing.allocator,
+        \\{"id":1,"type":"root","style":{"position":"relative","direction":"rtl","width":300,"height":100},"children":[{"id":2,"type":"column","style":{"position":"absolute","left":10,"right":20,"width":50,"height":10}}]}
+    , 300, 100);
+    defer scene.deinit();
+    try near(230, scene.find(2).?.bounds.x);
+}

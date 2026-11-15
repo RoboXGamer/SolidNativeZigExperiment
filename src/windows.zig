@@ -23,6 +23,14 @@ const source = @embedFile("ui-bundle.js");
 const window_width = 1280;
 const window_height = 720;
 const background_color = rl.Color.init(51, 51, 51, 255);
+const PaintRetarget = struct {
+    timeline: *ui.transitions.Timeline,
+    now: f64,
+    fn notify(context: *anyopaque, id: u32, before: ui.Style, after: ui.Style) anyerror!void {
+        const self: *PaintRetarget = @ptrCast(@alignCast(context));
+        try self.timeline.retargetPaint(id, before, after, self.now);
+    }
+};
 
 fn color(value: []const u8, fallback: rl.Color) rl.Color {
     return colorWithOpacity(value, fallback, 1.0);
@@ -727,40 +735,20 @@ pub fn run() void {
             break;
         };
         const animating = timeline.active();
-        var layout_changed = changed.layout or resized or (animating and timeline.needsLayout());
+        const layout_changed = changed.layout or resized or (animating and timeline.needsLayout());
         const scene_changed = changed.state or animating or resized;
-        var interaction_synced = false;
-        if (changed.state and !changed.paint and !layout_changed and !animating) {
-            scene.syncInteraction(&tree) catch |err| {
-                if (err == error.IncompatibleSceneProjection) {
-                    layout_changed = true;
-                } else {
-                    std.log.err("Could not update interaction inputs: {}", .{err});
-                    break;
-                }
-            };
-            interaction_synced = !layout_changed;
-        }
-        if (scene_changed and !interaction_synced) {
-            var next = (if (layout_changed) buildScene(&tree) else scene.refreshPaint(&tree)) catch |err| fallback: {
-                if (err == error.IncompatibleSceneProjection) {
-                    layout_changed = true;
-                    break :fallback buildScene(&tree) catch |fallback_err| {
-                        std.log.err("Could not rebuild UI scene: {}", .{fallback_err});
-                        break;
-                    };
-                }
+        var paint_changed = false;
+        if (layout_changed) {
+            var next = buildScene(&tree) catch |err| {
                 std.log.err("Could not update UI scene: {}", .{err});
                 break;
             };
-            if (layout_changed) layout_runs += 1;
+            layout_runs += 1;
             if (changed.paint) timeline.retarget(&scene, &next, rl.getTime()) catch |err| std.log.err("Transition retarget failed: {}", .{err});
-            timeline.apply(&next, rl.getTime()) catch |err| std.log.err("Transition sample failed: {}", .{err});
             scene.deinit();
             scene = next;
             last_width = rl.getScreenWidth();
             last_height = rl.getScreenHeight();
-            if (layout_changed) scene.applyScrollOffsets(&scroll_offsets);
             var offsets = scroll_offsets.keyIterator();
             while (offsets.next()) |id| {
                 if (scene.find(id.*) == null) {
@@ -768,7 +756,16 @@ pub fn run() void {
                     offsets = scroll_offsets.keyIterator();
                 }
             }
+        } else if (changed.state) {
+            var retarget = PaintRetarget{ .timeline = &timeline, .now = rl.getTime() };
+            const result = scene.updateInputs(&tree, scratch.allocator(), .{ .context = &retarget, .style = PaintRetarget.notify }) catch |err| {
+                std.log.err("Could not update retained inputs: {}", .{err});
+                break;
+            };
+            paint_changed = result.paint;
         }
+        timeline.apply(&scene, rl.getTime()) catch |err| std.log.err("Transition sample failed: {}", .{err});
+        if (layout_changed) scene.applyScrollOffsets(&scroll_offsets);
         if (scrolled and !layout_changed) scene.applyScrollOffsets(&scroll_offsets);
         if (focused) |id| if (scene.find(id) == null) {
             focused = null;
@@ -797,7 +794,7 @@ pub fn run() void {
         }
         if (pointer_inside) ui_cursor_update(cursor.ptr, cursor.len, if (hovered) |h| (if (std.mem.eql(u8, h.node.type, "input") or (std.mem.eql(u8, h.node.type, "text") and !pointer_control)) 1 else 0) else 0, if (pointer_control) 1 else 0);
         const refresh = ui_refresh_changed() != 0;
-        const needs_paint = !painted or changed.paint or layout_changed or animating or scrolled or previous_focus != focused or !std.meta.eql(previous_editor, editor) or refresh or (smoke and smoke_frames == 2 and getenv("SOLID_NATIVE_SCREENSHOT") != null);
+        const needs_paint = !painted or paint_changed or layout_changed or timeline.paint_changed or scrolled or previous_focus != focused or !std.meta.eql(previous_editor, editor) or refresh or (smoke and smoke_frames == 2 and getenv("SOLID_NATIVE_SCREENSHOT") != null);
         if (needs_paint) {
             rl.beginDrawing();
             rl.clearBackground(background_color);

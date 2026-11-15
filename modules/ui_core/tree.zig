@@ -4,16 +4,18 @@ const core = @import("root.zig");
 const inputs = @import("frame_inputs.zig");
 const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", placeholder: []const u8 = "", clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, readOnly: bool = false, readWrite: bool = false, popoverOpen: bool = false, intrinsicAspectRatio: ?f32 = null, hovered: bool = false, active: bool = false, focused: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
 const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, updates: []const inputs.Delta = &.{}, removed: []const u32 = &.{} };
-const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode, revisions: inputs.Revisions = .{} };
+const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode, revisions: inputs.Revisions = .{}, dirty: inputs.Dirty };
 pub const Tree = struct {
     allocator: std.mem.Allocator,
     nodes: std.AutoHashMap(u32, Entry),
     root: u32 = 0,
     revisions: inputs.Revisions = .{},
+    dirty: std.ArrayList(inputs.Dirty) = .empty,
     pub fn init(allocator: std.mem.Allocator) Tree {
         return .{ .allocator = allocator, .nodes = std.AutoHashMap(u32, Entry).init(allocator) };
     }
     pub fn deinit(self: *Tree) void {
+        self.dirty.deinit(self.allocator);
         var it = self.nodes.valueIterator();
         while (it.next()) |entry| entry.arena.deinit();
         self.nodes.deinit();
@@ -25,7 +27,10 @@ pub const Tree = struct {
         const parsed = try std.json.parseFromSlice(Patch, self.allocator, json, .{ .ignore_unknown_fields = true });
         defer parsed.deinit();
         const patch = parsed.value;
-        if (patch.root == self.root and patch.nodes.len == 0 and patch.updates.len == 0 and patch.removed.len == 0) return .{};
+        if (patch.root == self.root and patch.nodes.len == 0 and patch.updates.len == 0 and patch.removed.len == 0) {
+            self.dirty.clearRetainingCapacity();
+            return .{};
+        }
         var effects: inputs.Changes = .{};
         if (patch.root != self.root or patch.removed.len > 0) effects.geometry();
         var staged = std.AutoHashMap(u32, Entry).init(self.allocator);
@@ -41,6 +46,34 @@ pub const Tree = struct {
             var n = (self.nodes.get(delta.id) orelse return error.UnknownNode).node;
             delta.apply(&n);
             try self.stage(&staged, n, &effects, delta);
+        }
+        try self.dirty.ensureTotalCapacity(self.allocator, staged.count());
+        var structural = patch.root != self.root or patch.removed.len > 0;
+        var inspect = staged.iterator();
+        while (inspect.next()) |entry| {
+            const old = self.nodes.get(entry.key_ptr.*) orelse {
+                structural = true;
+                break;
+            };
+            if (!std.mem.eql(u32, old.node.children, entry.value_ptr.node.children)) {
+                structural = true;
+                break;
+            }
+        }
+        if (!structural) {
+            // Existing identities and unchanged edges cannot invalidate graph
+            // reachability. Commit only the changed entries, with no N-node map
+            // clone, validation walk, or old-entry scan on this path.
+            self.dirty.clearRetainingCapacity();
+            var updates = staged.iterator();
+            while (updates.next()) |entry| {
+                const old = self.nodes.getPtr(entry.key_ptr.*).?;
+                old.arena.deinit();
+                old.* = entry.value_ptr.*;
+                if (old.dirty.paint or old.dirty.interaction or old.dirty.motion) self.dirty.appendAssumeCapacity(old.dirty);
+            }
+            self.revisions.advance(effects);
+            return effects;
         }
         var next = try self.nodes.clone();
         errdefer next.deinit();
@@ -61,6 +94,11 @@ pub const Tree = struct {
         self.nodes.deinit();
         self.nodes = next;
         self.root = patch.root;
+        self.dirty.clearRetainingCapacity();
+        var dirty_entries = staged.valueIterator();
+        while (dirty_entries.next()) |entry| if (entry.dirty.paint or entry.dirty.interaction or entry.dirty.motion) {
+            self.dirty.appendAssumeCapacity(entry.dirty);
+        };
         self.revisions.advance(effects);
         return effects;
     }
@@ -68,7 +106,9 @@ pub const Tree = struct {
         if (staged.contains(n.id)) return error.DuplicateNode;
         var node_effects: inputs.Changes = .{};
         var revisions: inputs.Revisions = .{};
+        var dirty: inputs.Dirty = .{ .id = n.id, .paint = true, .interaction = true, .motion = true };
         if (self.nodes.get(n.id)) |previous| {
+            dirty = inputs.Dirty.between(previous.node, n);
             node_effects = if (delta) |update| update.effects(previous.node) else inputs.difference(previous.node, n);
             revisions = previous.revisions;
         } else node_effects.geometry();
@@ -92,7 +132,7 @@ pub const Tree = struct {
             }
         }
         copy.children = try a.dupe(u32, n.children);
-        try staged.put(n.id, .{ .arena = arena, .node = copy, .revisions = revisions });
+        try staged.put(n.id, .{ .arena = arena, .node = copy, .revisions = revisions, .dirty = dirty });
     }
 
     fn validate(nodes: *const std.AutoHashMap(u32, Entry), visited: *std.AutoHashMap(u32, void), id: u32, depth: usize) anyerror!void {

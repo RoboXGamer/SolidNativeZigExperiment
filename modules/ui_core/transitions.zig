@@ -3,6 +3,8 @@ const std = @import("std");
 const ui = @import("root.zig");
 const anim = @import("animation.zig");
 const Tokens = @import("css_syntax.zig").Tokens;
+const styles = @import("style.zig");
+const retained = @import("retained_updates.zig");
 pub const Value = union(enum) { number: f32, color: [4]u8, matrix: ui.transform.Matrix2D, discrete: []const u8 };
 const Config = struct {
     duration: f32 = 0,
@@ -21,6 +23,11 @@ const Track = struct {
     to: Value,
     start: f64,
     config: Config,
+    fn deinit(t: *Track, allocator: std.mem.Allocator) void {
+        if (t.from == .discrete) allocator.free(t.from.discrete);
+        if (t.to == .discrete) allocator.free(t.to.discrete);
+        t.config.deinit(allocator);
+    }
     fn sample(t: Track, now: f64) Value {
         const elapsed = @as(f32, @floatCast(now - t.start)) - t.config.delay;
         const p = if (elapsed < 0) t.config.curve.solveBefore(0, true) else if (elapsed >= t.config.duration or t.config.duration <= 0) @as(f32, 1) else t.config.curve.solveBefore(elapsed / t.config.duration, false);
@@ -191,16 +198,17 @@ fn equal(a: Value, b: Value) bool {
 pub const Timeline = struct {
     allocator: std.mem.Allocator,
     tracks: std.ArrayList(Track) = .empty,
+    paint_changed: bool = false,
     pub fn init(a: std.mem.Allocator) Timeline {
         return .{ .allocator = a };
     }
     pub fn deinit(self: *Timeline) void {
-        for (self.tracks.items) |*t| t.config.deinit(self.allocator);
+        for (self.tracks.items) |*t| t.deinit(self.allocator);
         self.tracks.deinit(self.allocator);
     }
     fn remove(self: *Timeline, index: usize) void {
         var removed = self.tracks.swapRemove(index);
-        removed.config.deinit(self.allocator);
+        removed.deinit(self.allocator);
     }
 
     /// Cancel every retained transition for a node, releasing owned curve data.
@@ -214,28 +222,71 @@ pub const Timeline = struct {
     pub fn active(self: *const Timeline) bool {
         return self.tracks.items.len > 0;
     }
+    fn updateColor(self: *Timeline, id: u32, field: []const u8, before: []const u8, after: []const u8, style: ui.Style, now: f64) !void {
+        if (ui.gradient.parseColor(before)) |from| {
+            if (ui.gradient.parseColor(after)) |to| return self.update(id, field, .{ .color = from }, .{ .color = to }, style, now);
+        }
+        // A removed/unsupported color cannot keep an obsolete active target.
+        var i = self.tracks.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.tracks.items[i].id == id and std.mem.eql(u8, self.tracks.items[i].field, field)) self.remove(i);
+        }
+    }
     fn update(self: *Timeline, id: u32, field: []const u8, from: Value, to: Value, style: ui.Style, now: f64) !void {
         var c = config(self.allocator, style, field) catch |err| switch (err) {
             error.OutOfMemory => return err,
             else => Config{},
         };
         defer c.deinit(self.allocator);
-        if (std.meta.activeTag(from) == .discrete and c.behavior != .allow_discrete) return;
+        if (std.meta.activeTag(from) == .discrete and c.behavior != .allow_discrete) c.duration = 0;
         for (self.tracks.items, 0..) |*t, i| if (t.id == id and std.mem.eql(u8, t.field, field)) {
             if (equal(t.to, to) and c.duration > 0) return;
-            const current = t.sample(now);
+            const current = if (std.meta.activeTag(t.from) == std.meta.activeTag(to)) t.sample(now) else from;
             if (c.duration <= 0 or equal(current, to)) {
                 self.remove(i);
                 return;
             }
-            t.config.deinit(self.allocator);
-            t.* = .{ .id = id, .field = field, .from = current, .to = to, .start = now, .config = c };
+            const owned_from = try self.own(current);
+            errdefer self.freeValue(owned_from);
+            const owned_to = try self.own(to);
+            t.deinit(self.allocator);
+            t.* = .{ .id = id, .field = field, .from = owned_from, .to = owned_to, .start = now, .config = c };
             c = .{};
             return;
         };
         if (c.duration <= 0 or equal(from, to)) return;
-        try self.tracks.append(self.allocator, .{ .id = id, .field = field, .from = from, .to = to, .start = now, .config = c });
+        const owned_from = try self.own(from);
+        errdefer self.freeValue(owned_from);
+        const owned_to = try self.own(to);
+        errdefer self.freeValue(owned_to);
+        try self.tracks.append(self.allocator, .{ .id = id, .field = field, .from = owned_from, .to = owned_to, .start = now, .config = c });
         c = .{};
+    }
+    fn own(self: *Timeline, value: Value) !Value {
+        return if (value == .discrete) .{ .discrete = try self.allocator.dupe(u8, value.discrete) } else value;
+    }
+    fn freeValue(self: *Timeline, value: Value) void {
+        if (value == .discrete) self.allocator.free(value.discrete);
+    }
+    /// Retarget one retained identity; no scene traversal on paint input changes.
+    pub fn retargetPaint(self: *Timeline, id: u32, before: ui.Style, after: ui.Style, now: f64) !void {
+        inline for (@typeInfo(styles.PaintStyle).@"struct".field_names, @typeInfo(styles.PaintStyle).@"struct".field_types) |name, T| {
+            var tracked = false;
+            for (self.tracks.items) |track| if (track.id == id and std.mem.eql(u8, track.field, name)) {
+                tracked = true;
+                break;
+            };
+            if (!ui.frame_inputs.equal(@field(before, name), @field(after, name)) or tracked) {
+                if (T == f32) {
+                    try self.update(id, name, .{ .number = @field(before, name) }, .{ .number = @field(after, name) }, after, now);
+                } else if (T == []const u8) {
+                    if (comptime std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color")) {
+                        try self.updateColor(id, name, @field(before, name), @field(after, name), after, now);
+                    } else try self.update(id, name, .{ .discrete = @field(before, name) }, .{ .discrete = @field(after, name) }, after, now);
+                }
+            }
+        }
     }
     pub fn retarget(self: *Timeline, old: *const ui.Scene, target: *const ui.Scene, now: f64) !void {
         @setEvalBranchQuota(20000);
@@ -263,7 +314,7 @@ pub const Timeline = struct {
                         }
                     }
                 } else if (T == []const u8 and comptime (std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color"))) {
-                    if (ui.gradient.parseColor(@field(before, name))) |v| if (ui.gradient.parseColor(@field(after, name))) |next| try self.update(item.node.id, name, .{ .color = v }, .{ .color = next }, after, now);
+                    try self.updateColor(item.node.id, name, @field(before, name), @field(after, name), after, now);
                 } else if (T == []const u8 and !comptime (std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color"))) {
                     const before_str = @field(before, name);
                     const after_str = @field(after, name);
@@ -299,8 +350,9 @@ pub const Timeline = struct {
                 },
                 .matrix => |m| n.style.transform = try std.fmt.allocPrint(a, "matrix({d},{d},{d},{d},{d},{d})", .{ m.a, m.b, m.c, m.d, m.tx, m.ty }),
                 .discrete => |s| {
+                    const value = try a.dupe(u8, s);
                     inline for (@typeInfo(ui.Style).@"struct".field_names, @typeInfo(ui.Style).@"struct".field_types) |name, T| if (T == []const u8 and !comptime (std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color"))) {
-                        if (std.mem.eql(u8, name, t.field)) @field(n.style, name) = s;
+                        if (std.mem.eql(u8, name, t.field)) @field(n.style, name) = value;
                     };
                 },
             }
@@ -312,16 +364,45 @@ pub const Timeline = struct {
     }
     /// Apply before re-layout, so width/height transitions move siblings too.
     pub fn apply(self: *Timeline, scene: *ui.Scene, now: f64) !void {
+        self.paint_changed = false;
         if (!self.active()) return;
-        try self.applyNode(scene.root, scene.arena.allocator(), now);
         if (self.needsLayout()) {
+            try self.applyNode(scene.root, scene.arena.allocator(), now);
             scene.items.clearRetainingCapacity();
             scene.index.clearRetainingCapacity();
             scene.unscrolled_bounds = null;
             try scene.layout(scene.root, scene.viewport, null);
+            try scene.rebuildRetainedIndex();
+            self.paint_changed = true;
         } else {
-            // Paint transitions sample existing boxes without running layout.
-            for (scene.items.items) |item| try self.applyStyle(@constCast(item.node), scene.arena.allocator(), now);
+            var scratch = std.heap.ArenaAllocator.init(self.allocator);
+            defer scratch.deinit();
+            const a = scratch.allocator();
+            var samples: std.AutoHashMapUnmanaged(u32, retained.Sample) = .empty;
+            for (self.tracks.items) |track| {
+                const entry = try samples.getOrPut(a, track.id);
+                if (!entry.found_existing) {
+                    var node = ui.Node{ .id = track.id, .type = "" };
+                    try self.applyStyle(&node, a, now);
+                    entry.value_ptr.* = .{ .id = track.id, .overlay = .{ .style = styles.select(styles.PaintStyle, node.style) } };
+                }
+                if (now >= track.start + track.config.delay + track.config.duration) continue;
+                inline for (@typeInfo(styles.PaintStyle).@"struct".field_names, 0..) |name, bit| {
+                    if (std.mem.eql(u8, name, track.field)) {
+                        entry.value_ptr.overlay.fields.set(bit);
+                        if (@hasField(styles.PaintStyle, name ++ "Css")) {
+                            inline for (@typeInfo(styles.PaintStyle).@"struct".field_names, 0..) |css_name, css_bit| if (comptime std.mem.eql(u8, css_name, name ++ "Css")) {
+                                entry.value_ptr.overlay.fields.set(css_bit);
+                                @field(entry.value_ptr.overlay.style, css_name) = null;
+                            };
+                        }
+                    }
+                }
+            }
+            var list: std.ArrayList(retained.Sample) = .empty;
+            var values = samples.valueIterator();
+            while (values.next()) |value| try list.append(a, value.*);
+            self.paint_changed = (try scene.samplePaint(list.items, a)).paint;
         }
         var i = self.tracks.items.len;
         while (i > 0) {

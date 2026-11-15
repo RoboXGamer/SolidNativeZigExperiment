@@ -1,7 +1,8 @@
 import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
-import frameInputs from "./frame-inputs.json" with { type: "json" };
+import frameSchema from "./frame-inputs.json" with { type: "json" };
+const frameInputs = frameSchema.phases;
 import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia, getStyleSheetVersion } from './stylesheets.js';
 export { setStyleSheet, removeStyleSheet } from './stylesheets.js';
 
@@ -1410,13 +1411,7 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
   const columnRuleStyle = style.columnRuleStyle ?? "none";
   const columnRuleColor = typeof style.columnRuleColor === "string" ? style.columnRuleColor : "";
 
-  const typographyNames = [
-    "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing",
-    "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse", "verticalAlign", "textOrientation", "textShadow",
-    "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset",
-    "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor",
-    "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle", "rubyAlign"
-  ];
+  const typographyNames = frameSchema.typography;
   const typographySpecified = authoredMask(style, typographyNames) | (node.props.lang != null ? 1 << 3 : 0);
   const interactionSpecified = authoredMask(style, ["visibility", "pointerEvents", "cursor", "willChange"]);
   const letterSpacing = styleLength(style.letterSpacing, { normal: true, negative: true });
@@ -2376,15 +2371,24 @@ export function mountApp(Component) {
           key,
           key === "visibilitySpecified"
             ? Boolean(node.style.interactionSpecified & 1)
-            : key === "children"
-              ? node.children.map((child) =>
-                  typeof child === "object" ? child.id : child,
-                )
-              : node[key],
+            : key === "paintTypographySpecified"
+              ? node.style.typographySpecified & frameSchema.paintTypographyMask
+              : key === "children"
+                ? node.children.map((child) =>
+                    typeof child === "object" ? child.id : child,
+                  )
+                : node[key],
         ]),
       );
       values.style = Object.fromEntries(
-        schema.style.map((key) => [key, node.style[key]]),
+        schema.style.map((key) => [
+          key,
+          phase === "layout" && key === "typographySpecified"
+            ? node.style[key] & ~frameSchema.paintTypographyMask
+            : phase === "interaction" && key === "interactionSpecified"
+              ? node.style[key] & ~1
+              : node.style[key],
+        ]),
       );
       return values;
     };

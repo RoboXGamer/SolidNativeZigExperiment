@@ -1,6 +1,8 @@
 import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
+import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia } from './stylesheets.js';
+export { setStyleSheet, removeStyleSheet } from './stylesheets.js';
 
 import { createModuleHost } from "./module-runtime.js";
 import { matchMedia, evaluateMediaQuery, setScriptingState, getScriptingState, getPreferences, setPreferences } from "./media.js";
@@ -522,9 +524,9 @@ export function physicalStyle(style, inherited = {}, currentVars = new Map(), no
     }
     if (key === "gap" && typeof value === "string") {
       const parts = splitSpacing(value.trim());
-      if (parts.length === 2) {
+      if (parts.length === 1 || parts.length === 2) {
         result.rowGap = parts[0];
-        result.columnGap = parts[1];
+        result.columnGap = parts[1] ?? parts[0];
         continue;
       }
     }
@@ -1040,7 +1042,8 @@ export function resolveUnsetValues(style, inherited = {}) {
 }
 
 export function snapshot(node, inherited = {}, inheritedVars = new Map(), quoteDepth = 0) {
-  let authored = resolveUnsetValues(node.props.style || {}, inherited);
+  let authored = resolveUnsetValues(sheetStyle(node, node.props.style, INHERITED_CSS_PROPERTIES, INITIAL_CSS_VALUES,
+    (kind, query) => kind === 'media' ? stylesheetMedia(query,evaluateMediaQuery) : evalSupportsCondition(query)), inherited);
   const nodeStates = node.states || (node.props?.states instanceof Set ? node.props.states : (Array.isArray(node.props?.states) ? new Set(node.props.states) : (typeof node.props?.states === "object" ? new Set(Object.keys(node.props.states).filter(k => node.props.states[k])) : new Set())));
   if (node.props?.state) nodeStates.add(String(node.props.state));
 
@@ -1655,6 +1658,8 @@ export function snapshot(node, inherited = {}, inheritedVars = new Map(), quoteD
       positionInline: typeof style.display === 'string' && style.display.startsWith('inline'),
       zIndex: zIndexValue(style.zIndex) ?? (isPopoverOpen(node) ? 1000000 : null),
       gridTemplateColumnsCss: gridTemplateColumnsCss,
+      gridAutoColumnsCss: typeof style.gridAutoColumns === 'string' ? style.gridAutoColumns : null,
+      gridAutoRowsCss: typeof style.gridAutoRows === 'string' ? style.gridAutoRows : null,
       gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),
       gridAutoFlow: typeof style.gridAutoFlow === "string" ? style.gridAutoFlow : "row",
       gridTemplateAreas: typeof style.gridTemplateAreas === "string" ? style.gridTemplateAreas : "",
@@ -1667,6 +1672,12 @@ export function snapshot(node, inherited = {}, inheritedVars = new Map(), quoteD
       gridRowEnd: typeof style.gridRowEnd === "number" ? Math.trunc(style.gridRowEnd) : null,
       justifyItems: typeof style.justifyItems === "string" ? style.justifyItems : "stretch",
       justifySelf: typeof style.justifySelf === "string" ? style.justifySelf : "auto",
+      backgroundImage: typeof style.backgroundImage === 'string' && !/-gradient\(/i.test(style.backgroundImage) ? style.backgroundImage : '',
+      backgroundSize: style.backgroundSize ?? 'auto',
+      backgroundPosition: style.backgroundPosition ?? '0% 0%',
+      backgroundRepeat: style.backgroundRepeat ?? 'repeat',
+      backgroundOrigin: style.backgroundOrigin ?? 'padding-box',
+      backgroundClip: style.backgroundClip ?? 'border-box',
       backgroundGradient: typeof style.backgroundGradient === "string" ? style.backgroundGradient : (typeof style.backgroundImage === "string" && /-gradient\(/i.test(style.backgroundImage) ? style.backgroundImage : ""),
       opacity: opacity.number,
       opacityCss: opacity.css,
@@ -2029,6 +2040,7 @@ export function dispatchKey(id, key) {
 }
 
 export function dispatchHover(id, hovered) {
+  renderer.markTreeChanged();
   const target = findId(root, id);
   if (target) {
     target._isHovered = Boolean(hovered);
@@ -2039,6 +2051,7 @@ export function dispatchHover(id, hovered) {
 }
 
 export function dispatchActive(id, active) {
+  renderer.markTreeChanged();
   const target = findId(root, id);
   if (target) {
     target._isActive = Boolean(active);
@@ -2046,6 +2059,7 @@ export function dispatchActive(id, active) {
 }
 
 export function dispatchFocus(id, focused) {
+  renderer.markTreeChanged();
   const target = findId(root, id);
   if (target) {
     target._isFocused = Boolean(focused);
@@ -2060,7 +2074,7 @@ export function mountApp(Component) {
       "solid-js": solid,
       "solid-refresh": refresh,
       "native-renderer": renderer,
-      "native-host": { mountApp },
+      "native-host": { mountApp, setStyleSheet, removeStyleSheet },
     });
   }
   globalThis.uiSnapshot = () => JSON.stringify(snapshot(root));

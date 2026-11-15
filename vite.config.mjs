@@ -1,9 +1,10 @@
 import { defineConfig } from "vite";
 import solid from "@solidjs/vite-plugin";
 import { fileURLToPath } from "node:url";
+import nativeCss from './tools/vite-native-css.mjs';
 
 export default defineConfig(({ mode }) => ({
-  plugins: [solid({ solid: { generate: "universal", moduleName: "@zig-ui/solid/renderer" }, performanceTracks: false })],
+  plugins: [nativeCss(), solid({ solid: { generate: "universal", moduleName: "@zig-ui/solid/renderer" }, performanceTracks: false })],
   define: { __NATIVE_HMR__: JSON.stringify(mode === "native-hmr") },
   resolve: {
     ...(mode === "native-hmr" ? { conditions: ["development", "browser"] } : {}),

@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) void {
     check_module.addImport("ui_core", ui_core);
     check_module.linkLibrary(raylib.artifact("raylib"));
     check_module.addCSourceFile(.{ .file = b.path("src/text_backend.c"), .flags = &.{} });
+    check_module.addCSourceFile(.{ .file = b.path("src/cursor_backend.c"), .flags = &.{} });
     check_module.linkSystemLibrary("usp10", .{});
     check_module.linkSystemLibrary("imm32", .{});
     const native_check = b.addExecutable(.{ .name = "render-check", .root_module = check_module });

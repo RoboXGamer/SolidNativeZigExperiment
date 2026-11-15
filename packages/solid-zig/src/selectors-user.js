@@ -256,7 +256,7 @@ function matchesCompound(node, parts) {
     } else if (part.type === "id") {
       if (node.props.id !== part.value) return false;
     } else if (part.type === "class") {
-      const cls = node.props.class ?? node.props.className ?? "";
+      const cls = [node.props.class ?? node.props.className ?? '', ...Object.entries(node.props.classList || {}).filter(([,enabled]) => enabled).map(([name]) => name)].join(' ');
       const classes = String(cls).split(/\s+/);
       if (!classes.includes(part.value)) return false;
     } else if (part.type === "attribute") {
@@ -307,8 +307,14 @@ function matchesCompound(node, parts) {
         if (!matched) return false;
       } else if (part.name === "not") {
         if (part.argument && matches(node, part.argument)) return false;
+      } else if (part.name === "root") {
+        if (node.parent) return false;
+      } else if (part.name === "hover") {
+        if (!node._isHovered) return false;
+      } else if (part.name === "active") {
+        if (!node._isActive) return false;
       } else if (part.name === "focus") {
-        if (!node._focused) return false;
+        if (!node._isFocused && !node._focused) return false;
       } else if (part.name === "disabled") {
         if (!node.props.disabled) return false;
       } else if (part.name === "enabled") {
@@ -318,6 +324,8 @@ function matchesCompound(node, parts) {
       } else if (part.name === "empty") {
         if (node.children && node.children.length > 0) return false;
         if (node.text && node.text.length > 0) return false;
+      } else {
+        return false;
       }
     }
   }
@@ -388,6 +396,7 @@ function matchesComplexTokens(node, tokens) {
  */
 export function matches(node, selectorStr) {
   if (!node || !selectorStr) return false;
+  if (node.type === 'text') return false;
   const list = splitSelectorList(selectorStr);
   for (const item of list) {
     const tokens = parseComplexSelector(item);

@@ -29,7 +29,7 @@ for (let y = 0; y < 8; y++) {
   rows.push(Buffer.from(row));
 }
 writeFileSync(
-  new URL("../ui/styles/theme/checker.png", import.meta.url),
+  new URL("../examples/css/styles/theme/checker.png", import.meta.url),
   Buffer.concat([
     Buffer.from("89504e470d0a1a0a", "hex"),
     chunk("IHDR", header),

@@ -4,12 +4,16 @@ import commonjs from "@babel/plugin-transform-modules-commonjs";
 import { writeFile, rename } from "node:fs/promises";
 import { startNative, stopNative } from "./native-process.mjs";
 import { fileURLToPath } from "node:url";
+import { configureExample } from './example-entry.mjs';
 process.chdir(fileURLToPath(new URL("../", import.meta.url)));
+const selection = configureExample(process.argv.slice(2));
+if (selection.args.some(arg => arg !== '--app')) throw Error(`Unknown dev arguments: ${selection.args.join(' ')}`);
 const port = Number(process.env.DRAFT1_VITE_PORT || 5173);
 const server = await createServer({ mode: "native-hmr", server: { host: "127.0.0.1", port, strictPort: true } });
 await server.listen();
 const origin = `http://127.0.0.1:${port}`;
-const entry = process.env.DRAFT1_ENTRY || "/ui/app.js";
+const entry = selection.entry;
+console.log(`[example] running ${entry}`);
 const clean = id => {
   const url = new URL(id, origin);
   url.searchParams.delete("t"); url.searchParams.delete("v");

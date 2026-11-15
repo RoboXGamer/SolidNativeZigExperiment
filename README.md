@@ -15,7 +15,7 @@ pnpm run build:ui
 zig build run
 ```
 
-The default application is the CSS-file demo in `ui/css-demo.jsx`. Its styles start at `ui/styles/demo.css`; the async dropdown example remains in `ui/states.jsx`. `ui/native.js`, `ui/renderer.js`, and `ui/module-runtime.js` re-export the implementation in `packages/solid-zig/src`.
+The demos live in `examples/`: `css` demonstrates normal CSS files and `states` demonstrates the async state/city dropdown. Run `pnpm dev --example css` or `pnpm dev --example states`; omitting the selector uses `css`. See [the examples guide](examples/README.md) for build commands and adding a demo. `ui/native.js`, `ui/renderer.js`, and `ui/module-runtime.js` re-export the implementation in `packages/solid-zig/src`; the old UI demo entry files remain compatibility shims.
 
 `jsconfig.json` points the editor at the native JSX/style declarations. New application modules can import `mountApp` from `@zig-ui/solid`; the existing relative re-exports remain available.
 
@@ -27,7 +27,7 @@ The host supports Solid's client runtime rather than reimplementing its primitiv
 
 ## CSS files
 
-Import ordinary stylesheets with `import "./app.css"` and use `class`, `className`, `classList` and `id` in JSX. Run `pnpm dev`, edit `ui/styles/demo.css`, and click the demo's toggle to test reactive class changes. Existing native properties use their CSS spelling in files (`background-color`, `font-size`, `grid-template-columns`, etc.). Inline style objects remain supported.
+Import ordinary stylesheets with `import "./app.css"` and use `class`, `className`, `classList` and `id` in JSX. Run `pnpm dev`, edit `examples/css/styles/demo.css`, and click the demo's toggle to test reactive class changes. Existing native properties use their CSS spelling in files (`background-color`, `font-size`, `grid-template-columns`, etc.). Inline style objects remain supported.
 
 The Vite plugin uses Lightning CSS for parsing and local `@import` bundling, PostCSS to read normalized declarations, and pinned cssstyle definitions for shorthand expansion. The runtime resolves author styles by importance, layer, specificity and source order, with inline styles participating in the cascade. It resolves custom properties and inheritance before producing the existing native snapshot. Unchanged computed styles are cached. CSS-only edits preserve component state through the native module host; removing a CSS import prunes its stylesheet.
 

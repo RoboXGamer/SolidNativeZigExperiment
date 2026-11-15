@@ -1,4 +1,4 @@
 import { mountApp } from "@zig-ui/solid";
-import States from "./states.jsx";
+import CssDemo from "./css-demo.jsx";
 
-mountApp(States);
+mountApp(CssDemo);

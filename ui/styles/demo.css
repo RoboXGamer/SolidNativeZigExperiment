@@ -1,0 +1,65 @@
+@import "./theme/base.css";
+
+#css-demo {
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  gap: 16px;
+  color: #e9edf2;
+  font-family: system-ui;
+  font-size: 20px;
+}
+.title {
+  font-size: 32px;
+  font-weight: 700;
+}
+.description {
+  color: #b4becb;
+  font-size: 16px;
+}
+.samples {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}
+.card {
+  width: 320px;
+  height: 180px;
+  padding: var(--card-padding);
+  gap: 12px;
+  background-color: #263347;
+  border: 2px solid #49617c;
+  border-radius: 12px;
+}
+.small {
+  font-size: 16px;
+}
+#specificity {
+  border-color: #d9b66c;
+  color: #f3d394;
+}
+.card {
+  color: #d7e7ff;
+}
+.card.active {
+  background-color: #24554c;
+  border-color: #74d6b1;
+}
+.image {
+  background-image: url("./theme/checker.png");
+  background-size: 64px 64px;
+  background-repeat: repeat;
+  color: white;
+}
+.toggle {
+  width: 260px;
+  height: 48px;
+  padding: 12px;
+  background-color: #356a91;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.toggle:hover {
+  background-color: #4685b3;
+}

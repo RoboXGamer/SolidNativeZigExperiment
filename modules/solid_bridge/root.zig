@@ -11,6 +11,13 @@ extern fn ui_next_timeout() f64;
 extern fn ui_input(id: u32, text: [*:0]const u8) c_int;
 
 pub const Runtime = struct {
+    pub fn viewport(_: *Runtime, width: i32, height: i32) !void {
+        var command: [128]u8 = undefined;
+        const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "globalThis.__uiViewport={{width:{d},height:{d}}}", .{ width, height });
+        command[expression.len] = 0;
+        var result: [32]u8 = undefined;
+        if (ui_eval(@ptrCast(expression.ptr), &result, result.len) == 0) return error.JavaScriptEvaluationFailed;
+    }
     pub fn input(_: *Runtime, id: u32, text: [:0]const u8) !void {
         if (ui_input(id, text.ptr) == 0) return error.JavaScriptEvaluationFailed;
     }

@@ -3,6 +3,9 @@ const std = @import("std");
 const rl = @import("raylib");
 const ui = @import("ui_core");
 const Renderer = @import("renderer.zig").Renderer;
+extern fn ui_cursor_update([*]const u8, usize, c_int, c_int) void;
+extern fn ui_cursor_shutdown() void;
+extern "user32" fn GetCursor() ?*anyopaque;
 fn draw(_: *anyopaque, _: *ui.Scene, item: ui.Item, _: std.mem.Allocator) !void {
     if (std.mem.eql(u8, item.node.type, "text")) rl.drawRectangle(@intFromFloat(item.bounds.x), @intFromFloat(item.bounds.y), 4, 4, .white);
 }
@@ -37,6 +40,12 @@ pub fn main() !void {
     rl.setConfigFlags(.{ .window_hidden = true });
     rl.initWindow(128, 128, "Native paint regression");
     defer rl.closeWindow();
+    defer ui_cursor_shutdown();
+    ui_cursor_update("pointer", 7, 0, 0);
+    const pointer = GetCursor();
+    const cursor_url = "url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVR4nGNQDYj7j4ylTJ1RMAMdFKALoGuggwIAkDFsYfnTE3cAAAAASUVORK5CYII=\") 0 0, pointer";
+    ui_cursor_update(cursor_url, cursor_url.len, 0, 0);
+    try check(GetCursor() != null and GetCursor() != pointer, "CSS embedded raster cursor creation");
     var renderer = try Renderer.init(std.heap.page_allocator);
     defer renderer.deinit();
     var text_cache = backend.Cache.init(std.heap.page_allocator);
@@ -81,6 +90,15 @@ pub fn main() !void {
     const scaled = rl.getImageColor(image, 85, 50);
     const original = rl.getImageColor(image, 21, 21);
     try check(transformed.r > 220 and transformed.g > 220 and scaled.r > 220 and original.a < 10, "world transform applies to children and content");
+    rl.unloadImage(image);
+    image = try frame(&renderer,
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"position":"absolute","width":80,"height":80,"backgroundImage":"url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVR4nGNQDYj7j4ylTJ1RMAMdFKALoGuggwIAkDFsYfnTE3cAAAAASUVORK5CYII=\")","backgroundSize":"32px 32px","backgroundRepeat":"repeat","borderRadius":12}}]}
+    );
+    const image_light = rl.getImageColor(image, 8, 8);
+    const image_dark = rl.getImageColor(image, 24, 8);
+    const image_repeat = rl.getImageColor(image, 40, 8);
+    try check(image_light.g == 80 and image_dark.g == 53 and image_repeat.g == 80, "CSS embedded PNG decoding sizing and repeat");
+    try check(rl.getImageColor(image, 0, 0).a == 0, "CSS image rounded corner clipping");
     rl.unloadImage(image);
     std.debug.print("Native framebuffer regressions passed\n", .{});
 }

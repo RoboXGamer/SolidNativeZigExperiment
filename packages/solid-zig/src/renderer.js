@@ -3,6 +3,9 @@ import { matches, querySelector, querySelectorAll, closest } from "./selectors.j
 
 // Minimal retained tree; Solid owns mutations and disposal.
 let nextNodeId = 1;
+let treeVersion = 0;
+export const getTreeVersion = () => treeVersion;
+export const markTreeChanged = () => { treeVersion++; };
 export const node = (type, text = "") => {
   const n = {
     id: nextNodeId++,
@@ -43,10 +46,11 @@ export const node = (type, text = "") => {
 const renderer = createRenderer({
   createElement: (type, props) => Object.assign(node(type), { props: props || {} }),
   createTextNode: text => node("text", String(text)),
-  replaceText: (n, text) => { n.text = String(text); },
+  replaceText: (n, text) => { n.text = String(text); treeVersion++; },
   isTextNode: n => n.type === "text",
-  setProperty: (n, key, value) => { n.props[key] = value; },
+  setProperty: (n, key, value) => { n.props[key] = value; treeVersion++; },
   insertNode(parent, child, anchor) {
+    treeVersion++;
     if (child.parent) {
       const old = child.parent.children;
       const index = old.indexOf(child);
@@ -56,7 +60,7 @@ const renderer = createRenderer({
     parent.children.splice(i < 0 ? parent.children.length : i, 0, child);
     child.parent = parent;
   },
-  removeNode(parent, child) { const i = parent.children.indexOf(child); if (i >= 0) parent.children.splice(i, 1); child.parent = null; },
+  removeNode(parent, child) { treeVersion++; const i = parent.children.indexOf(child); if (i >= 0) parent.children.splice(i, 1); child.parent = null; },
   getParentNode: n => n.parent || undefined,
   getFirstChild: n => n.children[0],
   getNextSibling: n => n.parent?.children[n.parent.children.indexOf(n) + 1]

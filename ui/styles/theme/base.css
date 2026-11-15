@@ -1,0 +1,6 @@
+:root {
+  --card-padding: 20px;
+}
+.card {
+  box-sizing: border-box;
+}

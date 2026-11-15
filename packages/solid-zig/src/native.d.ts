@@ -518,3 +518,6 @@ export function isPlaceholderShown(node: any): boolean;
 export function pageSetup(input?: any): any;
 export function paginate(nodes?: any[], setup?: any): any[];
 export function parsePathShape(pathStr: string): any;
+/** Used by the native Vite CSS plugin. Replaces rules without changing sheet order. */
+export function setStyleSheet(id: string, rules: any[]): void;
+export function removeStyleSheet(id: string): void;

@@ -514,6 +514,10 @@ pub fn run() void {
     defer timeline.deinit();
     var tree = ui.Tree.init(std.heap.page_allocator);
     defer tree.deinit();
+    runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| {
+        std.log.err("Viewport update failed: {}", .{err});
+        return;
+    };
     _ = synchronize(&runtime, &tree) catch |err| {
         std.log.err("Could not initialize the native tree: {}", .{err});
         return;
@@ -538,6 +542,7 @@ pub fn run() void {
     var last_focused: ?u32 = null;
     while (!rl.windowShouldClose()) {
         _ = scratch.reset(.retain_capacity);
+        runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| std.log.err("Viewport update failed: {}", .{err});
         runtime.tick() catch |err| std.log.err("Async UI job failed: {}", .{err});
         const wheel = rl.getMouseWheelMove();
         if (wheel != 0) {
@@ -691,6 +696,10 @@ pub fn run() void {
         if (smoke) {
             smoke_frames += 1;
             if (smoke_frames >= 3) {
+                if (getEnvSlice("SOLID_NATIVE_SCREENSHOT")) |path| {
+                    const screenshot = scratch.allocator().dupeSentinel(u8, path, 0) catch return;
+                    rl.takeScreenshot(screenshot);
+                }
                 std.log.info("Native application smoke completed: {d} scene items", .{scene.items.items.len});
                 break;
             }

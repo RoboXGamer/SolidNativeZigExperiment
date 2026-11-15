@@ -81,9 +81,10 @@ pub const Renderer = struct {
         if (n.style.backgroundColor.len == 0 and std.mem.eql(u8, n.type, "option")) fill = .{ 40, 40, 40, 255 };
         const gradient = try ui.gradient.parseGradient(a, n.style.backgroundGradient);
         defer if (gradient) |g| a.free(g.stops);
-        if (fill[3] > 0 or gradient != null) {
+        if (fill[3] > 0 or gradient != null or n.style.backgroundImage.len > 0) {
             const bitmap = try ui.paint.backgroundElliptical(a, width, height, radius, fill, gradient);
             defer a.free(bitmap.pixels);
+            try @import("background_image.zig").paint(a, bitmap, n, radius);
             result.background = try upload(bitmap);
         }
         const shadows = try ui.paint.shadows(a, n.style.boxShadow);

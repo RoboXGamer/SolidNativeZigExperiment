@@ -149,7 +149,10 @@ int ui_reload(void) {
     if (!file) return 0;
     if (fseek(file, 0, SEEK_END) != 0) { fclose(file); return 0; }
     long size = ftell(file);
-    if (size <= 0 || size > 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) { fclose(file); return 0; }
+    if (size <= 0 || size > 32 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {
+        fprintf(stderr, "QuickJS: invalid development graph size (limit 32 MiB)\n");
+        fclose(file); return 0;
+    }
     char *source = malloc((size_t)size + 1);
     if (!source) { fclose(file); return 0; }
     size_t read = fread(source, 1, (size_t)size, file);

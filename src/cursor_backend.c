@@ -1,6 +1,5 @@
 // Native cursors, owned resource handles and bounded lookup cache. Resource URLs
-// resolve as local/file paths relative to the process working directory. Network,
-// data URLs, CSS escapes and SVG decoding are outside this local renderer.
+// resolve as local/file paths or embedded raster data URLs from the CSS compiler.
 #include <stddef.h>
 #ifdef _WIN32
 #ifndef UNICODE
@@ -16,6 +15,9 @@
 // Raylib's public C ABI; image data remains Raylib-owned until UnloadImage.
 typedef struct { void *data; int width, height, mipmaps, format; } CursorImage;
 extern CursorImage LoadImage(const char *fileName);
+extern CursorImage LoadImageFromMemory(const char *fileType, const unsigned char *data, int size);
+extern unsigned char *DecodeDataBase64(const unsigned char *data, int *size);
+extern void MemFree(void *ptr);
 extern void ImageFormat(CursorImage *image, int newFormat);
 extern void UnloadImage(CursorImage image);
 typedef struct { char *key; HCURSOR handle; } CursorEntry;
@@ -41,7 +43,18 @@ static wchar_t *wide_path(const char *path) {
     return wide;
 }
 static HCURSOR image_cursor(const char *path, int hx, int hy) {
-    CursorImage image = LoadImage(path);
+    CursorImage image = {0};
+    if (!strncmp(path, "data:image/", 11)) {
+        const char *comma = strchr(path, ',');
+        if (!comma || !strstr(path, ";base64,")) return NULL;
+        const char *ext = strstr(path,"image/png;") ? ".png" : strstr(path,"image/jpeg;") ? ".jpg" : strstr(path,"image/webp;") ? ".webp" : NULL;
+        if (!ext) return NULL;
+        int size = 0;
+        unsigned char *bytes = DecodeDataBase64((const unsigned char *)comma + 1, &size);
+        if (!bytes) return NULL;
+        image = LoadImageFromMemory(ext, bytes, size);
+        MemFree(bytes);
+    } else image = LoadImage(path);
     if (!image.data) return NULL;
     // Windows supports larger cursors, but bound allocations for CSS resources.
     if (image.width <= 0 || image.height <= 0 || image.width > 256 || image.height > 256) { UnloadImage(image); return NULL; }
@@ -107,9 +120,8 @@ static HCURSOR resource_cursor(char *candidate) {
     *end = 0;
     path = trim(path);
     if (!_strnicmp(path, "file:///", 8)) path += 8;
-    // HTTP/data resources intentionally fall through to the CSS keyword.
-    if (strstr(path, "://") || !_strnicmp(path, "data:", 5)) { free(key); return NULL; }
-    wchar_t *wide = wide_path(path);
+    if (strstr(path, "://")) { free(key); return NULL; }
+    wchar_t *wide = !_strnicmp(path,"data:",5) ? NULL : wide_path(path);
     HCURSOR cursor = wide ? (HCURSOR)LoadImageW(NULL, wide, IMAGE_CURSOR, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE) : NULL;
     free(wide);
     if (cursor && custom_hotspot) {

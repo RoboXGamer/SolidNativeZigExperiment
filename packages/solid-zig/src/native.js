@@ -1,6 +1,7 @@
 import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
+import frameInputs from "./frame-inputs.json" with { type: "json" };
 import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia, getStyleSheetVersion } from './stylesheets.js';
 export { setStyleSheet, removeStyleSheet } from './stylesheets.js';
 
@@ -2309,7 +2310,7 @@ export function mountApp(Component) {
   }
   globalThis.uiSnapshot = () => JSON.stringify(snapshot(root));
   let lastRevision, committedRevision, pendingRevision, lastPatch, lastMap;
-  globalThis.uiChanges = () => {
+  const collectChanges = () => {
     reconcileInteractionTree();
     const revision = fingerprint([
       root.id,
@@ -2326,7 +2327,7 @@ export function mountApp(Component) {
     ]);
     if (revision === lastRevision) {
       if (revision === committedRevision)
-        return JSON.stringify({ root: root.id, nodes: [], removed: [] });
+        return { root: root.id, nodes: [], removed: [] };
       pendingCommit = lastMap;
       pendingRevision = revision;
       return lastPatch;
@@ -2354,8 +2355,59 @@ export function mountApp(Component) {
     pendingCommit = current;
     pendingRevision = lastRevision = revision;
     lastMap = current;
-    lastPatch = JSON.stringify({ root: root.id, nodes, removed });
+    lastPatch = { root: root.id, nodes, removed };
     return lastPatch;
+  };
+  globalThis.uiChanges = () => JSON.stringify(collectChanges());
+  // Preserve phase granularity across the bridge. Existing nodes send only
+  // changed input groups; full nodes are needed only when creating identities.
+  globalThis.uiFrameChanges = () => {
+    const patch = collectChanges();
+    const nodes = [],
+      updates = [];
+    const project = (node, phase) => {
+      const schema = frameInputs[phase];
+      if (phase === "motion")
+        return Object.fromEntries(
+          schema.style.map((key) => [key, node.style[key]]),
+        );
+      const values = Object.fromEntries(
+        schema.node.map((key) => [
+          key,
+          key === "visibilitySpecified"
+            ? Boolean(node.style.interactionSpecified & 1)
+            : key === "children"
+              ? node.children.map((child) =>
+                  typeof child === "object" ? child.id : child,
+                )
+              : node[key],
+        ]),
+      );
+      values.style = Object.fromEntries(
+        schema.style.map((key) => [key, node.style[key]]),
+      );
+      return values;
+    };
+    for (const node of patch.nodes) {
+      const before = committed.get(node.id)?.snapshot;
+      if (!before) {
+        nodes.push(node);
+        continue;
+      }
+      const delta = { id: node.id };
+      for (const phase of Object.keys(frameInputs)) {
+        const values = project(node, phase);
+        if (JSON.stringify(values) !== JSON.stringify(project(before, phase)))
+          delta[phase] = values;
+      }
+      if (Object.keys(delta).length > 1) updates.push(delta);
+    }
+    return JSON.stringify({
+      root: patch.root,
+      nodes,
+      updates,
+      removed: patch.removed,
+    });
   };
   globalThis.uiCommit = () => {
     if (pendingCommit) {

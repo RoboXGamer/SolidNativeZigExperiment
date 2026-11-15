@@ -1,13 +1,15 @@
 //! Persistent node storage for incremental bridge commits.
 const std = @import("std");
 const core = @import("root.zig");
+const inputs = @import("frame_inputs.zig");
 const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", placeholder: []const u8 = "", clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, readOnly: bool = false, readWrite: bool = false, popoverOpen: bool = false, intrinsicAspectRatio: ?f32 = null, hovered: bool = false, active: bool = false, focused: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
-const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, removed: []const u32 = &.{} };
-const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode };
+const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, updates: []const inputs.Delta = &.{}, removed: []const u32 = &.{} };
+const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode, revisions: inputs.Revisions = .{} };
 pub const Tree = struct {
     allocator: std.mem.Allocator,
     nodes: std.AutoHashMap(u32, Entry),
     root: u32 = 0,
+    revisions: inputs.Revisions = .{},
     pub fn init(allocator: std.mem.Allocator) Tree {
         return .{ .allocator = allocator, .nodes = std.AutoHashMap(u32, Entry).init(allocator) };
     }
@@ -17,10 +19,15 @@ pub const Tree = struct {
         self.nodes.deinit();
     }
     pub fn apply(self: *Tree, json: []const u8) !bool {
+        return (try self.applyChanges(json)).state;
+    }
+    pub fn applyChanges(self: *Tree, json: []const u8) !inputs.Changes {
         const parsed = try std.json.parseFromSlice(Patch, self.allocator, json, .{ .ignore_unknown_fields = true });
         defer parsed.deinit();
         const patch = parsed.value;
-        if (patch.root == self.root and patch.nodes.len == 0 and patch.removed.len == 0) return false;
+        if (patch.root == self.root and patch.nodes.len == 0 and patch.updates.len == 0 and patch.removed.len == 0) return .{};
+        var effects: inputs.Changes = .{};
+        if (patch.root != self.root or patch.removed.len > 0) effects.geometry();
         var staged = std.AutoHashMap(u32, Entry).init(self.allocator);
         defer staged.deinit();
         errdefer {
@@ -28,26 +35,12 @@ pub const Tree = struct {
             while (entries.next()) |entry| entry.arena.deinit();
         }
         for (patch.nodes) |n| {
-            if (staged.contains(n.id)) return error.DuplicateNode;
-            var arena = std.heap.ArenaAllocator.init(self.allocator);
-            errdefer arena.deinit();
-            const a = arena.allocator();
-            var copy = n;
-            copy.type = try a.dupe(u8, n.type);
-            copy.text = try a.dupe(u8, n.text);
-            copy.value = try a.dupe(u8, n.value);
-            copy.placeholder = try a.dupe(u8, n.placeholder);
-            copy.style.columns = try a.dupe(f32, n.style.columns);
-            const s_info = @typeInfo(core.Style).@"struct";
-            inline for (s_info.field_names, s_info.field_types) |fname, ftype| {
-                if (ftype == []const u8) {
-                    @field(copy.style, fname) = try a.dupe(u8, @field(n.style, fname));
-                } else if (ftype == ?[]const u8) {
-                    if (@field(n.style, fname)) |value| @field(copy.style, fname) = try a.dupe(u8, value);
-                }
-            }
-            copy.children = try a.dupe(u32, n.children);
-            try staged.put(n.id, .{ .arena = arena, .node = copy });
+            try self.stage(&staged, n, &effects, null);
+        }
+        for (patch.updates) |delta| {
+            var n = (self.nodes.get(delta.id) orelse return error.UnknownNode).node;
+            delta.apply(&n);
+            try self.stage(&staged, n, &effects, delta);
         }
         var next = try self.nodes.clone();
         errdefer next.deinit();
@@ -61,7 +54,6 @@ pub const Tree = struct {
         defer visited.deinit();
         try validate(&next, &visited, patch.root, 0);
         if (visited.count() != next.count()) return error.UnreachableNode;
-        const changed = self.root != patch.root or patch.nodes.len > 0 or patch.removed.len > 0;
         var old = self.nodes.iterator();
         while (old.next()) |entry| {
             if (staged.contains(entry.key_ptr.*) or !next.contains(entry.key_ptr.*)) entry.value_ptr.arena.deinit();
@@ -69,7 +61,38 @@ pub const Tree = struct {
         self.nodes.deinit();
         self.nodes = next;
         self.root = patch.root;
-        return changed;
+        self.revisions.advance(effects);
+        return effects;
+    }
+    fn stage(self: *Tree, staged: *std.AutoHashMap(u32, Entry), n: FlatNode, effects: *inputs.Changes, delta: ?inputs.Delta) !void {
+        if (staged.contains(n.id)) return error.DuplicateNode;
+        var node_effects: inputs.Changes = .{};
+        var revisions: inputs.Revisions = .{};
+        if (self.nodes.get(n.id)) |previous| {
+            node_effects = if (delta) |update| update.effects(previous.node) else inputs.difference(previous.node, n);
+            revisions = previous.revisions;
+        } else node_effects.geometry();
+        effects.merge(node_effects);
+        revisions.advance(node_effects);
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        errdefer arena.deinit();
+        const a = arena.allocator();
+        var copy = n;
+        copy.type = try a.dupe(u8, n.type);
+        copy.text = try a.dupe(u8, n.text);
+        copy.value = try a.dupe(u8, n.value);
+        copy.placeholder = try a.dupe(u8, n.placeholder);
+        copy.style.columns = try a.dupe(f32, n.style.columns);
+        const s_info = @typeInfo(core.Style).@"struct";
+        inline for (s_info.field_names, s_info.field_types) |fname, ftype| {
+            if (ftype == []const u8) {
+                @field(copy.style, fname) = try a.dupe(u8, @field(n.style, fname));
+            } else if (ftype == ?[]const u8) {
+                if (@field(n.style, fname)) |value| @field(copy.style, fname) = try a.dupe(u8, value);
+            }
+        }
+        copy.children = try a.dupe(u32, n.children);
+        try staged.put(n.id, .{ .arena = arena, .node = copy, .revisions = revisions });
     }
 
     fn validate(nodes: *const std.AutoHashMap(u32, Entry), visited: *std.AutoHashMap(u32, void), id: u32, depth: usize) anyerror!void {
@@ -84,6 +107,13 @@ pub const Tree = struct {
         const n = (self.nodes.get(id) orelse return error.UnknownNode).node;
         const children = try allocator.alloc(core.Node, n.children.len);
         for (n.children, 0..) |child, i| children[i] = try self.materialize(allocator, child, depth + 1);
-        return .{ .id = n.id, .type = n.type, .text = n.text, .value = n.value, .placeholder = n.placeholder, .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .readOnly = n.readOnly, .readWrite = n.readWrite, .popoverOpen = n.popoverOpen, .intrinsicAspectRatio = n.intrinsicAspectRatio, .hovered = n.hovered, .active = n.active, .focused = n.focused, .style = n.style, .children = children };
+        var style = n.style;
+        inline for (@typeInfo(core.Style).@"struct".field_names, @typeInfo(core.Style).@"struct".field_types) |name, T| {
+            if (T == []const u8) @field(style, name) = try allocator.dupe(u8, @field(style, name)) else if (T == ?[]const u8) {
+                if (@field(style, name)) |value| @field(style, name) = try allocator.dupe(u8, value);
+            }
+        }
+        style.columns = try allocator.dupe(f32, style.columns);
+        return .{ .id = n.id, .type = try allocator.dupe(u8, n.type), .text = try allocator.dupe(u8, n.text), .value = try allocator.dupe(u8, n.value), .placeholder = try allocator.dupe(u8, n.placeholder), .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .readOnly = n.readOnly, .readWrite = n.readWrite, .popoverOpen = n.popoverOpen, .intrinsicAspectRatio = n.intrinsicAspectRatio, .hovered = n.hovered, .active = n.active, .focused = n.focused, .style = style, .children = children };
     }
 };

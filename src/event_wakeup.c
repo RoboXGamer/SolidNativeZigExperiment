@@ -4,6 +4,25 @@
 #include <windows.h>
 #include <math.h>
 extern void glfwPostEmptyEvent(void);
+typedef void (*RefreshCallback)(void*);
+extern void *glfwGetCurrentContext(void);
+extern RefreshCallback glfwSetWindowRefreshCallback(void*, RefreshCallback);
+static void *refresh_window;
+static RefreshCallback previous_refresh;
+static int refresh_pending;
+static void refresh_callback(void *window) {
+    refresh_pending = 1;
+    if (previous_refresh) previous_refresh(window);
+}
+void ui_refresh_start(void) {
+    refresh_window = glfwGetCurrentContext();
+    if (refresh_window) previous_refresh = glfwSetWindowRefreshCallback(refresh_window, refresh_callback);
+}
+int ui_refresh_changed(void) { int changed = refresh_pending; refresh_pending = 0; return changed; }
+void ui_refresh_stop(void) {
+    if (refresh_window) glfwSetWindowRefreshCallback(refresh_window, previous_refresh);
+    refresh_window = NULL; previous_refresh = NULL; refresh_pending = 0;
+}
 static HANDLE timer_handle, stop_event, worker;
 static DWORD WINAPI timer_worker(LPVOID unused) {
     (void)unused;
@@ -42,6 +61,9 @@ void ui_wake_stop(void) {
     worker = timer_handle = stop_event = NULL;
 }
 #else
+void ui_refresh_start(void) {}
+int ui_refresh_changed(void) { return 0; }
+void ui_refresh_stop(void) {}
 int ui_wake_start(void) { return 0; }
 void ui_wake_schedule(double seconds) { (void)seconds; }
 void ui_wake_stop(void) {}

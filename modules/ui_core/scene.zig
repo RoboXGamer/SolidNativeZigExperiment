@@ -426,6 +426,8 @@ pub const Scene = struct {
     text: Text = .{},
     length_context: sizing.Context = .{},
     viewport: Rect = .{},
+    unscrolled_bounds: ?[]Rect = null,
+    interaction_storage: ?std.heap.ArenaAllocator = null,
 
     pub fn textFor(self: *const Scene, node: *const Node) Text {
         return node.textContext(self.text);
@@ -1157,6 +1159,99 @@ pub const Scene = struct {
         return scene;
     }
 
+    /// Refresh non-geometric values in an independently owned scene, preserving
+    /// every laid-out/scrolled box. Caller must classify the patch before using
+    /// this path. Anonymous layout projections conservatively request a rebuild.
+    pub fn refreshPaint(self: *const Scene, tree: *const Tree) !Scene {
+        var arena = std.heap.ArenaAllocator.init(tree.allocator);
+        var transferred = false;
+        errdefer if (!transferred) arena.deinit();
+        const a = arena.allocator();
+        const source = try tree.materialize(a, tree.root, 0);
+        const new_root = try generateRoot(a, source);
+        var next = Scene{ .arena = arena, .root = new_root, .text = self.text, .length_context = self.length_context, .viewport = self.viewport };
+        transferred = true;
+        errdefer next.deinit();
+        const next_a = next.arena.allocator();
+        var nodes: std.AutoHashMapUnmanaged(u32, *Node) = .empty;
+        try next.refreshNode(self, new_root, null, &nodes);
+        for (self.items.items) |old| {
+            const n = nodes.get(old.node.id) orelse return error.IncompatibleSceneProjection;
+            try next.index.put(next_a, n.id, next.items.items.len);
+            try next.items.append(next_a, .{ .node = n, .bounds = old.bounds, .parent_id = old.parent_id, .used_margin = old.used_margin });
+        }
+        var areas = self.positioned_areas.iterator();
+        while (areas.next()) |entry| try next.positioned_areas.put(next_a, entry.key_ptr.*, entry.value_ptr.*);
+        if (self.unscrolled_bounds) |bounds| next.unscrolled_bounds = try next_a.dupe(Rect, bounds);
+        return next;
+    }
+    const InteractionUpdate = struct { target: *Node, values: @import("frame_inputs.zig").InteractionInputs, motion: style_mod.MotionStyle };
+    /// Interaction and transition configuration have independent storage. Updating
+    /// them neither recreates paint inputs nor resolves/measures layout inputs.
+    pub fn syncInteraction(self: *Scene, tree: *const Tree) !void {
+        var storage = std.heap.ArenaAllocator.init(tree.allocator);
+        errdefer storage.deinit();
+        const a = storage.allocator();
+        var updates: std.ArrayList(InteractionUpdate) = .empty;
+        var by_id: std.AutoHashMapUnmanaged(u32, usize) = .empty;
+        try stageInteraction(a, tree, self.root, null, &updates, &by_id);
+        for (self.items.items) |item| {
+            const index = by_id.get(item.node.id) orelse return error.IncompatibleSceneProjection;
+            const source = updates.items[index];
+            try updates.append(a, .{ .target = @constCast(item.node), .values = source.values, .motion = source.motion });
+        }
+        for (updates.items) |update| {
+            @import("frame_inputs.zig").setInteraction(update.target, update.values);
+            style_mod.assign(&update.target.style, update.motion);
+        }
+        if (self.interaction_storage) |*previous| previous.deinit();
+        self.interaction_storage = storage;
+    }
+    fn stageInteraction(a: std.mem.Allocator, tree: *const Tree, node: *Node, parent: ?@import("frame_inputs.zig").InteractionInputs, updates: *std.ArrayList(InteractionUpdate), by_id: *std.AutoHashMapUnmanaged(u32, usize)) anyerror!void {
+        const raw = (tree.nodes.get(node.id) orelse return error.IncompatibleSceneProjection).node;
+        var values = @import("frame_inputs.zig").select(@import("frame_inputs.zig").InteractionInputs, raw);
+        if (parent) |p| {
+            if (values.style.interactionSpecified & 2 == 0 and std.mem.eql(u8, values.style.pointerEvents, "auto")) values.style.pointerEvents = p.style.pointerEvents;
+            if (values.style.interactionSpecified & 4 == 0 and std.mem.eql(u8, values.style.cursor, "auto")) values.style.cursor = p.style.cursor;
+        }
+        inline for (@typeInfo(style_mod.InteractionStyle).@"struct".field_names, @typeInfo(style_mod.InteractionStyle).@"struct".field_types) |name, T| {
+            if (T == []const u8) @field(values.style, name) = try a.dupe(u8, @field(values.style, name));
+        }
+        var motion = style_mod.select(style_mod.MotionStyle, raw.style);
+        inline for (@typeInfo(style_mod.MotionStyle).@"struct".field_names, @typeInfo(style_mod.MotionStyle).@"struct".field_types) |name, T| {
+            if (T == []const u8) @field(motion, name) = try a.dupe(u8, @field(motion, name));
+        }
+        try by_id.put(a, node.id, updates.items.len);
+        try updates.append(a, .{ .target = node, .values = values, .motion = motion });
+        for (node.children) |*child| try stageInteraction(a, tree, child, values, updates, by_id);
+    }
+    fn refreshNode(self: *Scene, old: *const Scene, node: *Node, parent: ?*const Node, nodes: *std.AutoHashMapUnmanaged(u32, *Node)) anyerror!void {
+        @setEvalBranchQuota(200000);
+        const a = self.arena.allocator();
+        if (old.find(node.id)) |item| {
+            const authored = node.style;
+            node.style = item.node.style;
+            inline for (@typeInfo(Style).@"struct".field_names, @typeInfo(Style).@"struct".field_types) |name, T| {
+                if (comptime !@hasField(style_mod.LayoutStyle, name)) @field(node.style, name) = @field(authored, name);
+                if (T == []const u8) @field(node.style, name) = try a.dupe(u8, @field(node.style, name)) else if (T == ?[]const u8) {
+                    if (@field(node.style, name)) |value| @field(node.style, name) = try a.dupe(u8, value);
+                }
+            }
+            node.style.columns = try a.dupe(f32, node.style.columns);
+        }
+        // Resolve paint lengths/numbers in an isolated paint input, preserving
+        // the already measured layout values and boxes.
+        var paint_node: Node = .{ .id = node.id, .type = node.type, .style = .{ .fontSize = node.fontSize() } };
+        style_mod.assign(&paint_node.style, style_mod.select(style_mod.PaintStyle, node.style));
+        try self.resolveStyle(&paint_node, self.length_context, if (old.find(node.id)) |item| item.bounds.width else self.viewport.width, if (old.find(node.id)) |item| item.bounds.height else self.viewport.height, self.viewport.width);
+        style_mod.assign(&node.style, style_mod.select(style_mod.PaintStyle, paint_node.style));
+        const measured_layout = style_mod.select(style_mod.LayoutStyle, node.style);
+        self.inheritComputedStyle(node, parent orelse node);
+        style_mod.assign(&node.style, measured_layout);
+        try nodes.put(a, node.id, node);
+        for (node.children) |*child| try self.refreshNode(old, child, node, nodes);
+    }
+
     pub fn init(allocator: std.mem.Allocator, json: []const u8, width: f32, height: f32) !Scene {
         return initWithText(allocator, json, width, height, .{});
     }
@@ -1193,6 +1288,7 @@ pub const Scene = struct {
     }
 
     pub fn deinit(self: *Scene) void {
+        if (self.interaction_storage) |*storage| storage.deinit();
         self.arena.deinit();
     }
 
@@ -1763,8 +1859,13 @@ pub const Scene = struct {
 
     pub fn applyScrollOffsets(self: *Scene, offsets: *std.AutoHashMap(u32, ScrollOffset)) void {
         const a = self.arena.allocator();
-        const original = a.alloc(Rect, self.items.items.len) catch return;
-        for (self.items.items, 0..) |item, i| original[i] = item.bounds;
+        const original = self.unscrolled_bounds orelse blk: {
+            const bounds = a.alloc(Rect, self.items.items.len) catch return;
+            for (self.items.items, 0..) |item, i| bounds[i] = item.bounds;
+            self.unscrolled_bounds = bounds;
+            break :blk bounds;
+        };
+        for (self.items.items, original) |*item, bounds| item.bounds = bounds;
         // Clamp while all geometry is still in the unscrolled coordinate space.
         for (self.items.items) |item| if (offsets.getPtr(item.node.id)) |off| {
             const extent = self.scrollExtent(item.node.id);

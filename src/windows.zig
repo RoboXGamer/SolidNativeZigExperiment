@@ -8,10 +8,16 @@ extern fn ui_watch_stop() void;
 extern fn ui_wake_start() c_int;
 extern fn ui_wake_schedule(seconds: f64) void;
 extern fn ui_wake_stop() void;
+extern fn ui_refresh_start() void;
+extern fn ui_refresh_changed() c_int;
+extern fn ui_refresh_stop() void;
 extern fn ui_cursor_update([*]const u8, usize, c_int, c_int) void;
 extern fn ui_cursor_shutdown() void;
 extern fn ui_cursor_start() c_int;
 extern fn getenv([*:0]const u8) ?[*:0]const u8;
+extern "user32" fn InvalidateRect(?*anyopaque, ?*const anyopaque, c_int) c_int;
+extern "user32" fn UpdateWindow(?*anyopaque) c_int;
+extern "user32" fn SendMessageW(?*anyopaque, u32, usize, isize) isize;
 
 const source = @embedFile("ui-bundle.js");
 const window_width = 1280;
@@ -431,10 +437,10 @@ fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *
     if (changed) try runtime.input(item.node.id, try a.dupeSentinel(u8, value, 0));
 }
 
-fn synchronize(runtime: *bridge.Runtime, tree: *ui.Tree) !bool {
+fn synchronize(runtime: *bridge.Runtime, tree: *ui.Tree) !ui.frame_inputs.Changes {
     const json = try runtime.changes();
     defer runtime.freeChanges(json);
-    const changed = try tree.apply(json);
+    const changed = try tree.applyChanges(json);
     try runtime.acknowledge();
     return changed;
 }
@@ -483,6 +489,7 @@ fn buildScene(tree: *ui.Tree) !ui.Scene {
 pub fn run() void {
     const smoke = getenv("SOLID_NATIVE_SMOKE") != null;
     const hover_smoke = smoke and getenv("SOLID_NATIVE_HOVER_SMOKE") != null;
+    const frame_smoke = smoke and getenv("SOLID_NATIVE_FRAME_SMOKE") != null;
     var runtime = bridge.Runtime.init(source) catch |err| {
         std.log.err("Could not initialize Solid UI: {}", .{err});
         return;
@@ -491,6 +498,8 @@ pub fn run() void {
     rl.setConfigFlags(.{ .window_resizable = true, .vsync_hint = true, .window_hidden = smoke });
     rl.initWindow(window_width, window_height, "Solid + Zig experiment");
     defer rl.closeWindow();
+    ui_refresh_start();
+    defer ui_refresh_stop();
     if (ui_cursor_start() == 0) std.log.warn("Persistent cursor ownership unavailable", .{});
     defer ui_cursor_shutdown();
     var renderer = @import("renderer.zig").Renderer.init(std.heap.page_allocator) catch |err| {
@@ -504,7 +513,7 @@ pub fn run() void {
     defer if (watching) ui_watch_stop();
     if (watching and !runtime.reload()) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
     rl.setExitKey(.null);
-    const event_waiting = !smoke and ui_wake_start() != 0;
+    const event_waiting = (!smoke or frame_smoke) and ui_wake_start() != 0;
     defer if (event_waiting) ui_wake_stop();
     if (event_waiting) {
         rl.enableEventWaiting();
@@ -543,8 +552,11 @@ pub fn run() void {
     var last_hovered: ?u32 = null;
     var last_active: ?u32 = null;
     var last_focused: ?u32 = null;
+    var painted = false;
+    var layout_runs: usize = 1;
+    var paint_frames: usize = 0;
     var probe_button: ?u32 = null;
-    if (hover_smoke) {
+    if (hover_smoke or frame_smoke) {
         for (scene.items.items) |item| if (std.mem.eql(u8, item.node.type, "button")) {
             probe_button = item.node.id;
             break;
@@ -556,9 +568,26 @@ pub fn run() void {
     }
     while (!rl.windowShouldClose()) {
         _ = scratch.reset(.retain_capacity);
-        runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| std.log.err("Viewport update failed: {}", .{err});
+        if (frame_smoke) {
+            runtime.frameProbe(smoke_frames) catch |err| {
+                std.log.err("Frame probe failed: {}", .{err});
+                return;
+            };
+            if (smoke_frames == 127) {
+                _ = InvalidateRect(rl.getWindowHandle(), null, 0);
+                _ = UpdateWindow(rl.getWindowHandle());
+                _ = SendMessageW(rl.getWindowHandle(), 0x000f, 0, 0);
+            }
+            if (smoke_frames == 128) rl.setWindowSize(window_width + 40, window_height + 20);
+        }
+        const resized = last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight();
+        if (resized) runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| std.log.err("Viewport update failed: {}", .{err});
+        const previous_focus = focused;
+        const previous_editor = editor;
+        if (frame_smoke and smoke_frames == 129) focused = probe_button;
         runtime.tick() catch |err| std.log.err("Async UI job failed: {}", .{err});
         const wheel = rl.getMouseWheelMove();
+        var scrolled = false;
         if (wheel != 0) {
             const mouse = rl.getMousePosition();
             var allow_scroll = true;
@@ -570,7 +599,7 @@ pub fn run() void {
                 }
             }
             if (allow_scroll) {
-                _ = scene.chainWheel(mouse.x, mouse.y, 0, -wheel * 40, &scroll_offsets);
+                scrolled = scene.chainWheel(mouse.x, mouse.y, 0, -wheel * 40, &scroll_offsets);
             }
         }
         if (watching and ui_watch_changed() != 0) {
@@ -652,6 +681,24 @@ pub fn run() void {
         // Apply the complete interaction path before snapshot/layout/paint. In
         // event-wait mode there may be no next mouse event to finish this frame.
         var pointer = rl.getMousePosition();
+        if (frame_smoke) {
+            pointer = .{ .x = -10, .y = -10 };
+            if (smoke_frames > 0 and smoke_frames <= 120) {
+                for (scene.items.items) |item| if (std.mem.eql(u8, item.node.type, "text") and std.mem.startsWith(u8, item.node.text, "Edit examples/")) {
+                    pointer = .{ .x = item.bounds.x + 3 + @as(f32, @floatFromInt(smoke_frames % 20)), .y = item.bounds.y + 5 };
+                    break;
+                };
+            } else if (smoke_frames >= 121) {
+                const button = scene.find(probe_button.?).?;
+                pointer = .{ .x = button.bounds.x + 6, .y = button.bounds.y + button.bounds.height / 2 };
+                if (smoke_frames >= 122) for (scene.items.items) |item| {
+                    if (item.parent_id == probe_button and std.mem.eql(u8, item.node.type, "text")) {
+                        pointer = .{ .x = item.bounds.x + item.bounds.width / 2, .y = item.bounds.y + item.bounds.height / 2 };
+                        break;
+                    }
+                };
+            }
+        }
         if (hover_smoke) {
             // Drive the real frame pipeline without moving the user's OS cursor.
             pointer = .{ .x = -10, .y = -10 };
@@ -666,7 +713,7 @@ pub fn run() void {
                 };
             }
         }
-        const pointer_inside = hover_smoke or rl.isCursorOnScreen();
+        const pointer_inside = hover_smoke or frame_smoke or rl.isCursorOnScreen();
         const hovered_id = if (pointer_inside) scene.pointerTarget(pointer.x, pointer.y) else null;
         const active_id = if (rl.isMouseButtonDown(.left)) hovered_id else null;
         if (hovered_id != last_hovered or active_id != last_active or focused != last_focused) {
@@ -679,19 +726,41 @@ pub fn run() void {
             std.log.err("Could not update UI scene: {}", .{err});
             break;
         };
-        const scene_changed = changed or timeline.active() or wheel != 0 or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight();
-        if (scene_changed) {
-            var next = buildScene(&tree) catch |err| {
-                std.log.err("Could not lay out UI scene: {}", .{err});
+        const animating = timeline.active();
+        var layout_changed = changed.layout or resized or (animating and timeline.needsLayout());
+        const scene_changed = changed.state or animating or resized;
+        var interaction_synced = false;
+        if (changed.state and !changed.paint and !layout_changed and !animating) {
+            scene.syncInteraction(&tree) catch |err| {
+                if (err == error.IncompatibleSceneProjection) {
+                    layout_changed = true;
+                } else {
+                    std.log.err("Could not update interaction inputs: {}", .{err});
+                    break;
+                }
+            };
+            interaction_synced = !layout_changed;
+        }
+        if (scene_changed and !interaction_synced) {
+            var next = (if (layout_changed) buildScene(&tree) else scene.refreshPaint(&tree)) catch |err| fallback: {
+                if (err == error.IncompatibleSceneProjection) {
+                    layout_changed = true;
+                    break :fallback buildScene(&tree) catch |fallback_err| {
+                        std.log.err("Could not rebuild UI scene: {}", .{fallback_err});
+                        break;
+                    };
+                }
+                std.log.err("Could not update UI scene: {}", .{err});
                 break;
             };
-            if (changed) timeline.retarget(&scene, &next, rl.getTime()) catch |err| std.log.err("Transition retarget failed: {}", .{err});
+            if (layout_changed) layout_runs += 1;
+            if (changed.paint) timeline.retarget(&scene, &next, rl.getTime()) catch |err| std.log.err("Transition retarget failed: {}", .{err});
             timeline.apply(&next, rl.getTime()) catch |err| std.log.err("Transition sample failed: {}", .{err});
             scene.deinit();
             scene = next;
             last_width = rl.getScreenWidth();
             last_height = rl.getScreenHeight();
-            scene.applyScrollOffsets(&scroll_offsets);
+            if (layout_changed) scene.applyScrollOffsets(&scroll_offsets);
             var offsets = scroll_offsets.keyIterator();
             while (offsets.next()) |id| {
                 if (scene.find(id.*) == null) {
@@ -700,11 +769,12 @@ pub fn run() void {
                 }
             }
         }
+        if (scrolled and !layout_changed) scene.applyScrollOffsets(&scroll_offsets);
         if (focused) |id| if (scene.find(id) == null) {
             focused = null;
         };
         // Look up current styles in the freshly synchronized scene.
-        const cursor_target = if (!pointer_inside) null else if (scene_changed) scene.pointerTarget(pointer.x, pointer.y) else hovered_id;
+        const cursor_target = if (!pointer_inside) null else if (scene_changed or scrolled) scene.pointerTarget(pointer.x, pointer.y) else hovered_id;
         const reconcile_pointer = cursor_target != hovered_id;
         const hovered = if (cursor_target) |id| scene.find(id) else null;
         if (hover_smoke and smoke_frames > 0) {
@@ -726,18 +796,60 @@ pub fn run() void {
             ancestor = if (item.parent_id) |id| scene.find(id) else null;
         }
         if (pointer_inside) ui_cursor_update(cursor.ptr, cursor.len, if (hovered) |h| (if (std.mem.eql(u8, h.node.type, "input") or (std.mem.eql(u8, h.node.type, "text") and !pointer_control)) 1 else 0) else 0, if (pointer_control) 1 else 0);
-        rl.beginDrawing();
-        rl.clearBackground(background_color);
-        var draw_context = DrawContext{ .focused = focused, .editor = &editor, .scroll_offsets = &scroll_offsets, .text_cache = &text_cache };
-        renderer.render(&scene, &draw_context, drawItem, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
+        const refresh = ui_refresh_changed() != 0;
+        const needs_paint = !painted or changed.paint or layout_changed or animating or scrolled or previous_focus != focused or !std.meta.eql(previous_editor, editor) or refresh or (smoke and smoke_frames == 2 and getenv("SOLID_NATIVE_SCREENSHOT") != null);
+        if (needs_paint) {
+            rl.beginDrawing();
+            rl.clearBackground(background_color);
+            var draw_context = DrawContext{ .focused = focused, .editor = &editor, .scroll_offsets = &scroll_offsets, .text_cache = &text_cache };
+            renderer.render(&scene, &draw_context, drawItem, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
+            painted = true;
+            paint_frames += 1;
+        }
+        if (frame_smoke) {
+            const expected: struct { paints: usize, layouts: usize } = switch (smoke_frames) {
+                0...120 => .{ .paints = 1, .layouts = 1 },
+                121...123 => .{ .paints = 2, .layouts = 1 },
+                124 => .{ .paints = 3, .layouts = 2 },
+                125...126 => .{ .paints = 4, .layouts = 2 },
+                127 => .{ .paints = 5, .layouts = 2 },
+                128 => .{ .paints = 6, .layouts = 3 },
+                else => .{ .paints = 7, .layouts = 3 },
+            };
+            if (paint_frames != expected.paints or layout_runs != expected.layouts) {
+                std.log.err("Frame probe step {d}: {d} paints/{d} layouts, expected {d}/{d}", .{ smoke_frames, paint_frames, layout_runs, expected.paints, expected.layouts });
+                return;
+            }
+        }
         if (event_waiting) {
             const timeout = runtime.nextTimeout();
-            ui_wake_schedule(if (reconcile_pointer) 0 else if (timeline.active()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
+            ui_wake_schedule(if (frame_smoke or reconcile_pointer) 0 else if (timeline.active()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
         }
-        rl.endDrawing();
+        if (needs_paint) {
+            rl.endDrawing();
+        } else {
+            // Raylib normally processes events in EndDrawing. Wait/process them
+            // explicitly without drawing or swapping an unchanged framebuffer.
+            if (!event_waiting) rl.waitTime(1.0 / 60.0);
+            rl.pollInputEvents();
+        }
         if (smoke) {
             smoke_frames += 1;
-            if (smoke_frames >= 3) {
+            if (smoke_frames >= (if (frame_smoke) @as(usize, 130) else 3)) {
+                if (frame_smoke) {
+                    if (!event_waiting) {
+                        std.log.err("Frame probe did not exercise event waiting", .{});
+                        return;
+                    }
+                    std.log.info("Native frame scheduling passed: 120 unchanged moves, cursor-only update, paint hover, layout, timer, OS exposure, resize and focus; {d} paints/{d} layouts across {d} iterations", .{ paint_frames, layout_runs, smoke_frames });
+                }
+                if (hover_smoke) {
+                    if (paint_frames != 2 or layout_runs != 1) {
+                        std.log.err("Hover invalidation regression: {d} paints, {d} layouts", .{ paint_frames, layout_runs });
+                        return;
+                    }
+                    std.log.info("Native hover invalidation passed: 2 paints, 1 layout, text entry skipped paint", .{});
+                }
                 if (getEnvSlice("SOLID_NATIVE_SCREENSHOT")) |path| {
                     const screenshot = scratch.allocator().dupeSentinel(u8, path, 0) catch return;
                     rl.takeScreenshot(screenshot);

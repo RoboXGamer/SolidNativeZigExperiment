@@ -262,9 +262,9 @@ pub const Timeline = struct {
                             if (t.id == item.node.id and std.mem.eql(u8, t.field, name)) self.remove(k);
                         }
                     }
-                } else if (T == []const u8 and comptime std.mem.endsWith(u8, name, "Color")) {
+                } else if (T == []const u8 and comptime (std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color"))) {
                     if (ui.gradient.parseColor(@field(before, name))) |v| if (ui.gradient.parseColor(@field(after, name))) |next| try self.update(item.node.id, name, .{ .color = v }, .{ .color = next }, after, now);
-                } else if (T == []const u8 and !comptime std.mem.endsWith(u8, name, "Color")) {
+                } else if (T == []const u8 and !comptime (std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color"))) {
                     const before_str = @field(before, name);
                     const after_str = @field(after, name);
                     if (!std.mem.eql(u8, before_str, after_str)) {
@@ -277,7 +277,7 @@ pub const Timeline = struct {
             try self.update(item.node.id, "transform", .{ .matrix = from }, .{ .matrix = to }, after, now);
         }
     }
-    fn applyNode(self: *Timeline, n: *ui.Node, a: std.mem.Allocator, now: f64) !void {
+    fn applyStyle(self: *Timeline, n: *ui.Node, a: std.mem.Allocator, now: f64) !void {
         @setEvalBranchQuota(20000);
         for (self.tracks.items) |t| if (t.id == n.id) {
             const v = t.sample(now);
@@ -293,27 +293,36 @@ pub const Timeline = struct {
                 },
                 .color => |c| {
                     const value = try std.fmt.allocPrint(a, "#{x:0>2}{x:0>2}{x:0>2}{x:0>2}", .{ c[0], c[1], c[2], c[3] });
-                    inline for (@typeInfo(ui.Style).@"struct".field_names, @typeInfo(ui.Style).@"struct".field_types) |name, T| if (T == []const u8 and comptime std.mem.endsWith(u8, name, "Color")) {
+                    inline for (@typeInfo(ui.Style).@"struct".field_names, @typeInfo(ui.Style).@"struct".field_types) |name, T| if (T == []const u8 and comptime (std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color"))) {
                         if (std.mem.eql(u8, name, t.field)) @field(n.style, name) = value;
                     };
                 },
                 .matrix => |m| n.style.transform = try std.fmt.allocPrint(a, "matrix({d},{d},{d},{d},{d},{d})", .{ m.a, m.b, m.c, m.d, m.tx, m.ty }),
                 .discrete => |s| {
-                    inline for (@typeInfo(ui.Style).@"struct".field_names, @typeInfo(ui.Style).@"struct".field_types) |name, T| if (T == []const u8 and !comptime std.mem.endsWith(u8, name, "Color")) {
+                    inline for (@typeInfo(ui.Style).@"struct".field_names, @typeInfo(ui.Style).@"struct".field_types) |name, T| if (T == []const u8 and !comptime (std.mem.eql(u8, name, "color") or std.mem.endsWith(u8, name, "Color"))) {
                         if (std.mem.eql(u8, name, t.field)) @field(n.style, name) = s;
                     };
                 },
             }
         };
+    }
+    fn applyNode(self: *Timeline, n: *ui.Node, a: std.mem.Allocator, now: f64) anyerror!void {
+        try self.applyStyle(n, a, now);
         for (n.children) |*child| try self.applyNode(child, a, now);
     }
     /// Apply before re-layout, so width/height transitions move siblings too.
     pub fn apply(self: *Timeline, scene: *ui.Scene, now: f64) !void {
         if (!self.active()) return;
         try self.applyNode(scene.root, scene.arena.allocator(), now);
-        scene.items.clearRetainingCapacity();
-        scene.index.clearRetainingCapacity();
-        try scene.layout(scene.root, scene.viewport, null);
+        if (self.needsLayout()) {
+            scene.items.clearRetainingCapacity();
+            scene.index.clearRetainingCapacity();
+            scene.unscrolled_bounds = null;
+            try scene.layout(scene.root, scene.viewport, null);
+        } else {
+            // Paint transitions sample existing boxes without running layout.
+            for (scene.items.items) |item| try self.applyStyle(@constCast(item.node), scene.arena.allocator(), now);
+        }
         var i = self.tracks.items.len;
         while (i > 0) {
             i -= 1;
@@ -321,5 +330,10 @@ pub const Timeline = struct {
             if (now >= t.start + t.config.delay + t.config.duration) self.remove(i);
         }
     }
+    pub fn needsLayout(self: *const Timeline) bool {
+        inline for (@typeInfo(@import("style.zig").LayoutStyle).@"struct".field_names) |name| {
+            for (self.tracks.items) |track| if (std.mem.eql(u8, track.field, name)) return true;
+        }
+        return false;
+    }
 };
-

@@ -11,6 +11,13 @@ extern fn ui_next_timeout() f64;
 extern fn ui_input(id: u32, text: [*:0]const u8) c_int;
 
 pub const Runtime = struct {
+    pub fn frameProbe(_: *Runtime, step: usize) !void {
+        var command: [80]u8 = undefined;
+        const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "globalThis.uiFrameProbe({d})", .{step});
+        command[expression.len] = 0;
+        var result: [32]u8 = undefined;
+        if (ui_eval(@ptrCast(expression.ptr), &result, result.len) == 0) return error.JavaScriptEvaluationFailed;
+    }
     pub fn pointer(_: *Runtime, hovered: ?u32, active_id: ?u32, focused: ?u32) !void {
         var command: [128]u8 = undefined;
         const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "uiDispatchPointer({d},{d},{d})", .{ hovered orelse 0, active_id orelse 0, focused orelse 0 });
@@ -51,7 +58,7 @@ pub const Runtime = struct {
         ui_destroy();
     }
     pub fn changes(_: *Runtime) ![:0]u8 {
-        const result = ui_eval_string("uiChanges()") orelse return error.JavaScriptEvaluationFailed;
+        const result = ui_eval_string("uiFrameChanges()") orelse return error.JavaScriptEvaluationFailed;
         return std.mem.span(result);
     }
     pub fn freeChanges(_: *Runtime, value: [:0]u8) void {

@@ -1,6 +1,6 @@
 # Solid + Raylib experiment
 
-This is an early native UI experiment. The Solid Vite plugin compiles JSX for a custom universal renderer in QuickJS-NG. The JavaScript host compares its retained tree with the last acknowledged commit and sends changed nodes and removals to Zig. Zig retains those nodes, lays them out, draws with Raylib, and routes input back by node ID.
+This is an early native UI experiment. The Solid Vite plugin compiles JSX for a custom universal renderer in QuickJS-NG. The JavaScript host coalesces changes against the last acknowledged commit and sends node creation/removal plus separate layout, paint, interaction and motion inputs to Zig. Zig retains those nodes, updates the affected stages, draws with Raylib when pixels need updating, and routes input back by node ID.
 
 `modules/ui_core` contains backend-independent retained tree storage, box model, geometry, text metrics, block/flex/grid layout, positioning and transitions, clipping, hit testing, scrolling, and UTF-8 editing state. The renderer injects a `MeasureFn` (the Windows sample shares Uniscribe shaping between measurement and paint); headless callers have a documented estimator. `modules/solid_bridge` owns QuickJS jobs, timers and the change/input interface. `packages/solid-zig` contains the JavaScript renderer and module host. Each Zig module has its own build helper and standalone build entry point. The application in `src` supplies Raylib and the Windows watchers. These modules remain local development code; no library release has been made.
 
@@ -51,6 +51,8 @@ pnpm test:smoke
 The CSS tests cover nested imports and URLs, source order, specificity, shorthand/longhand conflicts, layers and `!important`, inheritance, variables/cycles, font-relative inheritance, viewport changes, and the actual native Vite development graph. The production bundle test clicks the reactive demo button; native framebuffer tests check decoded background-image pixels, repetition and rounded clipping. CSS source errors retain the last successfully published development graph.
 
 Pointer state is applied before snapshot, layout and paint in the input frame. Hover and active state include ancestors, so moving onto a button's text keeps the button hovered. Windows client cursors are retained across `WM_SETCURSOR` messages. `pnpm test:hover` checks interaction and cache invalidation; after building the CSS example, `pnpm test:hover:native` checks the real native frame pipeline. See [the hover latency investigation](docs/hover-input-latency.md) for measurements and reproduction commands.
+
+Native event processing is independent of painting and presentation: unchanged input wakes and cursor-only updates poll/wait through Raylib without drawing or swapping buffers. Paint updates retain measured boxes, while geometry inputs request layout. `pnpm test:frames:native` verifies the phase-aware bridge and scheduling in the actual event-waiting executable, then restores the normal CSS example. The phase contract, schema generation and remaining limits are described in [native frame scheduling](docs/native-frame-scheduling.md).
 
 QuickJS's C interpreter is compiled with `-O2` by default even when the Zig application uses Debug mode. To debug the interpreter without that override, build with `zig build -Dquickjs-optimize=false`.
 

@@ -5,6 +5,7 @@
 //! supplies a `MeasureFn` and draws the resulting items.
 const std = @import("std");
 pub const Tree = @import("tree.zig").Tree;
+pub const frame_inputs = @import("frame_inputs.zig");
 const scene = @import("scene.zig");
 
 pub const Style = scene.Style;
@@ -45,6 +46,7 @@ pub const page = @import("page.zig");
 pub const media_query = @import("media_query.zig");
 
 test {
+    std.testing.refAllDecls(@import("frame_inputs_tests.zig"));
     std.testing.refAllDecls(@import("tests.zig"));
     std.testing.refAllDecls(@import("phase_e_regressions.zig"));
 }

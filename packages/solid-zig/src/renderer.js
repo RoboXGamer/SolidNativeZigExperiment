@@ -20,12 +20,14 @@ export const node = (type, text = "") => {
     },
     setAttribute(name, value) {
       this.props[name] = String(value);
+      treeVersion++;
     },
     hasAttribute(name) {
       return this.props[name] !== undefined || (name === "id" && this.id != null);
     },
     removeAttribute(name) {
       delete this.props[name];
+      treeVersion++;
     },
     matches(selector) {
       return matches(this, selector, this);

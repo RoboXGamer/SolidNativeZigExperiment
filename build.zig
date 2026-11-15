@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     const solid_bridge = bridge_build.addModule(b, .{
+        .optimize_quickjs = b.option(bool, "quickjs-optimize", "Optimize QuickJS C interpreter even in Debug builds") orelse true,
         .source = b.path("modules/solid_bridge/root.zig"),
         .c_source = b.path("modules/solid_bridge/quickjs_bridge.c"),
         .quickjs_source = b.path("vendor/quickjs"),

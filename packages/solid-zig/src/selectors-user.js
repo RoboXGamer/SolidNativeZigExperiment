@@ -407,6 +407,12 @@ export function matches(node, selectorStr) {
   return false;
 }
 
+// Compile immutable stylesheet selectors once, rather than on pointer events.
+export function compileSelector(selector) {
+  const tokens = parseComplexSelector(selector);
+  return node => node && node.type !== 'text' && tokens.length > 0 && matchesComplexTokens(node, tokens);
+}
+
 /**
  * Compiles a list of style rules { selector, style } and sorts by specificity.
  */

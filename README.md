@@ -50,6 +50,10 @@ pnpm test:smoke
 
 The CSS tests cover nested imports and URLs, source order, specificity, shorthand/longhand conflicts, layers and `!important`, inheritance, variables/cycles, font-relative inheritance, viewport changes, and the actual native Vite development graph. The production bundle test clicks the reactive demo button; native framebuffer tests check decoded background-image pixels, repetition and rounded clipping. CSS source errors retain the last successfully published development graph.
 
+Pointer state is applied before snapshot, layout and paint in the input frame. Hover and active state include ancestors, so moving onto a button's text keeps the button hovered. Windows client cursors are retained across `WM_SETCURSOR` messages. `pnpm test:hover` checks interaction and cache invalidation; after building the CSS example, `pnpm test:hover:native` checks the real native frame pipeline. See [the hover latency investigation](docs/hover-input-latency.md) for measurements and reproduction commands.
+
+QuickJS's C interpreter is compiled with `-O2` by default even when the Zig application uses Debug mode. To debug the interpreter without that override, build with `zig build -Dquickjs-optimize=false`.
+
 Run `pnpm build:ui` before `zig build run` for the production bundle. Run commands from this directory. Generated bundles and the QuickJS checkout are ignored by Git. QuickJS-NG is MIT licensed; retain its checkout license when distributing the application.
 
 Run `pnpm run test:refresh` to check Solid Refresh and the universal renderer in Node's development runtime.

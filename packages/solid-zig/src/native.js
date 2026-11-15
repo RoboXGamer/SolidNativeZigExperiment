@@ -1,7 +1,7 @@
 import * as solid from "solid-js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
-import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia } from './stylesheets.js';
+import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia, getStyleSheetVersion } from './stylesheets.js';
 export { setStyleSheet, removeStyleSheet } from './stylesheets.js';
 
 import { createModuleHost } from "./module-runtime.js";
@@ -20,6 +20,7 @@ export function getEnvironmentVariable(name) {
 }
 
 export function setEnvironmentVariable(name, value) {
+  hostVersion++;
   envVars.set(name, String(value));
 }
 
@@ -52,11 +53,15 @@ let root = renderer.node("root");
 let dispose;
 let committed = new Map();
 let pendingCommit;
+let hostVersion = 0;
 
 function mount(Component) {
   const nextRoot = renderer.node("root");
   const nextDispose = renderer.render(() => renderer.createComponent(Component, {}), nextRoot);
   if (dispose) dispose();
+  hoverTarget = focusTarget = activeTarget = null;
+  hoverPath.clear();
+  activePath.clear();
   root = nextRoot;
   dispose = nextDispose;
 }
@@ -186,6 +191,7 @@ function boxSides(value, options) {
 export const propertyRegistry = new Map();
 
 export function registerProperty(definition) {
+  hostVersion++;
   if (!definition || !definition.name || !definition.name.startsWith("--")) {
     throw Error("Invalid custom property name");
   }
@@ -321,6 +327,7 @@ export function isPopoverOpen(node) {
 }
 
 export function showPopover(node) {
+  hostVersion++;
   if (!node || !node.props?.popover) return;
   const kind = String(node.props.popover).toLowerCase();
   if (kind !== "manual") {
@@ -335,6 +342,7 @@ export function showPopover(node) {
 }
 
 export function hidePopover(node) {
+  hostVersion++;
   if (!node) return;
   openPopovers.delete(node);
   node._popoverOpen = false;
@@ -932,6 +940,7 @@ function zIndexValue(value) {
 
 const fontFaceRegistry = new Map();
 export function registerFontFace(descriptor) {
+  hostVersion++;
   if (descriptor && descriptor.fontFamily) {
     fontFaceRegistry.set(descriptor.fontFamily.toLowerCase(), descriptor);
   }
@@ -1041,9 +1050,155 @@ export function resolveUnsetValues(style, inherited = {}) {
   return resolved;
 }
 
-export function snapshot(node, inherited = {}, inheritedVars = new Map(), quoteDepth = 0) {
-  let authored = resolveUnsetValues(sheetStyle(node, node.props.style, INHERITED_CSS_PROPERTIES, INITIAL_CSS_VALUES,
-    (kind, query) => kind === 'media' ? stylesheetMedia(query,evaluateMediaQuery) : evalSupportsCondition(query)), inherited);
+let snapshotDepth = 0;
+let snapshotVersion = 0;
+function computedNodeStyle(node) {
+  return sheetStyle(
+    node,
+    node.props.style,
+    INHERITED_CSS_PROPERTIES,
+    INITIAL_CSS_VALUES,
+    (kind, query) =>
+      kind === "media"
+        ? stylesheetMedia(query, evaluateMediaQuery)
+        : evalSupportsCondition(query),
+  );
+}
+function fingerprint(value) {
+  const seen = new WeakSet();
+  return JSON.stringify(value, (key, item) => {
+    if (typeof item === "function") return "[function]";
+    if (item instanceof Set) return [...item];
+    if (item instanceof Map) return [...item];
+    if (item && typeof item === "object") {
+      if (seen.has(item)) return "[reference]";
+      seen.add(item);
+    }
+    return item;
+  });
+}
+function prepareSnapshot(node) {
+  computedNodeStyle(node);
+  const children = node.children || [];
+  const internal = Object.fromEntries(
+    Object.entries(node).filter(
+      ([key]) =>
+        key.startsWith("_") &&
+        !key.startsWith("_css") &&
+        !key.startsWith("_snapshot"),
+    ),
+  );
+  if (internal._slottedChildren)
+    internal._slottedChildren = internal._slottedChildren.map(
+      (child) => child.id,
+    );
+  const control = fingerprint([
+    node.type,
+    node.props,
+    Object.fromEntries(
+      Object.entries(internal).filter(
+        ([key]) => !["_isHovered", "_isActive", "_isFocused"].includes(key),
+      ),
+    ),
+    node.parent?._snapshotControlVersion,
+    node._snapshotRootContext,
+    children.map((child) => child.id),
+  ]);
+  if (control !== node._snapshotControlSignature) {
+    node._snapshotControlSignature = control;
+    node._snapshotControlVersion = ++snapshotVersion;
+  }
+  const own = fingerprint([
+    node.id,
+    node.type,
+    node.text,
+    node.props,
+    node.states,
+    internal,
+    node._cssComputedVersion,
+    node.parent?._snapshotControlVersion,
+    node._snapshotRootContext,
+    children.map((child) => child.id),
+  ]);
+  if (own !== node._snapshotOwnSignature) {
+    node._snapshotOwnSignature = own;
+    node._snapshotOwnVersion = ++snapshotVersion;
+  }
+  const childVersions = children.map(prepareSnapshot);
+  const subtree = JSON.stringify([node._snapshotOwnVersion, childVersions]);
+  if (subtree !== node._snapshotSubtreeSignature) {
+    node._snapshotSubtreeSignature = subtree;
+    node._snapshotSubtreeVersion = ++snapshotVersion;
+  }
+  return node._snapshotSubtreeVersion;
+}
+export function snapshot(
+  node,
+  inherited = {},
+  inheritedVars = new Map(),
+  quoteDepth = 0,
+) {
+  if (snapshotDepth === 0) {
+    if (node === root) reconcileInteractionTree();
+    node._snapshotRootContext = fingerprint([
+      [...envVars],
+      [...propertyRegistry],
+      [...fontFaceRegistry],
+      globalThis.__uiViewport,
+      getPreferences(),
+      getScriptingState(),
+      activeViewTransition,
+      [...activeViewTransitionTypes],
+      renderer.getTarget(),
+      renderer.getTargetText(),
+    ]);
+    prepareSnapshot(node);
+  }
+  snapshotDepth++;
+  try {
+    const key = fingerprint([
+      node._snapshotOwnVersion,
+      inherited,
+      [...inheritedVars],
+      quoteDepth,
+    ]);
+    const cache = node._snapshotCache;
+    const ordinary =
+      !["details", "slot", "select", "option"].includes(node.type) &&
+      node._snapshotSubtreeVersion !== undefined;
+    if (ordinary && cache?.key === key) {
+      if (cache.version === node._snapshotSubtreeVersion) return cache.value;
+      const [textStyle, currentVars, nextQuoteDepth] =
+        node._snapshotChildContext;
+      const children = node.children.map((child) =>
+        snapshot(child, textStyle, currentVars, nextQuoteDepth),
+      );
+      const value = children.every(
+        (child, i) => child === cache.value.children[i],
+      )
+        ? cache.value
+        : { ...cache.value, children };
+      node._snapshotCache = {
+        key,
+        value,
+        version: node._snapshotSubtreeVersion,
+      };
+      return value;
+    }
+    const value = snapshotUncached(node, inherited, inheritedVars, quoteDepth);
+    if (ordinary)
+      node._snapshotCache = {
+        key,
+        value,
+        version: node._snapshotSubtreeVersion,
+      };
+    return value;
+  } finally {
+    snapshotDepth--;
+  }
+}
+function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
+  let authored = resolveUnsetValues(computedNodeStyle(node), inherited);
   const nodeStates = node.states || (node.props?.states instanceof Set ? node.props.states : (Array.isArray(node.props?.states) ? new Set(node.props.states) : (typeof node.props?.states === "object" ? new Set(Object.keys(node.props.states).filter(k => node.props.states[k])) : new Set())));
   if (node.props?.state) nodeStates.add(String(node.props.state));
 
@@ -1791,6 +1946,7 @@ export function snapshot(node, inherited = {}, inheritedVars = new Map(), quoteD
         };
         childrenNodes = summaryChild ? [summaryChild, contentBox] : [contentBox];
       }
+      node._snapshotChildContext = [textStyle, currentVars, nextQuoteDepth];
       return childrenNodes.map(child => snapshot(child, textStyle, currentVars, nextQuoteDepth));
     })(),
   };
@@ -1871,6 +2027,7 @@ export function findId(node, id) {
 }
 
 export function closeAllSelects(exceptNode = null) {
+  hostVersion++;
   function walk(n) {
     if (!n) return;
     if (n.type === "select" && n !== exceptNode) {
@@ -1897,6 +2054,7 @@ export function dispatch(target, name, type, value) {
 }
 
 export function dispatchSelectChange(selectNode, newValue) {
+  hostVersion++;
   selectNode._userInteracted = true;
   selectNode.props.value = newValue;
   selectNode._value = newValue;
@@ -1905,6 +2063,7 @@ export function dispatchSelectChange(selectNode, newValue) {
 }
 
 export function dispatchClick(id) {
+  hostVersion++;
   const target = findId(root, id);
   if (!target) {
     closeAllSelects();
@@ -1967,6 +2126,7 @@ export function findById(id) {
 }
 
 export function dispatchInput(id, value) {
+  hostVersion++;
   const target = findId(root, id);
   if (!target || target.type !== "input" || target.props.disabled || isReadOnly(target)) return;
   target._userInteracted = true;
@@ -1975,6 +2135,7 @@ export function dispatchInput(id, value) {
 }
 
 export function dispatchKey(id, key) {
+  hostVersion++;
   if (key === "Escape") {
     closeAllAutoPopovers();
   }
@@ -2039,31 +2200,100 @@ export function dispatchKey(id, key) {
   }
 }
 
-export function dispatchHover(id, hovered) {
-  renderer.markTreeChanged();
-  const target = findId(root, id);
-  if (target) {
-    target._isHovered = Boolean(hovered);
-    if (typeof target.props.onHover === "function") {
-      target.props.onHover(Boolean(hovered));
+let hoverTarget = null;
+let hoverPath = new Set();
+let activePath = new Set();
+let activeTarget = null;
+let focusTarget = null;
+let interactionTreeVersion = -1;
+function reconcileInteractionTree() {
+  const version = renderer.getTreeVersion();
+  if (version === interactionTreeVersion) return;
+  interactionTreeVersion = version;
+  // A stationary pointer can keep the same target ID while Solid reparents it.
+  dispatchPointer(hoverTarget?.id, activeTarget?.id, focusTarget?.id);
+}
+function ancestorPath(target) {
+  const path = new Set();
+  for (let node = target; node; node = node.parent) path.add(node);
+  return path;
+}
+function updatePath(previous, next, key) {
+  const changes = [];
+  for (const node of previous)
+    if (!next.has(node)) {
+      node[key] = false;
+      changes.push([node, false]);
     }
+  for (const node of next)
+    if (!previous.has(node)) {
+      node[key] = true;
+      changes.push([node, true]);
+    }
+  return changes;
+}
+export function dispatchPointer(hoveredId, activeId = 0, focusedId = 0) {
+  hoverTarget = findId(root, hoveredId);
+  const nextHover = ancestorPath(hoverTarget);
+  const changes = updatePath(hoverPath, nextHover, "_isHovered");
+  hoverPath = nextHover;
+  activeTarget = findId(root, activeId);
+  const nextActive = ancestorPath(activeTarget);
+  const activeChanges = updatePath(activePath, nextActive, "_isActive");
+  activePath = nextActive;
+  const nextFocus = findId(root, focusedId);
+  if (changes.length || activeChanges.length || focusTarget !== nextFocus)
+    hostVersion++;
+  if (focusTarget !== nextFocus) {
+    if (focusTarget) focusTarget._isFocused = false;
+    if (nextFocus) nextFocus._isFocused = true;
+    focusTarget = nextFocus;
   }
+  // Handlers observe a complete path, with common ancestors left untouched.
+  for (const [node, value] of changes)
+    if (typeof node.props.onHover === "function") node.props.onHover(value);
+}
+export function dispatchHover(id, hovered) {
+  const next = hovered
+    ? findId(root, id)
+    : hoverTarget?.id === id
+      ? null
+      : hoverTarget;
+  const nextPath = ancestorPath(next);
+  const changes = updatePath(hoverPath, nextPath, "_isHovered");
+  if (changes.length) hostVersion++;
+  hoverPath = nextPath;
+  hoverTarget = next;
+  for (const [node, value] of changes)
+    if (typeof node.props.onHover === "function") node.props.onHover(value);
 }
 
 export function dispatchActive(id, active) {
-  renderer.markTreeChanged();
   const target = findId(root, id);
-  if (target) {
-    target._isActive = Boolean(active);
-  }
+  activeTarget = active
+    ? target
+    : activeTarget === target
+      ? null
+      : activeTarget;
+  const next = ancestorPath(activeTarget);
+  if (updatePath(activePath, next, "_isActive").length) hostVersion++;
+  activePath = next;
 }
 
 export function dispatchFocus(id, focused) {
-  renderer.markTreeChanged();
+  if (
+    (focused && focusTarget?.id !== id) ||
+    (!focused && focusTarget?.id === id)
+  )
+    hostVersion++;
   const target = findId(root, id);
+  if (focused && focusTarget && focusTarget !== target)
+    focusTarget._isFocused = false;
   if (target) {
     target._isFocused = Boolean(focused);
   }
+  if (focused) focusTarget = target;
+  else if (focusTarget === target) focusTarget = null;
 }
 
 export function mountApp(Component) {
@@ -2078,24 +2308,65 @@ export function mountApp(Component) {
     });
   }
   globalThis.uiSnapshot = () => JSON.stringify(snapshot(root));
+  let lastRevision, committedRevision, pendingRevision, lastPatch, lastMap;
   globalThis.uiChanges = () => {
+    reconcileInteractionTree();
+    const revision = fingerprint([
+      root.id,
+      renderer.getTreeVersion(),
+      hostVersion,
+      getStyleSheetVersion(),
+      globalThis.__uiViewport,
+      getPreferences(),
+      getScriptingState(),
+      renderer.getTarget(),
+      renderer.getTargetText(),
+      activeViewTransition,
+      [...activeViewTransitionTypes],
+    ]);
+    if (revision === lastRevision) {
+      if (revision === committedRevision)
+        return JSON.stringify({ root: root.id, nodes: [], removed: [] });
+      pendingCommit = lastMap;
+      pendingRevision = revision;
+      return lastPatch;
+    }
     const nodes = [];
     const current = new Map();
     function visit(node) {
-      const flat = { ...node, children: node.children.map(child => child.id) };
+      const previous = committed.get(node.id);
+      if (previous?.snapshot === node) {
+        current.set(node.id, previous);
+        node.children.forEach(visit);
+        return;
+      }
+      const flat = {
+        ...node,
+        children: node.children.map((child) => child.id),
+      };
       const signature = JSON.stringify(flat);
-      current.set(node.id, signature);
-      if (committed.get(node.id) !== signature) nodes.push(flat);
+      current.set(node.id, { snapshot: node, signature });
+      if (previous?.signature !== signature) nodes.push(flat);
       node.children.forEach(visit);
     }
     visit(snapshot(root));
-    const removed = [...committed.keys()].filter(id => !current.has(id));
+    const removed = [...committed.keys()].filter((id) => !current.has(id));
     pendingCommit = current;
-    return JSON.stringify({ root: root.id, nodes, removed });
+    pendingRevision = lastRevision = revision;
+    lastMap = current;
+    lastPatch = JSON.stringify({ root: root.id, nodes, removed });
+    return lastPatch;
   };
-  globalThis.uiCommit = () => { if (pendingCommit) committed = pendingCommit; pendingCommit = undefined; };
-  globalThis.uiDispatchClick = id => dispatchClick(id);
+  globalThis.uiCommit = () => {
+    if (pendingCommit) {
+      committed = pendingCommit;
+      committedRevision = pendingRevision;
+    }
+    pendingCommit = undefined;
+  };
+  globalThis.uiDispatchClick = (id) => dispatchClick(id);
   globalThis.uiDispatchHover = (id, hovered) => dispatchHover(id, hovered);
+  globalThis.uiDispatchPointer = dispatchPointer;
   globalThis.uiDispatchActive = (id, active) => dispatchActive(id, active);
   globalThis.uiDispatchFocus = (id, focused) => dispatchFocus(id, focused);
   globalThis.uiDispatchInput = (id, value) => dispatchInput(id, value);
@@ -2105,6 +2376,9 @@ export function mountApp(Component) {
     dispose = undefined;
     globalThis.__uiModules?.dispose();
     root = renderer.node("root");
+    hoverTarget = focusTarget = activeTarget = null;
+    hoverPath.clear();
+    activePath.clear();
     committed.clear();
     pendingCommit = undefined;
   };

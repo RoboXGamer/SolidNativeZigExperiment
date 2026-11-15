@@ -1,19 +1,45 @@
 import { CSSStyleDeclaration } from "cssstyle";
 import {
-  matches,
   specificity,
   splitSelectorList,
   compareSpecificity,
+  compileSelector,
 } from "./selectors-user.js";
 import definitions from "./css-properties.json" with { type: "json" };
-import { getTreeVersion } from "./renderer.js";
-import { getPreferences } from './media.js';
 const sheets = new Map();
 let sheetVersion = 0;
+export const getStyleSheetVersion = () => sheetVersion;
 let computedVersion = 0;
 let metadata;
+let ruleId = 0;
+const declarationCache = new Map();
+function preparedRules(rules) {
+  return rules.map((rule) =>
+    rule.condition
+      ? { ...rule, rules: preparedRules(rule.rules) }
+      : {
+          ...rule,
+          id: ++ruleId,
+          selectors: splitSelectorList(rule.selector).map((selector) => ({
+            test: compileSelector(selector),
+            spec: specificity(selector),
+          })),
+        },
+  );
+}
+function parsedDeclaration(property, value) {
+  const key = `${property}\0${value}`;
+  if (declarationCache.has(key)) return declarationCache.get(key);
+  const declaration = new CSSStyleDeclaration();
+  declaration.setProperty(property, value);
+  const entries = [...declaration._values];
+  if (declarationCache.size >= 2048) declarationCache.clear();
+  declarationCache.set(key, entries);
+  return entries;
+}
 export function setStyleSheet(id, rules) {
-  sheets.set(id, rules);
+  sheets.set(id, preparedRules(rules));
+  declarationCache.clear();
   sheetVersion++;
 }
 export function removeStyleSheet(id) {
@@ -172,26 +198,18 @@ function substitute(value, variables, stack = new Set()) {
 }
 
 export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
-  if (!sheets.size) return inline || {};
-  const cacheKey = JSON.stringify([
-    sheetVersion,
-    getTreeVersion(),
-    node.props.id,
-    node.props.class,
-    node.props.className,
-    node.props.classList,
-    inline,
-    node.props.disabled,
-    node.props.checked,
-    node._isHovered,
-    node._isFocused,
-    node._isActive,
-    node.parent?._cssComputedVersion,
-    globalThis.__uiViewport,
-    getPreferences(),
-  ]);
-  if (node._cssCacheKey === cacheKey) return node._cssComputed;
-  node._cssCacheKey = cacheKey;
+  if (!sheets.size) {
+    if (node._cssCacheKey !== "no-stylesheets") {
+      node._cssCacheKey = "no-stylesheets";
+      node._cssComputedVersion = ++computedVersion;
+      node._cssInheritanceVersion = ++computedVersion;
+      delete node._cssComputed;
+      delete node._cssComputedSignature;
+      delete node._cssInheritanceSignature;
+      delete node._cssVariables;
+    }
+    return inline || {};
+  }
   if (!metadata)
     metadata = {
       inheritedKeys: new Set([
@@ -224,6 +242,7 @@ export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
   const winners = new Map();
   const candidates = new Map();
   const layers = new Map();
+  const matched = [];
   let order = 0;
   function offer(
     property,
@@ -267,33 +286,53 @@ export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
         continue;
       }
       let spec = null;
-      for (const selector of splitSelectorList(rule.selector))
-        if (matches(node, selector)) {
-          const next = specificity(selector);
+      for (const selector of rule.selectors)
+        if (selector.test(node)) {
+          const next = selector.spec;
           if (!spec || compareSpecificity(next, spec) > 0) spec = next;
         }
       if (!spec) continue;
-      for (const d of rule.declarations)
-        for (const leaf of d.leaves)
-          offer(leaf, d.value, d.important, [0, ...spec], layer, d.property);
+      matched.push({ rule, spec, layer });
     }
   }
   for (const rules of sheets.values()) visit(rules);
+  const needsParent =
+    matched.some(({ rule }) =>
+      rule.declarations.some(
+        (d) => d.value === "inherit" || /var\(/i.test(d.value),
+      ),
+    ) ||
+    Object.values(inline || {}).some(
+      (value) => value === "inherit" || /var\(/i.test(String(value)),
+    );
+  const cacheKey = JSON.stringify([
+    sheetVersion,
+    matched.map(({ rule, spec, layer }) => [rule.id, spec, layer]),
+    inline,
+    node.parent?._cssInheritanceVersion,
+    needsParent ? node.parent?._cssComputedVersion : null,
+  ]);
+  if (node._cssCacheKey === cacheKey) return node._cssComputed;
+  node._cssCacheKey = cacheKey;
+  for (const { rule, spec, layer } of matched) {
+    for (const d of rule.declarations)
+      for (const leaf of d.leaves)
+        offer(leaf, d.value, d.important, [0, ...spec], layer, d.property);
+  }
   // Inline declarations participate in the same per-property cascade.
   for (const [key, value] of Object.entries(inline || {})) {
     if (value == null || typeof value === "object") continue;
-    const declaration = new CSSStyleDeclaration();
     const property = cssName(key);
     const raw = String(value).replace(/\s*!important\s*$/i, "");
     const important =
       typeof value === "string" && /!important\s*$/i.test(value);
-    declaration.setProperty(
+    const parsed = parsedDeclaration(
       property,
       typeof value === "number" && !numeric.has(key) && value !== 0
         ? `${value}px`
         : raw,
     );
-    const entries = [...declaration._values].filter(([p]) => p !== property);
+    const entries = parsed.filter(([p]) => p !== property);
     if (entries.length)
       for (const [p, v] of entries) offer(p, v, important, [1, 0, 0, 0]);
     else
@@ -387,9 +426,10 @@ export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
       continue;
     }
     if (camel(winner.sourceProperty) !== key) {
-      const declaration = new CSSStyleDeclaration();
-      declaration.setProperty(winner.sourceProperty, value);
-      value = declaration.getPropertyValue(cssName(key)) || initials[key];
+      value =
+        parsedDeclaration(winner.sourceProperty, value).find(
+          ([p]) => p === cssName(key),
+        )?.[1] || initials[key];
     }
     result[key] = nativeValue(key, value);
   }
@@ -423,7 +463,20 @@ export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
       result[key] = pixels(result[key], result.fontSize ?? parentFont);
   if (winners.has("lineHeight") && /(?:px|em|rem|%)$/.test(result.lineHeight))
     result.lineHeight = `${pixels(result.lineHeight, result.fontSize ?? parentFont)}px`;
-  node._cssComputed = result;
-  node._cssComputedVersion = ++computedVersion;
-  return result;
+  const signature = JSON.stringify(result);
+  if (signature !== node._cssComputedSignature) {
+    node._cssComputed = result;
+    node._cssComputedSignature = signature;
+    node._cssComputedVersion = ++computedVersion;
+  }
+  const inheritance = JSON.stringify([
+    [...inheritedKeys].map((key) => result[key]),
+    variables,
+    node._cssRootFont,
+  ]);
+  if (inheritance !== node._cssInheritanceSignature) {
+    node._cssInheritanceSignature = inheritance;
+    node._cssInheritanceVersion = ++computedVersion;
+  }
+  return node._cssComputed;
 }

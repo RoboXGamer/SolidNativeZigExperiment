@@ -23,6 +23,36 @@ extern void UnloadImage(CursorImage image);
 typedef struct { char *key; HCURSOR handle; } CursorEntry;
 static CursorEntry cursor_cache[32];
 static unsigned cursor_next;
+extern void *GetWindowHandle(void);
+static HWND cursor_window;
+static WNDPROC previous_window_proc;
+static HCURSOR desired_cursor;
+static int cursor_selected;
+static char *last_style;
+static size_t last_length;
+static int last_text, last_pointer;
+
+// GLFW owns its own cursor object and restores it on WM_SETCURSOR. Handle the
+// client-area message at one persistent boundary, preserving GLFW's handling of
+// resize borders, the title bar and every other window/input message.
+static LRESULT CALLBACK cursor_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    if (message == WM_SETCURSOR && LOWORD(lparam) == HTCLIENT && cursor_selected) {
+        SetCursor(desired_cursor);
+        return TRUE;
+    }
+    return CallWindowProcW(previous_window_proc, window, message, wparam, lparam);
+}
+int ui_cursor_start(void) {
+    if (cursor_window) return 1;
+    HWND window = (HWND)GetWindowHandle();
+    if (!window) return 0;
+    SetLastError(0);
+    WNDPROC previous = (WNDPROC)SetWindowLongPtrW(window, GWLP_WNDPROC, (LONG_PTR)cursor_window_proc);
+    if (!previous) return 0;
+    previous_window_proc = previous;
+    cursor_window = window;
+    return 1;
+}
 
 static char *copy_range(const char *start, size_t length) {
     char *result = (char *)malloc(length + 1);
@@ -140,14 +170,14 @@ static HCURSOR resource_cursor(char *candidate) {
     }
     if (!cursor) cursor = image_cursor(path, (int)x, (int)y);
     CursorEntry *slot = &cursor_cache[cursor_next++ % 32];
-    if (slot->handle) { if (GetCursor() == slot->handle) SetCursor(LoadCursorW(NULL, IDC_ARROW)); DestroyCursor(slot->handle); }
+    if (slot->handle) { if (desired_cursor == slot->handle) desired_cursor = LoadCursorW(NULL, IDC_ARROW); if (GetCursor() == slot->handle) SetCursor(desired_cursor); DestroyCursor(slot->handle); }
     free(slot->key); slot->key = key; slot->handle = cursor;
     return cursor;
 }
 static HCURSOR keyword_cursor(const char *keyword, int text, int pointer) {
     LPCWSTR id = IDC_ARROW;
     if (!strcmp(keyword, "none")) return NULL;
-    if (!strcmp(keyword, "auto")) id = text ? IDC_IBEAM : pointer ? IDC_HAND : IDC_ARROW;
+    if (!strcmp(keyword, "auto")) id = pointer ? IDC_HAND : text ? IDC_IBEAM : IDC_ARROW;
     else if (!strcmp(keyword, "pointer") || !strcmp(keyword, "grab") || !strcmp(keyword, "grabbing")) id = IDC_HAND;
     else if (!strcmp(keyword, "text") || !strcmp(keyword, "vertical-text")) id = IDC_IBEAM;
     else if (!strcmp(keyword, "wait")) id = IDC_WAIT;
@@ -164,8 +194,14 @@ static HCURSOR keyword_cursor(const char *keyword, int text, int pointer) {
     return LoadCursorW(NULL, id);
 }
 void ui_cursor_update(const unsigned char *value, size_t length, int default_text, int default_pointer) {
+    if (last_style && length == last_length && last_text == default_text && last_pointer == default_pointer && !memcmp(last_style, value, length)) {
+        if (!cursor_window) SetCursor(desired_cursor);
+        return;
+    }
+    char *remember = copy_range((const char *)value, length);
+    if (!remember) return;
     char *copy = copy_range((const char *)value, length);
-    if (!copy) return;
+    if (!copy) { free(remember); return; }
     char *start = copy, *part = copy, quote = 0;
     int depth = 0;
     HCURSOR cursor = NULL;
@@ -187,15 +223,22 @@ void ui_cursor_update(const unsigned char *value, size_t length, int default_tex
         ++part;
     }
     if (!resolved) cursor = keyword_cursor("auto", default_text, default_pointer);
-    SetCursor(cursor);
+    desired_cursor = cursor;
+    cursor_selected = 1;
+    free(last_style); last_style = remember; last_length = length; last_text = default_text; last_pointer = default_pointer;
+    SetCursor(desired_cursor);
     free(copy);
 }
 void ui_cursor_shutdown(void) {
+    if (cursor_window && IsWindow(cursor_window)) SetWindowLongPtrW(cursor_window, GWLP_WNDPROC, (LONG_PTR)previous_window_proc);
+    cursor_window = NULL; previous_window_proc = NULL; cursor_selected = 0; desired_cursor = NULL;
+    free(last_style); last_style = NULL; last_length = 0;
     SetCursor(LoadCursorW(NULL, IDC_ARROW));
     for (unsigned i = 0; i < 32; ++i) { if (cursor_cache[i].handle) DestroyCursor(cursor_cache[i].handle); free(cursor_cache[i].key); memset(&cursor_cache[i], 0, sizeof(cursor_cache[i])); }
     cursor_next = 0;
 }
 #else
+int ui_cursor_start(void) { return 0; }
 void ui_cursor_update(const unsigned char *value, size_t length, int default_text, int default_pointer) { (void)value; (void)length; (void)default_text; (void)default_pointer; }
 void ui_cursor_shutdown(void) {}
 #endif

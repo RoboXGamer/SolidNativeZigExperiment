@@ -5,7 +5,9 @@ const ui = @import("ui_core");
 const Renderer = @import("renderer.zig").Renderer;
 extern fn ui_cursor_update([*]const u8, usize, c_int, c_int) void;
 extern fn ui_cursor_shutdown() void;
+extern fn ui_cursor_start() c_int;
 extern "user32" fn GetCursor() ?*anyopaque;
+extern "user32" fn SendMessageW(?*anyopaque, u32, usize, isize) isize;
 fn draw(_: *anyopaque, _: *ui.Scene, item: ui.Item, _: std.mem.Allocator) !void {
     if (std.mem.eql(u8, item.node.type, "text")) rl.drawRectangle(@intFromFloat(item.bounds.x), @intFromFloat(item.bounds.y), 4, 4, .white);
 }
@@ -41,11 +43,27 @@ pub fn main() !void {
     rl.initWindow(128, 128, "Native paint regression");
     defer rl.closeWindow();
     defer ui_cursor_shutdown();
+    try check(ui_cursor_start() == 1, "persistent cursor message ownership");
     ui_cursor_update("pointer", 7, 0, 0);
     const pointer = GetCursor();
+    const hwnd: ?*anyopaque = rl.getWindowHandle();
+    ui_cursor_update("text", 4, 1, 0);
+    const text_cursor = GetCursor();
+    _ = SendMessageW(hwnd, 0x20, @intFromPtr(hwnd), 1 | (0x200 << 16));
+    try check(GetCursor() == text_cursor and text_cursor != pointer, "text cursor persists through WM_SETCURSOR");
+    _ = SendMessageW(hwnd, 0x20, @intFromPtr(hwnd), 2 | (0x200 << 16));
+    try check(GetCursor() != text_cursor, "non-client cursor remains owned by the window system");
+    ui_cursor_update("auto", 4, 1, 1);
+    try check(GetCursor() == pointer, "clickable control cursor takes precedence over child text");
     const cursor_url = "url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVR4nGNQDYj7j4ylTJ1RMAMdFKALoGuggwIAkDFsYfnTE3cAAAAASUVORK5CYII=\") 0 0, pointer";
     ui_cursor_update(cursor_url, cursor_url.len, 0, 0);
     try check(GetCursor() != null and GetCursor() != pointer, "CSS embedded raster cursor creation");
+    const raster_cursor = GetCursor();
+    _ = SendMessageW(hwnd, 0x20, @intFromPtr(hwnd), 1 | (0x200 << 16));
+    try check(GetCursor() == raster_cursor, "raster cursor persists through WM_SETCURSOR");
+    ui_cursor_update("none", 4, 0, 0);
+    _ = SendMessageW(hwnd, 0x20, @intFromPtr(hwnd), 1 | (0x200 << 16));
+    try check(GetCursor() == null, "hidden cursor persists through WM_SETCURSOR");
     var renderer = try Renderer.init(std.heap.page_allocator);
     defer renderer.deinit();
     var text_cache = backend.Cache.init(std.heap.page_allocator);

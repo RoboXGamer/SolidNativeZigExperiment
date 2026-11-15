@@ -6,6 +6,7 @@ pub const Options = struct {
     quickjs_source: std.Build.LazyPath,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
+    optimize_quickjs: bool = true,
 };
 
 pub fn addModule(b: *std.Build, options: Options) *std.Build.Module {
@@ -16,8 +17,16 @@ pub fn addModule(b: *std.Build, options: Options) *std.Build.Module {
     else
         &.{"-D_GNU_SOURCE"};
     module.addCSourceFile(.{ .file = options.c_source, .flags = flags });
+    // Keep the host/Zig code debuggable without running the bytecode interpreter
+    // at -O0 on every mouse event. This does not enable fast-math or disable checks.
+    const vm_flags: []const []const u8 = if (options.optimize_quickjs) blk: {
+        const optimized = b.allocator.alloc([]const u8, flags.len + 1) catch @panic("OOM");
+        @memcpy(optimized[0..flags.len], flags);
+        optimized[flags.len] = "-O2";
+        break :blk optimized;
+    } else flags;
     for ([_][]const u8{ "cutils.c", "dtoa.c", "libregexp.c", "libunicode.c", "quickjs.c" }) |file| {
-        module.addCSourceFile(.{ .file = options.quickjs_source.path(b, file), .flags = flags });
+        module.addCSourceFile(.{ .file = options.quickjs_source.path(b, file), .flags = vm_flags });
     }
     module.link_libc = true;
     return module;
@@ -32,5 +41,6 @@ pub fn build(b: *std.Build) void {
         .quickjs_source = .{ .cwd_relative = source_dir },
         .target = b.standardTargetOptions(.{}),
         .optimize = b.standardOptimizeOption(.{}),
+        .optimize_quickjs = b.option(bool, "quickjs-optimize", "Optimize QuickJS C interpreter even in Debug builds") orelse true,
     });
 }

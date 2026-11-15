@@ -10,6 +10,7 @@ extern fn ui_wake_schedule(seconds: f64) void;
 extern fn ui_wake_stop() void;
 extern fn ui_cursor_update([*]const u8, usize, c_int, c_int) void;
 extern fn ui_cursor_shutdown() void;
+extern fn ui_cursor_start() c_int;
 extern fn getenv([*:0]const u8) ?[*:0]const u8;
 
 const source = @embedFile("ui-bundle.js");
@@ -481,6 +482,7 @@ fn buildScene(tree: *ui.Tree) !ui.Scene {
 
 pub fn run() void {
     const smoke = getenv("SOLID_NATIVE_SMOKE") != null;
+    const hover_smoke = smoke and getenv("SOLID_NATIVE_HOVER_SMOKE") != null;
     var runtime = bridge.Runtime.init(source) catch |err| {
         std.log.err("Could not initialize Solid UI: {}", .{err});
         return;
@@ -489,6 +491,7 @@ pub fn run() void {
     rl.setConfigFlags(.{ .window_resizable = true, .vsync_hint = true, .window_hidden = smoke });
     rl.initWindow(window_width, window_height, "Solid + Zig experiment");
     defer rl.closeWindow();
+    if (ui_cursor_start() == 0) std.log.warn("Persistent cursor ownership unavailable", .{});
     defer ui_cursor_shutdown();
     var renderer = @import("renderer.zig").Renderer.init(std.heap.page_allocator) catch |err| {
         std.log.err("Renderer initialization failed: {}", .{err});
@@ -540,6 +543,17 @@ pub fn run() void {
     var last_hovered: ?u32 = null;
     var last_active: ?u32 = null;
     var last_focused: ?u32 = null;
+    var probe_button: ?u32 = null;
+    if (hover_smoke) {
+        for (scene.items.items) |item| if (std.mem.eql(u8, item.node.type, "button")) {
+            probe_button = item.node.id;
+            break;
+        };
+        if (probe_button == null) {
+            std.log.err("Hover regression needs the CSS example", .{});
+            return;
+        }
+    }
     while (!rl.windowShouldClose()) {
         _ = scratch.reset(.retain_capacity);
         runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| std.log.err("Viewport update failed: {}", .{err});
@@ -635,11 +649,38 @@ pub fn run() void {
             };
         }
         keyboard(&runtime, &scene, focused, &editor, scratch.allocator()) catch |err| std.log.err("Text input failed: {}", .{err});
+        // Apply the complete interaction path before snapshot/layout/paint. In
+        // event-wait mode there may be no next mouse event to finish this frame.
+        var pointer = rl.getMousePosition();
+        if (hover_smoke) {
+            // Drive the real frame pipeline without moving the user's OS cursor.
+            pointer = .{ .x = -10, .y = -10 };
+            if (smoke_frames > 0) {
+                const button = scene.find(probe_button.?).?;
+                pointer = .{ .x = button.bounds.x + 6, .y = button.bounds.y + button.bounds.height / 2 };
+                if (smoke_frames == 2) for (scene.items.items) |item| {
+                    if (item.parent_id == probe_button and std.mem.eql(u8, item.node.type, "text")) {
+                        pointer = .{ .x = item.bounds.x + item.bounds.width / 2, .y = item.bounds.y + item.bounds.height / 2 };
+                        break;
+                    }
+                };
+            }
+        }
+        const pointer_inside = hover_smoke or rl.isCursorOnScreen();
+        const hovered_id = if (pointer_inside) scene.pointerTarget(pointer.x, pointer.y) else null;
+        const active_id = if (rl.isMouseButtonDown(.left)) hovered_id else null;
+        if (hovered_id != last_hovered or active_id != last_active or focused != last_focused) {
+            runtime.pointer(hovered_id, active_id, focused) catch |err| std.log.err("Pointer state failed: {}", .{err});
+            last_hovered = hovered_id;
+            last_active = active_id;
+            last_focused = focused;
+        }
         const changed = synchronize(&runtime, &tree) catch |err| {
             std.log.err("Could not update UI scene: {}", .{err});
             break;
         };
-        if (changed or timeline.active() or wheel != 0 or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight()) {
+        const scene_changed = changed or timeline.active() or wheel != 0 or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight();
+        if (scene_changed) {
             var next = buildScene(&tree) catch |err| {
                 std.log.err("Could not lay out UI scene: {}", .{err});
                 break;
@@ -662,35 +703,36 @@ pub fn run() void {
         if (focused) |id| if (scene.find(id) == null) {
             focused = null;
         };
-        const pointer = rl.getMousePosition();
-        const hovered = if (scene.pointerTarget(pointer.x, pointer.y)) |id| scene.find(id) else null;
-        const hovered_id = if (hovered) |h| h.node.id else null;
-        if (hovered_id != last_hovered) {
-            if (last_hovered) |old_id| runtime.hover(old_id, false) catch {};
-            if (hovered_id) |new_id| runtime.hover(new_id, true) catch {};
-            last_hovered = hovered_id;
-        }
-        const is_down = rl.isMouseButtonDown(.left);
-        const active_id: ?u32 = if (is_down) hovered_id else null;
-        if (active_id != last_active) {
-            if (last_active) |old_id| runtime.active(old_id, false) catch {};
-            if (active_id) |new_id| runtime.active(new_id, true) catch {};
-            last_active = active_id;
-        }
-        if (focused != last_focused) {
-            if (last_focused) |old_id| runtime.focus(old_id, false) catch {};
-            if (focused) |new_id| runtime.focus(new_id, true) catch {};
-            last_focused = focused;
+        // Look up current styles in the freshly synchronized scene.
+        const cursor_target = if (!pointer_inside) null else if (scene_changed) scene.pointerTarget(pointer.x, pointer.y) else hovered_id;
+        const reconcile_pointer = cursor_target != hovered_id;
+        const hovered = if (cursor_target) |id| scene.find(id) else null;
+        if (hover_smoke and smoke_frames > 0) {
+            const button = scene.find(probe_button.?).?;
+            if (!button.node.hovered or !std.mem.eql(u8, button.node.style.backgroundColor, "#4685b3")) {
+                std.log.err("Hover was not synchronized in the input frame", .{});
+                return;
+            }
+            if (smoke_frames == 2) std.log.info("Native hover frame regression passed: immediate entry and text ancestry", .{});
         }
         const cursor = if (hovered) |h| h.node.style.cursor else "auto";
-        ui_cursor_update(cursor.ptr, cursor.len, if (hovered) |h| (if (std.mem.eql(u8, h.node.type, "input") or std.mem.eql(u8, h.node.type, "text")) 1 else 0) else 0, if (hovered) |h| (if (h.node.clickable) 1 else 0) else 0);
+        var pointer_control = false;
+        var ancestor = hovered;
+        while (ancestor) |item| {
+            if (item.node.clickable) {
+                pointer_control = true;
+                break;
+            }
+            ancestor = if (item.parent_id) |id| scene.find(id) else null;
+        }
+        if (pointer_inside) ui_cursor_update(cursor.ptr, cursor.len, if (hovered) |h| (if (std.mem.eql(u8, h.node.type, "input") or (std.mem.eql(u8, h.node.type, "text") and !pointer_control)) 1 else 0) else 0, if (pointer_control) 1 else 0);
         rl.beginDrawing();
         rl.clearBackground(background_color);
         var draw_context = DrawContext{ .focused = focused, .editor = &editor, .scroll_offsets = &scroll_offsets, .text_cache = &text_cache };
         renderer.render(&scene, &draw_context, drawItem, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
         if (event_waiting) {
             const timeout = runtime.nextTimeout();
-            ui_wake_schedule(if (timeline.active()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
+            ui_wake_schedule(if (reconcile_pointer) 0 else if (timeline.active()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
         }
         rl.endDrawing();
         if (smoke) {

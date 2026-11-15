@@ -521,3 +521,5 @@ export function parsePathShape(pathStr: string): any;
 /** Used by the native Vite CSS plugin. Replaces rules without changing sheet order. */
 export function setStyleSheet(id: string, rules: any[]): void;
 export function removeStyleSheet(id: string): void;
+/** Updates hover/active ancestry and focus in one interaction transaction. Zero clears a target. */
+export function dispatchPointer(hoveredId: number, activeId?: number, focusedId?: number): void;

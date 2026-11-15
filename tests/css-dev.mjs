@@ -7,9 +7,9 @@ import * as refresh from "solid-js/refresh";
 import * as native from "../packages/solid-zig/src/native.js";
 import * as renderer from "../packages/solid-zig/src/renderer.js";
 import { createModuleHost } from "../packages/solid-zig/src/module-runtime.js";
-const cssFile = new URL("../ui/styles/theme/base.css", import.meta.url);
+const cssFile = new URL("../examples/css/styles/theme/base.css", import.meta.url);
 const original = await readFile(cssFile, "utf8");
-const child = spawn(process.execPath, ["tools/dev.mjs"], {
+const child = spawn(process.execPath, ["tools/dev.mjs", "--example", "css"], {
   env: { ...process.env, DRAFT1_VITE_PORT: "5187" },
   stdio: ["ignore", "pipe", "pipe"],
 });

@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import solid from "@solidjs/vite-plugin";
 import { fileURLToPath } from "node:url";
 import nativeCss from './tools/vite-native-css.mjs';
+import { exampleEntry } from './tools/example-entry.mjs';
 
 export default defineConfig(({ mode }) => ({
   plugins: [nativeCss(), solid({ solid: { generate: "universal", moduleName: "@zig-ui/solid/renderer" }, performanceTracks: false })],
@@ -19,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: false,
     minify: false,
     lib: {
-      entry: "ui/app.js",
+      entry: '.' + exampleEntry(),
       name: "SolidNativeExperiment",
       formats: ["iife"],
       fileName: () => "ui-bundle.js",

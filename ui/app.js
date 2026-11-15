@@ -1,4 +1,2 @@
-import { mountApp } from "@zig-ui/solid";
-import CssDemo from "./css-demo.jsx";
-
-mountApp(CssDemo);
+// Compatibility entry for older scripts; new demos live under examples/.
+import "../examples/css/app.js";

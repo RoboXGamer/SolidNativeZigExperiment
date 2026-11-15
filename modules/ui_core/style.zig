@@ -343,6 +343,17 @@ pub const MotionStyle = struct {
 };
 
 pub const Style = join(.{ LayoutStyle, PaintStyle, InteractionStyle, MotionStyle });
+// One property order defines authored-inheritance flags on both sides of the bridge.
+pub const typographyFields = .{
+    "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse", "verticalAlign", "textOrientation", "textShadow", "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset", "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor", "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle", "rubyAlign",
+};
+pub const paintTypographyMask: u32 = mask: {
+    var bits: u32 = 0;
+    for (typographyFields, 0..) |field, bit| if (@hasField(PaintStyle, field)) {
+        bits |= @as(u32, 1) << bit;
+    };
+    break :mask bits;
+};
 fn join(comptime groups: anytype) type {
     comptime var count: usize = 0;
     inline for (groups) |Group| count += @typeInfo(Group).@"struct".field_names.len;
@@ -363,9 +374,19 @@ fn join(comptime groups: anytype) type {
 }
 pub fn select(comptime Group: type, style: Style) Group {
     var result: Group = undefined;
-    inline for (@typeInfo(Group).@"struct".field_names) |name| @field(result, name) = @field(style, name);
+    inline for (@typeInfo(Group).@"struct".field_names) |name| {
+        @field(result, name) = @field(style, name);
+        if (comptime Group == LayoutStyle and std.mem.eql(u8, name, "typographySpecified")) result.typographySpecified &= ~paintTypographyMask;
+        if (comptime Group == InteractionStyle and std.mem.eql(u8, name, "interactionSpecified")) result.interactionSpecified &= ~@as(u32, 1);
+    }
     return result;
 }
 pub fn assign(style: *Style, values: anytype) void {
-    inline for (@typeInfo(@TypeOf(values)).@"struct".field_names) |name| @field(style, name) = @field(values, name);
+    inline for (@typeInfo(@TypeOf(values)).@"struct".field_names) |name| {
+        if (comptime @TypeOf(values) == LayoutStyle and std.mem.eql(u8, name, "typographySpecified")) {
+            style.typographySpecified = (style.typographySpecified & paintTypographyMask) | (values.typographySpecified & ~paintTypographyMask);
+        } else if (comptime @TypeOf(values) == InteractionStyle and std.mem.eql(u8, name, "interactionSpecified")) {
+            style.interactionSpecified = (style.interactionSpecified & 1) | (values.interactionSpecified & ~@as(u32, 1));
+        } else @field(style, name) = @field(values, name);
+    }
 }

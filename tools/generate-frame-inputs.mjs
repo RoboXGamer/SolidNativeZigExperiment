@@ -26,7 +26,19 @@ for (const phase of ["layout", "paint", "interaction", "motion"]) {
     style: fields(styles, type + "Style"),
   };
 }
-const output = JSON.stringify(schema, null, 2) + "\n";
+const typography = [
+  ...styles
+    .match(/pub const typographyFields = \.\{([\s\S]*?)\n\};/)[1]
+    .matchAll(/"(\w+)"/g),
+].map((match) => match[1]);
+const paintTypographyMask = typography.reduce(
+  (mask, field, index) =>
+    schema.paint.style.includes(field) ? mask | (1 << index) : mask,
+  0,
+);
+const output =
+  JSON.stringify({ phases: schema, typography, paintTypographyMask }, null, 2) +
+  "\n";
 const path = new URL("packages/solid-zig/src/frame-inputs.json", root);
 if (process.argv.includes("--check")) {
   if ((await readFile(path, "utf8")) !== output)

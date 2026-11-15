@@ -7,7 +7,7 @@
         "dev:ui": "node tools/dev.mjs",
         "dev:app": "node tools/run-example.mjs",
         "test": "pnpm run test:features && pnpm run test:bridge && pnpm run test:refresh && pnpm run test:tree && pnpm run test:select && pnpm run test:packages && pnpm run test:css && pnpm run test:hover && pnpm run test:examples",
-        "test:hover": "node tools/generate-frame-inputs.mjs --check && node --conditions=browser --conditions=development tests/hover.mjs && node --conditions=browser --conditions=development tests/bridge-phases.mjs",
+        "test:hover": "node tools/generate-frame-inputs.mjs --check && node --conditions=browser --conditions=development tests/hover.mjs && node --conditions=browser --conditions=development tests/bridge-phases.mjs && node --conditions=browser --conditions=development tests/css-dependencies.mjs --check",
         "test:hover:native": "node tools/smoke-native.mjs --hover",
         "test:frames:native": "node tools/test-frame-scheduling.mjs",
         "test:examples": "node tests/examples.mjs",

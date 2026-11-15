@@ -13,7 +13,9 @@ pub const LayoutInputs = struct {
 pub const PaintInputs = struct {
     readOnly: bool = false,
     readWrite: bool = false,
+    popoverOpen: bool = false,
     visibilitySpecified: bool = false,
+    paintTypographySpecified: u32 = 0,
     style: styles.PaintStyle = .{},
 };
 pub const InteractionInputs = struct {
@@ -23,7 +25,6 @@ pub const InteractionInputs = struct {
     hovered: bool = false,
     active: bool = false,
     focused: bool = false,
-    popoverOpen: bool = false,
     style: styles.InteractionStyle = .{},
 };
 pub const Delta = struct {
@@ -58,20 +59,34 @@ pub const Delta = struct {
         if (self.motion) |values| styles.assign(&node.style, values);
     }
 };
+pub const Dirty = struct {
+    id: u32,
+    paint: bool = false,
+    interaction: bool = false,
+    motion: bool = false,
+    pub fn between(before: anytype, after: @TypeOf(before)) Dirty {
+        return .{ .id = after.id, .paint = !equal(select(PaintInputs, before), select(PaintInputs, after)), .interaction = !equal(select(InteractionInputs, before), select(InteractionInputs, after)), .motion = !equal(styles.select(styles.MotionStyle, before.style), styles.select(styles.MotionStyle, after.style)) };
+    }
+};
 fn assignNode(node: anytype, values: anytype) void {
     inline for (@typeInfo(@TypeOf(values)).@"struct".field_names) |name| {
         if (comptime std.mem.eql(u8, name, "style")) styles.assign(&node.style, values.style) else if (comptime std.mem.eql(u8, name, "visibilitySpecified")) {
             node.style.interactionSpecified = (node.style.interactionSpecified & ~@as(u32, 1)) | @as(u32, @intFromBool(values.visibilitySpecified));
+        } else if (comptime std.mem.eql(u8, name, "paintTypographySpecified")) {
+            node.style.typographySpecified = (node.style.typographySpecified & ~styles.paintTypographyMask) | (values.paintTypographySpecified & styles.paintTypographyMask);
         } else @field(node, name) = @field(values, name);
     }
 }
 pub fn setInteraction(node: anytype, values: InteractionInputs) void {
     assignNode(node, values);
 }
+pub fn setPaint(node: anytype, values: PaintInputs) void {
+    assignNode(node, values);
+}
 pub fn select(comptime Inputs: type, node: anytype) Inputs {
     var result: Inputs = undefined;
     inline for (@typeInfo(Inputs).@"struct".field_names, @typeInfo(Inputs).@"struct".field_types) |name, T| {
-        if (comptime std.mem.eql(u8, name, "style")) @field(result, name) = styles.select(T, node.style) else if (comptime std.mem.eql(u8, name, "visibilitySpecified")) result.visibilitySpecified = node.style.interactionSpecified & 1 != 0 else @field(result, name) = @field(node, name);
+        if (comptime std.mem.eql(u8, name, "style")) @field(result, name) = styles.select(T, node.style) else if (comptime std.mem.eql(u8, name, "visibilitySpecified")) result.visibilitySpecified = node.style.interactionSpecified & 1 != 0 else if (comptime std.mem.eql(u8, name, "paintTypographySpecified")) result.paintTypographySpecified = node.style.typographySpecified & styles.paintTypographyMask else @field(result, name) = @field(node, name);
     }
     return result;
 }

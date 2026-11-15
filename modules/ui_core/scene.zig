@@ -6,6 +6,8 @@ const style_mod = @import("style.zig");
 const sizing = @import("sizing.zig");
 pub const Style = style_mod.Style;
 const transform_mod = @import("transform.zig");
+const retained = @import("retained_updates.zig");
+const frame_inputs = @import("frame_inputs.zig");
 
 pub const geometry = @import("geometry.zig");
 pub const Rect = geometry.Rect;
@@ -33,6 +35,8 @@ pub const Node = struct {
     intrinsicAspectRatio: ?f32 = null,
     style: Style = .{},
     children: []Node = &.{},
+    phase_source: ?retained.Source = null,
+    parent_reads: retained.Reads = .{},
 
     pub fn isReadOnly(self: *const Node) bool {
         if (self.readWrite) return false;
@@ -427,7 +431,7 @@ pub const Scene = struct {
     length_context: sizing.Context = .{},
     viewport: Rect = .{},
     unscrolled_bounds: ?[]Rect = null,
-    interaction_storage: ?std.heap.ArenaAllocator = null,
+    retained: retained.Index = .{},
 
     pub fn textFor(self: *const Scene, node: *const Node) Text {
         return node.textContext(self.text);
@@ -929,7 +933,7 @@ pub const Scene = struct {
         }
     }
 
-    fn colorTokens(self: *Scene, input: []const u8, current: []const u8) ![]const u8 {
+    fn colorTokens(allocator: std.mem.Allocator, input: []const u8, current: []const u8) ![]const u8 {
         var first: ?usize = null;
         var i: usize = 0;
         while (i + 12 <= input.len) : (i += 1) if (std.ascii.eqlIgnoreCase(input[i .. i + 12], "currentColor")) {
@@ -941,120 +945,129 @@ pub const Scene = struct {
         i = 0;
         while (i < input.len) {
             if (i + 12 <= input.len and std.ascii.eqlIgnoreCase(input[i .. i + 12], "currentColor")) {
-                try out.appendSlice(self.arena.allocator(), current);
+                try out.appendSlice(allocator, current);
                 i += 12;
             } else {
-                try out.append(self.arena.allocator(), input[i]);
+                try out.append(allocator, input[i]);
                 i += 1;
             }
         }
-        return out.toOwnedSlice(self.arena.allocator());
+        return out.toOwnedSlice(allocator);
     }
-    fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) void {
+    fn inheritComputedStyle(self: *Scene, child: *Node, parent: *const Node) !void {
+        const first = child.phase_source == null;
+        if (first) child.phase_source = retained.Source.from(child.*, if (child.id == parent.id) null else parent.id);
+        const reads = try self.inheritWithAllocator(child, parent, self.arena.allocator());
+        if (first) child.parent_reads = reads;
+    }
+    pub fn inheritWithAllocator(self: *Scene, child: *Node, parent: *const Node, allocator: std.mem.Allocator) !retained.Reads {
+        _ = self;
+        var reads: retained.Reads = .{};
         if (child.style.fontSize == 0 and child.style.fontSizeCss == null) child.style.fontSize = parent.fontSize();
-        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, parent.style.writingMode, "horizontal-tb")) {
-            child.style.writingMode = parent.style.writingMode;
+        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "writingMode"), "horizontal-tb")) {
+            child.style.writingMode = retained.parentValue(&reads, parent, "writingMode");
         }
-        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, parent.style.direction, "ltr")) {
-            child.style.direction = parent.style.direction;
+        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "direction"), "ltr")) {
+            child.style.direction = retained.parentValue(&reads, parent, "direction");
         }
         if (child.style.zoom == 1.0 and child.style.zoomCss == null) {
-            child.style.zoom = parent.style.zoom;
+            child.style.zoom = retained.parentValue(&reads, parent, "zoom");
         }
-        if (std.mem.eql(u8, child.style.fontFeatureSettings, "normal") and !std.mem.eql(u8, parent.style.fontFeatureSettings, "normal")) {
-            child.style.fontFeatureSettings = parent.style.fontFeatureSettings;
+        if (std.mem.eql(u8, child.style.fontFeatureSettings, "normal") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "fontFeatureSettings"), "normal")) {
+            child.style.fontFeatureSettings = retained.parentValue(&reads, parent, "fontFeatureSettings");
         }
-        if (std.mem.eql(u8, parent.style.contentVisibility, "hidden")) {
+        if (std.mem.eql(u8, retained.parentValue(&reads, parent, "contentVisibility"), "hidden")) {
             child.style.contentVisibility = "hidden";
         }
-        if (parent.style.activeViewTransition) {
+        if (retained.parentValue(&reads, parent, "activeViewTransition")) {
             child.style.activeViewTransition = true;
         }
-        inline for (.{ "fontFamily", "fontWeight", "fontStyle", "language", "letterSpacing", "wordSpacing", "tabSize", "textTransform", "textAlignLast", "textIndent", "wordBreak", "whiteSpaceCollapse", "verticalAlign", "textOrientation", "textShadow", "textFillColor", "textStrokeWidth", "textStrokeColor", "textUnderlineOffset", "textUnderlinePosition", "textDecoration", "textDecorationLine", "textDecorationColor", "textDecorationThickness", "textWrap", "textWrapMode", "textWrapStyle", "rubyAlign" }, 0..) |field, bit| {
+        inline for (style_mod.typographyFields, 0..) |field, bit| {
             const defaults: Style = .{};
             const at_default = if (comptime @TypeOf(@field(child.style, field)) == []const u8) std.mem.eql(u8, @field(child.style, field), @field(defaults, field)) else @field(child.style, field) == @field(defaults, field);
             if (child.style.typographySpecified & (@as(u32, 1) << bit) == 0 and at_default) {
-                @field(child.style, field) = @field(parent.style, field);
-                if (comptime std.mem.eql(u8, field, "tabSize")) child.style.tabSizeCss = parent.style.tabSizeCss;
-                if (comptime std.mem.eql(u8, field, "textStrokeWidth")) child.style.textStrokeWidthCss = parent.style.textStrokeWidthCss;
-                if (comptime std.mem.eql(u8, field, "textUnderlineOffset")) child.style.textUnderlineOffsetCss = parent.style.textUnderlineOffsetCss;
-                if (comptime std.mem.eql(u8, field, "textDecorationThickness")) child.style.textDecorationThicknessCss = parent.style.textDecorationThicknessCss;
+                @field(child.style, field) = retained.parentValue(&reads, parent, field);
+                if (comptime std.mem.eql(u8, field, "tabSize")) child.style.tabSizeCss = retained.parentValue(&reads, parent, "tabSizeCss");
+                if (comptime std.mem.eql(u8, field, "textStrokeWidth")) child.style.textStrokeWidthCss = retained.parentValue(&reads, parent, "textStrokeWidthCss");
+                if (comptime std.mem.eql(u8, field, "textUnderlineOffset")) child.style.textUnderlineOffsetCss = retained.parentValue(&reads, parent, "textUnderlineOffsetCss");
+                if (comptime std.mem.eql(u8, field, "textDecorationThickness")) child.style.textDecorationThicknessCss = retained.parentValue(&reads, parent, "textDecorationThicknessCss");
             }
         }
         // Relative weight keywords resolve against the parent's computed weight.
         if (child.style.fontWeightCss) |css| if (std.ascii.eqlIgnoreCase(css, "bolder") or std.ascii.eqlIgnoreCase(css, "lighter")) {
-            child.style.fontWeight = parent.style.fontWeight;
+            child.style.fontWeight = retained.parentValue(&reads, parent, "fontWeight");
         };
         inline for (.{ "visibility", "pointerEvents", "cursor" }, 0..) |field, bit| if (child.style.interactionSpecified & (@as(u32, 1) << bit) == 0 and std.mem.eql(u8, @field(child.style, field), @field(@as(Style, .{}), field))) {
-            @field(child.style, field) = @field(parent.style, field);
+            @field(child.style, field) = retained.parentValue(&reads, parent, field);
         };
-        if (std.mem.eql(u8, child.style.mathShift, "normal") and !std.mem.eql(u8, parent.style.mathShift, "normal")) {
-            child.style.mathShift = parent.style.mathShift;
+        if (std.mem.eql(u8, child.style.mathShift, "normal") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "mathShift"), "normal")) {
+            child.style.mathShift = retained.parentValue(&reads, parent, "mathShift");
         }
-        if (std.mem.eql(u8, child.style.printColorAdjust, "economy") and !std.mem.eql(u8, parent.style.printColorAdjust, "economy")) {
-            child.style.printColorAdjust = parent.style.printColorAdjust;
+        if (std.mem.eql(u8, child.style.printColorAdjust, "economy") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "printColorAdjust"), "economy")) {
+            child.style.printColorAdjust = retained.parentValue(&reads, parent, "printColorAdjust");
         }
-        if (std.mem.eql(u8, child.style.textAutospace, "normal") and !std.mem.eql(u8, parent.style.textAutospace, "normal")) {
-            child.style.textAutospace = parent.style.textAutospace;
+        if (std.mem.eql(u8, child.style.textAutospace, "normal") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "textAutospace"), "normal")) {
+            child.style.textAutospace = retained.parentValue(&reads, parent, "textAutospace");
         }
-        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, parent.style.writingMode, "horizontal-tb")) {
-            child.style.writingMode = parent.style.writingMode;
+        if (std.mem.eql(u8, child.style.writingMode, "horizontal-tb") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "writingMode"), "horizontal-tb")) {
+            child.style.writingMode = retained.parentValue(&reads, parent, "writingMode");
         }
-        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, parent.style.direction, "ltr")) {
-            child.style.direction = parent.style.direction;
+        if (std.mem.eql(u8, child.style.direction, "ltr") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "direction"), "ltr")) {
+            child.style.direction = retained.parentValue(&reads, parent, "direction");
         }
-        if (std.mem.eql(u8, child.style.scrollbarColor, "auto") and !std.mem.eql(u8, parent.style.scrollbarColor, "auto")) {
-            child.style.scrollbarColor = parent.style.scrollbarColor;
-            child.style.scrollbarThumbColor = parent.style.scrollbarThumbColor;
-            child.style.scrollbarTrackColor = parent.style.scrollbarTrackColor;
+        if (std.mem.eql(u8, child.style.scrollbarColor, "auto") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "scrollbarColor"), "auto")) {
+            child.style.scrollbarColor = retained.parentValue(&reads, parent, "scrollbarColor");
+            child.style.scrollbarThumbColor = retained.parentValue(&reads, parent, "scrollbarThumbColor");
+            child.style.scrollbarTrackColor = retained.parentValue(&reads, parent, "scrollbarTrackColor");
         }
-        if (std.mem.eql(u8, child.style.quotes, "auto") and !std.mem.eql(u8, parent.style.quotes, "auto")) child.style.quotes = parent.style.quotes;
-        if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (parent.style.color.len > 0) parent.style.color else "#ffffff";
+        if (std.mem.eql(u8, child.style.quotes, "auto") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "quotes"), "auto")) child.style.quotes = retained.parentValue(&reads, parent, "quotes");
+        if (child.style.color.len == 0 or std.ascii.eqlIgnoreCase(child.style.color, "currentColor")) child.style.color = if (retained.parentValue(&reads, parent, "color").len > 0) retained.parentValue(&reads, parent, "color") else "#ffffff";
         if (child.style.textDecorationColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textDecorationColor, "currentColor")) {
             child.style.textDecorationColor = child.style.color;
         }
         inline for (.{ "backgroundColor", "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "backgroundGradient", "boxShadow", "scrollbarThumbColor", "scrollbarTrackColor", "textShadow", "textFillColor", "textStrokeColor", "textDecorationColor" }) |field| {
-            @field(child.style, field) = self.colorTokens(@field(child.style, field), child.style.color) catch @field(child.style, field);
+            @field(child.style, field) = try colorTokens(allocator, @field(child.style, field), child.style.color);
         }
         if (child.style.borderColor.len == 0) child.style.borderColor = child.style.color;
         if (child.style.outlineColor.len == 0) child.style.outlineColor = child.style.color;
 
         // Typography / text decoration / text emphasis / text combine upright inheritance
         if (child.style.textDecorationLine.len == 0 or std.mem.eql(u8, child.style.textDecorationLine, "none")) {
-            child.style.textDecorationLine = parent.style.textDecorationLine;
-            child.style.textDecorationColor = parent.style.textDecorationColor;
-            child.style.textDecorationStyle = parent.style.textDecorationStyle;
-            child.style.textDecorationThickness = parent.style.textDecorationThickness;
-            child.style.textDecorationThicknessCss = parent.style.textDecorationThicknessCss;
+            child.style.textDecorationLine = retained.parentValue(&reads, parent, "textDecorationLine");
+            child.style.textDecorationColor = retained.parentValue(&reads, parent, "textDecorationColor");
+            child.style.textDecorationStyle = retained.parentValue(&reads, parent, "textDecorationStyle");
+            child.style.textDecorationThickness = retained.parentValue(&reads, parent, "textDecorationThickness");
+            child.style.textDecorationThicknessCss = retained.parentValue(&reads, parent, "textDecorationThicknessCss");
         }
-        if (std.mem.eql(u8, child.style.textDecorationSkipInk, "auto")) child.style.textDecorationSkipInk = parent.style.textDecorationSkipInk;
+        if (std.mem.eql(u8, child.style.textDecorationSkipInk, "auto")) child.style.textDecorationSkipInk = retained.parentValue(&reads, parent, "textDecorationSkipInk");
         if (std.mem.eql(u8, child.style.textEmphasisStyle, "none")) {
-            child.style.textEmphasisStyle = parent.style.textEmphasisStyle;
-            child.style.textEmphasisColor = parent.style.textEmphasisColor;
-            child.style.textEmphasisPosition = parent.style.textEmphasisPosition;
+            child.style.textEmphasisStyle = retained.parentValue(&reads, parent, "textEmphasisStyle");
+            child.style.textEmphasisColor = retained.parentValue(&reads, parent, "textEmphasisColor");
+            child.style.textEmphasisPosition = retained.parentValue(&reads, parent, "textEmphasisPosition");
         }
-        if (std.mem.eql(u8, child.style.textCombineUpright, "none")) child.style.textCombineUpright = parent.style.textCombineUpright;
+        if (std.mem.eql(u8, child.style.textCombineUpright, "none")) child.style.textCombineUpright = retained.parentValue(&reads, parent, "textCombineUpright");
 
         // Table property inheritance
-        if (std.mem.eql(u8, child.style.borderCollapse, "separate") and !std.mem.eql(u8, parent.style.borderCollapse, "separate")) child.style.borderCollapse = parent.style.borderCollapse;
-        if (child.style.borderSpacing == 0 and parent.style.borderSpacing > 0) {
-            child.style.borderSpacing = parent.style.borderSpacing;
-            child.style.borderSpacingX = parent.style.borderSpacingX;
-            child.style.borderSpacingY = parent.style.borderSpacingY;
+        if (std.mem.eql(u8, child.style.borderCollapse, "separate") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "borderCollapse"), "separate")) child.style.borderCollapse = retained.parentValue(&reads, parent, "borderCollapse");
+        if (child.style.borderSpacing == 0 and retained.parentValue(&reads, parent, "borderSpacing") > 0) {
+            child.style.borderSpacing = retained.parentValue(&reads, parent, "borderSpacing");
+            child.style.borderSpacingX = retained.parentValue(&reads, parent, "borderSpacingX");
+            child.style.borderSpacingY = retained.parentValue(&reads, parent, "borderSpacingY");
         }
-        if (std.mem.eql(u8, child.style.captionSide, "top") and !std.mem.eql(u8, parent.style.captionSide, "top")) child.style.captionSide = parent.style.captionSide;
-        if (std.mem.eql(u8, child.style.emptyCells, "show") and !std.mem.eql(u8, parent.style.emptyCells, "show")) child.style.emptyCells = parent.style.emptyCells;
+        if (std.mem.eql(u8, child.style.captionSide, "top") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "captionSide"), "top")) child.style.captionSide = retained.parentValue(&reads, parent, "captionSide");
+        if (std.mem.eql(u8, child.style.emptyCells, "show") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "emptyCells"), "show")) child.style.emptyCells = retained.parentValue(&reads, parent, "emptyCells");
 
         // SVG filter inheritance
-        if (std.mem.eql(u8, child.style.colorInterpolationFilters, "auto") and !std.mem.eql(u8, parent.style.colorInterpolationFilters, "auto")) child.style.colorInterpolationFilters = parent.style.colorInterpolationFilters;
-        if (child.style.floodColor.len == 0 and parent.style.floodColor.len > 0) child.style.floodColor = parent.style.floodColor;
-        if (child.style.lightingColor.len == 0 and parent.style.lightingColor.len > 0) child.style.lightingColor = parent.style.lightingColor;
+        if (std.mem.eql(u8, child.style.colorInterpolationFilters, "auto") and !std.mem.eql(u8, retained.parentValue(&reads, parent, "colorInterpolationFilters"), "auto")) child.style.colorInterpolationFilters = retained.parentValue(&reads, parent, "colorInterpolationFilters");
+        if (child.style.floodColor.len == 0 and retained.parentValue(&reads, parent, "floodColor").len > 0) child.style.floodColor = retained.parentValue(&reads, parent, "floodColor");
+        if (child.style.lightingColor.len == 0 and retained.parentValue(&reads, parent, "lightingColor").len > 0) child.style.lightingColor = retained.parentValue(&reads, parent, "lightingColor");
 
         // currentColor resolution
         if (child.style.textDecorationColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textDecorationColor, "currentColor")) child.style.textDecorationColor = child.style.color;
         if (child.style.textEmphasisColor.len == 0 or std.ascii.eqlIgnoreCase(child.style.textEmphasisColor, "currentColor")) child.style.textEmphasisColor = child.style.color;
         if (std.ascii.eqlIgnoreCase(child.style.floodColor, "currentColor")) child.style.floodColor = child.style.color;
         if (std.ascii.eqlIgnoreCase(child.style.lightingColor, "currentColor")) child.style.lightingColor = child.style.color;
+        return reads;
     }
 
     fn prepareChildren(self: *Scene, n: *Node, width: f32, height: ?f32) anyerror!void {
@@ -1063,7 +1076,7 @@ pub const Scene = struct {
             if (child.isOutOfFlow()) continue;
             const vertical = !std.mem.eql(u8, n.style.writingMode, "horizontal-tb");
             const inline_size: ?f32 = if (vertical) height else width;
-            self.inheritComputedStyle(child, n);
+            try self.inheritComputedStyle(child, n);
             if (std.mem.eql(u8, child.type, "text") and std.mem.indexOf(u8, n.style.textOverflow, "ellipsis") != null and n.clipsX()) {
                 child.style.textOverflow = n.style.textOverflow;
                 child.style.overflowX = "clip";
@@ -1135,10 +1148,13 @@ pub const Scene = struct {
 
     pub fn fromTreeWithContext(tree: *const Tree, width: f32, height: f32, text: Text, host_context: sizing.Context) !Scene {
         var arena = std.heap.ArenaAllocator.init(tree.allocator);
-        errdefer arena.deinit();
+        var transferred = false;
+        errdefer if (!transferred) arena.deinit();
         const source = try tree.materialize(arena.allocator(), tree.root, 0);
         const root = try generateRoot(arena.allocator(), source);
         var scene = Scene{ .arena = arena, .root = root, .text = text, .length_context = host_context, .viewport = .{ .width = @max(width, 0), .height = @max(height, 0) } };
+        transferred = true;
+        errdefer scene.deinit();
         scene.length_context.viewport_width = scene.length_context.viewport_width orelse width;
         scene.length_context.viewport_height = scene.length_context.viewport_height orelse height;
         scene.length_context.root_font_size = scene.length_context.root_font_size orelse root.fontSize();
@@ -1152,104 +1168,35 @@ pub const Scene = struct {
         scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
         const resolved_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else scene.textFor(root).lineHeight(root.fontSize())) else scene.textFor(root).lineHeight(root.fontSize());
         scene.length_context.root_line_height = host_context.root_line_height orelse resolved_root_lh;
-        scene.inheritComputedStyle(root, root);
+        try scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
         if (!std.mem.eql(u8, source.style.display, "none")) try scene.layout(root, .{ .x = 0, .y = 0, .width = width, .height = height }, null);
+        try scene.rebuildRetainedIndex();
         return scene;
     }
 
-    /// Refresh non-geometric values in an independently owned scene, preserving
-    /// every laid-out/scrolled box. Caller must classify the patch before using
-    /// this path. Anonymous layout projections conservatively request a rebuild.
-    pub fn refreshPaint(self: *const Scene, tree: *const Tree) !Scene {
-        var arena = std.heap.ArenaAllocator.init(tree.allocator);
-        var transferred = false;
-        errdefer if (!transferred) arena.deinit();
-        const a = arena.allocator();
-        const source = try tree.materialize(a, tree.root, 0);
-        const new_root = try generateRoot(a, source);
-        var next = Scene{ .arena = arena, .root = new_root, .text = self.text, .length_context = self.length_context, .viewport = self.viewport };
-        transferred = true;
-        errdefer next.deinit();
-        const next_a = next.arena.allocator();
-        var nodes: std.AutoHashMapUnmanaged(u32, *Node) = .empty;
-        try next.refreshNode(self, new_root, null, &nodes);
-        for (self.items.items) |old| {
-            const n = nodes.get(old.node.id) orelse return error.IncompatibleSceneProjection;
-            try next.index.put(next_a, n.id, next.items.items.len);
-            try next.items.append(next_a, .{ .node = n, .bounds = old.bounds, .parent_id = old.parent_id, .used_margin = old.used_margin });
-        }
-        var areas = self.positioned_areas.iterator();
-        while (areas.next()) |entry| try next.positioned_areas.put(next_a, entry.key_ptr.*, entry.value_ptr.*);
-        if (self.unscrolled_bounds) |bounds| next.unscrolled_bounds = try next_a.dupe(Rect, bounds);
-        return next;
+    pub fn updateInputs(self: *Scene, tree: *const Tree, allocator: std.mem.Allocator, observer: ?retained.Observer) !retained.Result {
+        return self.retained.update(self, tree, &.{}, allocator, observer);
     }
-    const InteractionUpdate = struct { target: *Node, values: @import("frame_inputs.zig").InteractionInputs, motion: style_mod.MotionStyle };
-    /// Interaction and transition configuration have independent storage. Updating
-    /// them neither recreates paint inputs nor resolves/measures layout inputs.
-    pub fn syncInteraction(self: *Scene, tree: *const Tree) !void {
-        var storage = std.heap.ArenaAllocator.init(tree.allocator);
-        errdefer storage.deinit();
-        const a = storage.allocator();
-        var updates: std.ArrayList(InteractionUpdate) = .empty;
-        var by_id: std.AutoHashMapUnmanaged(u32, usize) = .empty;
-        try stageInteraction(a, tree, self.root, null, &updates, &by_id);
-        for (self.items.items) |item| {
-            const index = by_id.get(item.node.id) orelse return error.IncompatibleSceneProjection;
-            const source = updates.items[index];
-            try updates.append(a, .{ .target = @constCast(item.node), .values = source.values, .motion = source.motion });
-        }
-        for (updates.items) |update| {
-            @import("frame_inputs.zig").setInteraction(update.target, update.values);
-            style_mod.assign(&update.target.style, update.motion);
-        }
-        if (self.interaction_storage) |*previous| previous.deinit();
-        self.interaction_storage = storage;
+    pub fn samplePaint(self: *Scene, samples: []const retained.Sample, allocator: std.mem.Allocator) !retained.Result {
+        return self.retained.update(self, null, samples, allocator, null);
     }
-    fn stageInteraction(a: std.mem.Allocator, tree: *const Tree, node: *Node, parent: ?@import("frame_inputs.zig").InteractionInputs, updates: *std.ArrayList(InteractionUpdate), by_id: *std.AutoHashMapUnmanaged(u32, usize)) anyerror!void {
-        const raw = (tree.nodes.get(node.id) orelse return error.IncompatibleSceneProjection).node;
-        var values = @import("frame_inputs.zig").select(@import("frame_inputs.zig").InteractionInputs, raw);
-        if (parent) |p| {
-            if (values.style.interactionSpecified & 2 == 0 and std.mem.eql(u8, values.style.pointerEvents, "auto")) values.style.pointerEvents = p.style.pointerEvents;
-            if (values.style.interactionSpecified & 4 == 0 and std.mem.eql(u8, values.style.cursor, "auto")) values.style.cursor = p.style.cursor;
-        }
-        inline for (@typeInfo(style_mod.InteractionStyle).@"struct".field_names, @typeInfo(style_mod.InteractionStyle).@"struct".field_types) |name, T| {
-            if (T == []const u8) @field(values.style, name) = try a.dupe(u8, @field(values.style, name));
-        }
-        var motion = style_mod.select(style_mod.MotionStyle, raw.style);
-        inline for (@typeInfo(style_mod.MotionStyle).@"struct".field_names, @typeInfo(style_mod.MotionStyle).@"struct".field_types) |name, T| {
-            if (T == []const u8) @field(motion, name) = try a.dupe(u8, @field(motion, name));
-        }
-        try by_id.put(a, node.id, updates.items.len);
-        try updates.append(a, .{ .target = node, .values = values, .motion = motion });
-        for (node.children) |*child| try stageInteraction(a, tree, child, values, updates, by_id);
+    pub fn rebuildRetainedIndex(self: *Scene) !void {
+        try self.retained.rebuild(self);
     }
-    fn refreshNode(self: *Scene, old: *const Scene, node: *Node, parent: ?*const Node, nodes: *std.AutoHashMapUnmanaged(u32, *Node)) anyerror!void {
-        @setEvalBranchQuota(200000);
-        const a = self.arena.allocator();
-        if (old.find(node.id)) |item| {
-            const authored = node.style;
-            node.style = item.node.style;
-            inline for (@typeInfo(Style).@"struct".field_names, @typeInfo(Style).@"struct".field_types) |name, T| {
-                if (comptime !@hasField(style_mod.LayoutStyle, name)) @field(node.style, name) = @field(authored, name);
-                if (T == []const u8) @field(node.style, name) = try a.dupe(u8, @field(node.style, name)) else if (T == ?[]const u8) {
-                    if (@field(node.style, name)) |value| @field(node.style, name) = try a.dupe(u8, value);
-                }
-            }
-            node.style.columns = try a.dupe(f32, node.style.columns);
-        }
-        // Resolve paint lengths/numbers in an isolated paint input, preserving
-        // the already measured layout values and boxes.
+    pub fn resolveRetainedPaint(self: *Scene, node: *Node, parent: *const Node, allocator: std.mem.Allocator) !retained.Reads {
         var paint_node: Node = .{ .id = node.id, .type = node.type, .style = .{ .fontSize = node.fontSize() } };
         style_mod.assign(&paint_node.style, style_mod.select(style_mod.PaintStyle, node.style));
-        try self.resolveStyle(&paint_node, self.length_context, if (old.find(node.id)) |item| item.bounds.width else self.viewport.width, if (old.find(node.id)) |item| item.bounds.height else self.viewport.height, self.viewport.width);
+        const bounds = if (self.find(node.id)) |item| item.bounds else self.viewport;
+        try self.resolveStyle(&paint_node, self.length_context, bounds.width, bounds.height, self.viewport.width);
         style_mod.assign(&node.style, style_mod.select(style_mod.PaintStyle, paint_node.style));
         const measured_layout = style_mod.select(style_mod.LayoutStyle, node.style);
-        self.inheritComputedStyle(node, parent orelse node);
+        const interaction = frame_inputs.select(frame_inputs.InteractionInputs, node.*);
+        const reads = try self.inheritWithAllocator(node, parent, allocator);
         style_mod.assign(&node.style, measured_layout);
-        try nodes.put(a, node.id, node);
-        for (node.children) |*child| try self.refreshNode(old, child, node, nodes);
+        frame_inputs.setInteraction(node, interaction);
+        return reads;
     }
 
     pub fn init(allocator: std.mem.Allocator, json: []const u8, width: f32, height: f32) !Scene {
@@ -1262,11 +1209,14 @@ pub const Scene = struct {
 
     pub fn initWithContext(allocator: std.mem.Allocator, json: []const u8, width: f32, height: f32, text: Text, host_context: sizing.Context) !Scene {
         var arena = std.heap.ArenaAllocator.init(allocator);
-        errdefer arena.deinit();
+        var transferred = false;
+        errdefer if (!transferred) arena.deinit();
         const a = arena.allocator();
         const source = try std.json.parseFromSliceLeaky(Node, a, json, .{ .ignore_unknown_fields = true, .allocate = .alloc_always });
         const root = try generateRoot(a, source);
         var scene = Scene{ .arena = arena, .root = root, .text = text, .length_context = host_context, .viewport = .{ .width = @max(width, 0), .height = @max(height, 0) } };
+        transferred = true;
+        errdefer scene.deinit();
         scene.length_context.viewport_width = scene.length_context.viewport_width orelse width;
         scene.length_context.viewport_height = scene.length_context.viewport_height orelse height;
         scene.length_context.root_font_size = scene.length_context.root_font_size orelse root.fontSize();
@@ -1280,15 +1230,16 @@ pub const Scene = struct {
         scene.length_context.root_font_size = host_context.root_font_size orelse root.fontSize();
         const init_resolved_root_lh = if (root.style.lineHeight) |h| (if (h > 0) h else scene.textFor(root).lineHeight(root.fontSize())) else scene.textFor(root).lineHeight(root.fontSize());
         scene.length_context.root_line_height = host_context.root_line_height orelse init_resolved_root_lh;
-        scene.inheritComputedStyle(root, root);
+        try scene.inheritComputedStyle(root, root);
         try scene.prepareChildren(root, width, height);
         try scene.resolveStyle(root, scene.length_context, width, height, if (vertical) height else width);
         if (!std.mem.eql(u8, source.style.display, "none")) try scene.layout(root, .{ .x = 0, .y = 0, .width = @max(width, 0), .height = @max(height, 0) }, null);
+        try scene.rebuildRetainedIndex();
         return scene;
     }
 
     pub fn deinit(self: *Scene) void {
-        if (self.interaction_storage) |*storage| storage.deinit();
+        self.retained.deinit();
         self.arena.deinit();
     }
 
@@ -1455,6 +1406,7 @@ pub const Scene = struct {
     pub fn layout(self: *Scene, source: *const Node, bounds_in: Rect, parent_id: ?u32) anyerror!void {
         const n = try self.arena.allocator().create(Node);
         n.* = source.*;
+        if (n.phase_source == null) try self.inheritComputedStyle(n, if (parent_id) |id| self.find(id).?.node else n);
         // Retained scene styles must outlive bridge tree replacement.
         inline for (@typeInfo(Style).@"struct".field_names, @typeInfo(Style).@"struct".field_types) |field_name, field_type| {
             if (field_type == []const u8) {

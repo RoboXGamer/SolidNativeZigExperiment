@@ -288,24 +288,24 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
         var text_y = content.y;
         if (focused == n.id) {
             editor.clamp(n.value);
-            const caret = text.width(n.value[0..editor.cursor], n.fontSize());
+            const caret = text.caret(n.value, editor.cursor, n.fontSize());
             if (is_vertical) {
                 text_y -= @max(0, caret - @max(0, content.height - 4));
                 const selected = editor.selection();
-                const start = text.width(n.value[0..selected.start], n.fontSize());
-                const end = text.width(n.value[0..selected.end], n.fontSize());
+                const start = text.caret(n.value, selected.start, n.fontSize());
+                const end = text.caret(n.value, selected.end, n.fontSize());
                 if (selected.start != selected.end) {
-                    rl.drawRectangleRec(.{ .x = text_x, .y = text_y + start, .width = @floatFromInt(font_size_int), .height = end - start }, .blue);
+                    rl.drawRectangleRec(.{ .x = text_x, .y = text_y + @min(start, end), .width = @floatFromInt(font_size_int), .height = @abs(end - start) }, .blue);
                 } else {
                     rl.drawLineEx(.{ .x = text_x, .y = text_y + caret }, .{ .x = text_x + @as(f32, @floatFromInt(font_size_int)), .y = text_y + caret }, 1, .white);
                 }
             } else {
                 text_x -= @max(0, caret - @max(0, content.width - 4));
                 const selected = editor.selection();
-                const start = text.width(n.value[0..selected.start], n.fontSize());
-                const end = text.width(n.value[0..selected.end], n.fontSize());
                 if (selected.start != selected.end) {
-                    rl.drawRectangleRec(.{ .x = text_x + start, .y = text_y, .width = end - start, .height = @floatFromInt(font_size_int) }, .blue);
+                    const rectangles = try text_backend.selectionStyled(allocator, n.value, selected.start, selected.end, n.fontSize(), text.typography);
+                    defer allocator.free(rectangles);
+                    for (rectangles) |r| rl.drawRectangleRec(.{ .x = text_x + r.x, .y = text_y + r.y, .width = r.width, .height = r.height }, .blue);
                 } else {
                     rl.drawLineEx(.{ .x = text_x + caret, .y = text_y }, .{ .x = text_x + caret, .y = text_y + @as(f32, @floatFromInt(font_size_int)) }, 1, .white);
                 }
@@ -323,9 +323,9 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
         }
         if (focused == n.id) {
             if (is_vertical) {
-                text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + @as(f32, @floatFromInt(font_size_int))), @intFromFloat(text_y + text.width(n.value[0..editor.cursor], n.fontSize())));
+                text_backend.ui_text_ime_position(rl.getWindowHandle(), text_x + @as(f32, @floatFromInt(font_size_int)), text_y + text.caret(n.value, editor.cursor, n.fontSize()));
             } else {
-                text_backend.ui_text_ime_position(rl.getWindowHandle(), @intFromFloat(text_x + text.width(n.value[0..editor.cursor], n.fontSize())), @intFromFloat(text_y + text.lineHeight(n.fontSize())));
+                text_backend.ui_text_ime_position(rl.getWindowHandle(), text_x + text.caret(n.value, editor.cursor, n.fontSize()), text_y + text.lineHeight(n.fontSize()));
             }
         }
     }
@@ -491,7 +491,7 @@ fn getSystemPreferences() ui.sizing.Context {
 }
 
 fn buildScene(tree: *ui.Tree, text_cache: *text_backend.Cache) !ui.Scene {
-    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .ctx = text_cache, .styled_measure_fn = text_backend.measureCached, .styled_position_fn = text_backend.positionStyled }, getSystemPreferences());
+    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .ctx = text_cache, .styled_measure_fn = text_backend.measureCached, .styled_position_fn = text_backend.positionStyled, .styled_caret_fn = text_backend.caretStyled }, getSystemPreferences());
 }
 
 pub fn run() void {
@@ -503,9 +503,12 @@ pub fn run() void {
         return;
     };
     defer runtime.deinit();
-    rl.setConfigFlags(.{ .window_resizable = true, .vsync_hint = true, .window_hidden = smoke });
+    rl.setConfigFlags(.{ .window_resizable = true, .window_highdpi = true, .vsync_hint = true, .window_hidden = smoke });
+    text_backend.initializeDpi();
     rl.initWindow(window_width, window_height, "Solid + Zig experiment");
     defer rl.closeWindow();
+    text_backend.watchFonts(rl.getWindowHandle());
+    defer text_backend.unwatchFonts();
     ui_refresh_start();
     defer ui_refresh_stop();
     if (ui_cursor_start() == 0) std.log.warn("Persistent cursor ownership unavailable", .{});
@@ -517,6 +520,7 @@ pub fn run() void {
     defer renderer.deinit();
     var text_cache = text_backend.Cache.init(std.heap.page_allocator);
     defer text_cache.deinit();
+    _ = text_cache.setScale(rl.getWindowScaleDPI().x);
     const watching = ui_watch_start() != 0;
     defer if (watching) ui_watch_stop();
     if (watching and !runtime.reload()) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
@@ -588,7 +592,10 @@ pub fn run() void {
             }
             if (smoke_frames == 128) rl.setWindowSize(window_width + 40, window_height + 20);
         }
-        const resized = last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight();
+        const dpi_changed = text_cache.setScale(rl.getWindowScaleDPI().x);
+        const fonts_changed = text_backend.fontsChanged();
+        if (fonts_changed) text_cache.invalidateFonts();
+        const resized = dpi_changed or fonts_changed or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight();
         if (resized) runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| std.log.err("Viewport update failed: {}", .{err});
         const previous_focus = focused;
         const previous_editor = editor;
@@ -629,7 +636,11 @@ pub fn run() void {
                         }
                         const content = item.node.contentBox(item.bounds);
                         const local = scene.localPoint(item, mouse.x, mouse.y) orelse ui.transform.Point{ .x = mouse.x, .y = mouse.y };
-                        const rel_x = local.x - content.x;
+                        const input_text = item.node.textContext(scene.text);
+                        const caret = input_text.caret(item.node.value, @min(editor.cursor, item.node.value.len), item.node.fontSize());
+                        const vertical = !std.mem.eql(u8, item.node.style.writingMode, "horizontal-tb");
+                        const extent = if (vertical) content.height else content.width;
+                        const rel_x = (if (vertical) local.y - content.y else local.x - content.x) + (if (previous_focus == id) @max(0, caret - @max(0, extent - 4)) else 0);
                         const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), item.node.textContext(scene.text));
                         editor.move(idx, false);
                     }
@@ -645,7 +656,11 @@ pub fn run() void {
                         const mouse = rl.getMousePosition();
                         const content = item.node.contentBox(item.bounds);
                         const local = scene.localPoint(item, mouse.x, mouse.y) orelse ui.transform.Point{ .x = mouse.x, .y = mouse.y };
-                        const rel_x = local.x - content.x;
+                        const input_text = item.node.textContext(scene.text);
+                        const caret = input_text.caret(item.node.value, @min(editor.cursor, item.node.value.len), item.node.fontSize());
+                        const vertical = !std.mem.eql(u8, item.node.style.writingMode, "horizontal-tb");
+                        const extent = if (vertical) content.height else content.width;
+                        const rel_x = (if (vertical) local.y - content.y else local.x - content.x) + @max(0, caret - @max(0, extent - 4));
                         const idx = ui.text_edit.positionForX(item.node.value, rel_x, item.node.fontSize(), item.node.textContext(scene.text));
                         editor.move(idx, true);
                     }

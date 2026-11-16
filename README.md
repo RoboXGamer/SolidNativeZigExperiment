@@ -2,6 +2,8 @@
 
 This is an early native UI experiment. The Solid Vite plugin compiles JSX for a custom universal renderer in QuickJS-NG. The JavaScript host coalesces changes against the last acknowledged commit and sends node creation/removal plus separate layout, paint, interaction and motion inputs to Zig. Zig retains those nodes, updates the affected stages, draws with Raylib when pixels need updating, and routes input back by node ID.
 
+Windows text uses DirectWrite natural layout and DPI-sized grayscale coverage. Measurement, painting, caret hit testing and horizontal selection share native layouts; the compositor keeps text at device resolution through clipping and opacity layers. See [native text implementation and validation](docs/native-text.md) for supported typography and remaining limits.
+
 `modules/ui_core` contains backend-independent retained tree storage, box model, geometry, text metrics, block/flex/grid layout, positioning and transitions, clipping, hit testing, scrolling, and UTF-8 editing state. The renderer injects a `MeasureFn` (the Windows sample shares Uniscribe shaping between measurement and paint); headless callers have a documented estimator. `modules/solid_bridge` owns QuickJS jobs, timers and the change/input interface. `packages/solid-zig` contains the JavaScript renderer and module host. Each Zig module has its own build helper and standalone build entry point. The application in `src` supplies Raylib and the Windows watchers. These modules remain local development code; no library release has been made.
 
 ## Setup

@@ -30,9 +30,10 @@ pub fn build(b: *std.Build) void {
     module.linkLibrary(raylib.artifact("raylib"));
     module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = &.{} });
     module.addCSourceFile(.{ .file = b.path("src/event_wakeup.c"), .flags = &.{} });
-    module.addCSourceFile(.{ .file = b.path("src/text_backend.c"), .flags = &.{} });
+    module.addCSourceFile(.{ .file = b.path("src/text_backend.cpp"), .flags = &.{ "-std=c++17", "-fno-exceptions" } });
+    module.link_libcpp = true;
     module.addCSourceFile(.{ .file = b.path("src/cursor_backend.c"), .flags = &.{} });
-    module.linkSystemLibrary("usp10", .{});
+    module.linkSystemLibrary("dwrite", .{});
     module.linkSystemLibrary("imm32", .{});
     const tests = b.addTest(.{ .root_module = ui_core });
     const test_step = b.step("test", "Run UI core tests");
@@ -55,9 +56,10 @@ pub fn build(b: *std.Build) void {
     check_module.addImport("raylib", raylib.module("raylib"));
     check_module.addImport("ui_core", ui_core);
     check_module.linkLibrary(raylib.artifact("raylib"));
-    check_module.addCSourceFile(.{ .file = b.path("src/text_backend.c"), .flags = &.{} });
+    check_module.addCSourceFile(.{ .file = b.path("src/text_backend.cpp"), .flags = &.{ "-std=c++17", "-fno-exceptions" } });
+    check_module.link_libcpp = true;
     check_module.addCSourceFile(.{ .file = b.path("src/cursor_backend.c"), .flags = &.{} });
-    check_module.linkSystemLibrary("usp10", .{});
+    check_module.linkSystemLibrary("dwrite", .{});
     check_module.linkSystemLibrary("imm32", .{});
     const native_check = b.addExecutable(.{ .name = "render-check", .root_module = check_module });
     b.step("test-native", "Check real OpenGL framebuffer pixels").dependOn(&b.addRunArtifact(native_check).step);

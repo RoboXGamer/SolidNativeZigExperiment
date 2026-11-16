@@ -8,8 +8,9 @@ uniform vec4 radiiX;
 uniform vec4 radiiY;
 uniform vec2 axes;
 uniform vec2 resolution;
+uniform float deviceScale;
 void main() {
-    vec2 world=vec2(gl_FragCoord.x,resolution.y-gl_FragCoord.y);
+    vec2 world=vec2(gl_FragCoord.x/deviceScale,resolution.y-gl_FragCoord.y/deviceScale);
     vec2 p=(inverseWorld*vec4(world,0,1)).xy-box.xy;
     float coverage=1.0;
     if(axes.x>0.5 && (p.x<0.0 || p.x>=box.z)) coverage=0.0;

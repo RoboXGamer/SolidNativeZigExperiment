@@ -4,7 +4,9 @@ import {
   splitSelectorList,
   compareSpecificity,
   compileSelector,
+  parseComplexSelector,
 } from "./selectors-user.js";
+import { tracking, observe, work, forget } from './invalidation.js';
 import definitions from "./css-properties.json" with { type: "json" };
 const sheets = new Map();
 let sheetVersion = 0;
@@ -13,6 +15,38 @@ let computedVersion = 0;
 let metadata;
 let ruleId = 0;
 const declarationCache = new Map();
+let indexVersion = -1;
+let candidateIndex = new Map();
+export function invalidateStyleConditions() { indexVersion = -1; }
+function selectorKey(selector) {
+  const parts = parseComplexSelector(selector).at(-1)?.compound || [];
+  const part = parts.find(p => p.type === 'id') || parts.find(p => p.type === 'class') || parts.find(p => p.type === 'tag');
+  return part ? `${part.type}:${part.value}` : '*';
+}
+function indexedRules(evaluate) {
+  if (indexVersion === sheetVersion) return;
+  candidateIndex = new Map();
+  const layers = new Map();
+  let order = 0;
+  function visit(rules, layer = null) {
+    for (const rule of rules) {
+      if (rule.condition) {
+        if (rule.condition === 'layer') {
+          for (const name of rule.query.split(',')) if (!layers.has(name.trim())) layers.set(name.trim(), layers.size);
+          visit(rule.rules, layers.get(rule.query.trim()));
+        } else if (evaluate(rule.condition, rule.query)) visit(rule.rules, layer);
+      } else {
+        const entry = { rule, layer, order: order++ };
+        for (const key of new Set(rule.selectors.map(s => s.key))) {
+          if (!candidateIndex.has(key)) candidateIndex.set(key, []);
+          candidateIndex.get(key).push(entry);
+        }
+      }
+    }
+  }
+  for (const rules of sheets.values()) visit(rules);
+  indexVersion = sheetVersion;
+}
 function preparedRules(rules) {
   return rules.map((rule) =>
     rule.condition
@@ -21,6 +55,7 @@ function preparedRules(rules) {
           ...rule,
           id: ++ruleId,
           selectors: splitSelectorList(rule.selector).map((selector) => ({
+            key: selectorKey(selector),
             test: compileSelector(selector),
             spec: specificity(selector),
           })),
@@ -198,7 +233,15 @@ function substitute(value, variables, stack = new Set()) {
 }
 
 export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
+  const inputKey = JSON.stringify([sheetVersion, inline, node.parent?._cssInheritanceVersion,
+    node._cssNeedsParent ? node.parent?._cssComputedVersion : null]);
+  if (!node._cssDirty && node._cssInputKey === inputKey && node._cssCacheKey !== undefined)
+    return sheets.size ? node._cssComputed : inline || {};
+  node._cssDirty = false;
+  node._cssInputKey = inputKey;
+  work.css++;
   if (!sheets.size) {
+    forget(node, 'css');
     if (node._cssCacheKey !== "no-stylesheets") {
       node._cssCacheKey = "no-stylesheets";
       node._cssComputedVersion = ++computedVersion;
@@ -274,17 +317,14 @@ export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
       layer: spec[0] === 1 ? "inline" : layer,
     });
   }
-  function visit(rules, layer = null) {
-    for (const rule of rules) {
-      if (rule.condition) {
-        if (rule.condition === "layer") {
-          for (const name of rule.query.split(","))
-            if (!layers.has(name.trim())) layers.set(name.trim(), layers.size);
-          visit(rule.rules, layers.get(rule.query.trim()));
-        } else if (evaluate(rule.condition, rule.query))
-          visit(rule.rules, layer);
-        continue;
-      }
+  indexedRules(evaluate);
+  tracking(node, () => {
+    // Candidate keys are read even when no rule currently uses them.
+    observe(node, 'props');
+    const classes = [node.props.class ?? node.props.className ?? '', ...Object.entries(node.props.classList || {}).filter(([, v]) => v).map(([k]) => k)].join(' ').split(/\s+/);
+    const keys = ['*', `tag:${node.type.toLowerCase()}`, `id:${node.props.id}`, ...classes.map(c => `class:${c}`)];
+    const entries = new Set(keys.flatMap(key => candidateIndex.get(key) || []));
+    for (const { rule, layer } of [...entries].sort((a,b) => a.order - b.order)) {
       let spec = null;
       for (const selector of rule.selectors)
         if (selector.test(node)) {
@@ -294,8 +334,7 @@ export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
       if (!spec) continue;
       matched.push({ rule, spec, layer });
     }
-  }
-  for (const rules of sheets.values()) visit(rules);
+  });
   const needsParent =
     matched.some(({ rule }) =>
       rule.declarations.some(
@@ -312,6 +351,9 @@ export function sheetStyle(node, inline, inheritedKeys, initials, evaluate) {
     node.parent?._cssInheritanceVersion,
     needsParent ? node.parent?._cssComputedVersion : null,
   ]);
+  node._cssNeedsParent = needsParent;
+  node._cssInputKey = JSON.stringify([sheetVersion, inline, node.parent?._cssInheritanceVersion,
+    needsParent ? node.parent?._cssComputedVersion : null]);
   if (node._cssCacheKey === cacheKey) return node._cssComputed;
   node._cssCacheKey = cacheKey;
   for (const { rule, spec, layer } of matched) {

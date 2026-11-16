@@ -1,4 +1,5 @@
 // CSS Selectors Level 4 Engine with :where(), user-action pseudos, and WebVTT cue support.
+import { observe, work } from './invalidation.js';
 
 /**
  * Checks HTML5 constraint validation on a node.
@@ -251,6 +252,11 @@ export function compareSpecificity(s1, s2) {
 function matchesCompound(node, parts) {
   if (!node) return false;
   for (const part of parts) {
+    if (part.type === 'pseudo' && ['hover', 'active', 'focus'].includes(part.name))
+      observe(node, part.name);
+    else if (part.type === 'pseudo' && part.name === 'empty') observe(node, 'children');
+    else if (part.type === 'pseudo' && part.name === 'root') observe(node, 'parent');
+    else if (part.type !== 'tag' && !(part.type === 'pseudo' && ['is', 'where', 'not'].includes(part.name))) observe(node, 'props');
     if (part.type === "tag") {
       if (node.type.toLowerCase() !== part.value) return false;
     } else if (part.type === "id") {
@@ -344,6 +350,7 @@ function matchesComplexTokens(node, tokens) {
 
   while (tokenIdx > 0) {
     const comb = tokens[tokenIdx].combinator;
+    observe(currNode, 'parent');
     tokenIdx--;
     const prevCompound = tokens[tokenIdx].compound;
 
@@ -356,6 +363,7 @@ function matchesComplexTokens(node, tokens) {
       let parent = currNode.parent;
       let found = false;
       while (parent) {
+        observe(parent, 'parent');
         if (matchesCompound(parent, prevCompound)) {
           currNode = parent;
           found = true;
@@ -367,6 +375,7 @@ function matchesComplexTokens(node, tokens) {
     } else if (comb === "+") {
       // Adjacent sibling
       if (!currNode.parent) return false;
+      observe(currNode.parent, 'children');
       const idx = currNode.parent.children.indexOf(currNode);
       if (idx <= 0) return false;
       currNode = currNode.parent.children[idx - 1];
@@ -374,6 +383,7 @@ function matchesComplexTokens(node, tokens) {
     } else if (comb === "~") {
       // Subsequent sibling
       if (!currNode.parent) return false;
+      observe(currNode.parent, 'children');
       const idx = currNode.parent.children.indexOf(currNode);
       if (idx <= 0) return false;
       let found = false;
@@ -410,7 +420,7 @@ export function matches(node, selectorStr) {
 // Compile immutable stylesheet selectors once, rather than on pointer events.
 export function compileSelector(selector) {
   const tokens = parseComplexSelector(selector);
-  return node => node && node.type !== 'text' && tokens.length > 0 && matchesComplexTokens(node, tokens);
+  return node => { work.selectors++; return node && node.type !== 'text' && tokens.length > 0 && matchesComplexTokens(node, tokens); };
 }
 
 /**

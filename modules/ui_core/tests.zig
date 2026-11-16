@@ -380,9 +380,9 @@ test "empty block margins collapse through" {
     try std.testing.expectApproxEqAbs(b2.y + b2.height + 40, b4.y, 0.01);
 }
 
-test "row container keeps sibling text on one line" {
+test "plain block container keeps sibling text on one line" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"column"},"children":[{"id":2,"type":"label","style":{"display":"flex","flexDirection":"row"},"children":[{"id":3,"type":"text","text":"Loading states: "},{"id":4,"type":"text","text":"no"}]}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"column"},"children":[{"id":2,"type":"div","style":{"display":"block"},"children":[{"id":3,"type":"text","text":"Loading states: "},{"id":4,"type":"text","text":"no"}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();

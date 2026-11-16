@@ -71,7 +71,7 @@ function mount(Component) {
 function flexDirectionOf(node, style) {
   if (typeof style.flexDirection === "string") return style.flexDirection;
   if (node.type === "select") return "column";
-  return ["div", "label", "button", "input", "option"].includes(node.type) ? "row" : "column";
+  return node.type === "root" ? "column" : "row";
 }
 
 function blockifyDisplay(d) {
@@ -110,7 +110,7 @@ function displayOf(node, style) {
     } else {
       resolvedDisplay = d;
     }
-  } else if (node.type === "text" || node.type === "div") {
+  } else if (["text", "div", "label"].includes(node.type)) {
     resolvedDisplay = "block";
   } else if (node.type === "table") {
     resolvedDisplay = "table";

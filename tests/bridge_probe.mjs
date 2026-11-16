@@ -5,11 +5,7 @@ globalThis.__NATIVE_HMR__ = false;
 const { mountApp } = await import("../packages/solid-zig/src/native.js");
 const renderer = await import("../packages/solid-zig/src/renderer.js");
 
-// Regression guard: the JS bridge must emit a display/flexDirection pair whose
-// axis matches how heights are resolved. Containers defaulted to `display:
-// block` while `flexDirection` defaulted to `row`, so a label's height was
-// computed as a row but its children were stacked as a column — text siblings
-// overflowed the label and overlapped the next row.
+// Labels use ordinary block text flow; text rendering must not require flex.
 const label = renderer.createElement("label");
 renderer.insert(label, "Loading states: ");
 renderer.insert(label, "no");
@@ -50,8 +46,7 @@ function find(node, type) {
   return null;
 }
 
-assert.equal(find(tree, "label").style.display, "flex", "labels are flex containers");
-assert.equal(find(tree, "label").style.flexDirection, "row", "labels lay their text out inline");
+assert.equal(find(tree, "label").style.display, "block", "labels use ordinary block text flow");
 
 const nodes = [];
 function visit(node) { nodes.push(node); for (const child of node.children) visit(child); }

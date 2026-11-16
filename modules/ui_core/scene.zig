@@ -448,6 +448,7 @@ pub const Scene = struct {
         const is_flex = std.mem.eql(u8, n.style.display, "flex") or std.mem.eql(u8, n.style.display, "inline-flex");
         const row = is_flex and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         var width: f32 = 0;
+        var inline_width: f32 = 0;
         var in_flow_seen: usize = 0;
         for (n.children) |*child| {
             if (child.isOutOfFlow()) continue;
@@ -457,7 +458,15 @@ pub const Scene = struct {
             if (row) {
                 if (in_flow_seen > 0) width += n.style.gap;
                 width += child_width;
-            } else width = @max(width, child_width);
+            } else if (!is_flex and !minimum and @import("layout_block.zig").isInlineLevel(child)) {
+                // Text fragments share one line; a Solid expression boundary
+                // does not turn the surrounding inline run into separate blocks.
+                inline_width += child_width;
+                width = @max(width, inline_width);
+            } else {
+                inline_width = 0;
+                width = @max(width, child_width);
+            }
             in_flow_seen += 1;
         }
         return width + frame;

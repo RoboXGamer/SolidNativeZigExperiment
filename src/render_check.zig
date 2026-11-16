@@ -9,7 +9,7 @@ extern fn ui_cursor_start() c_int;
 extern "user32" fn GetCursor() ?*anyopaque;
 extern "user32" fn SendMessageW(?*anyopaque, u32, usize, isize) isize;
 fn draw(_: *anyopaque, _: *ui.Scene, item: ui.Item, _: std.mem.Allocator) !void {
-    if (std.mem.eql(u8, item.node.type, "text")) rl.drawRectangle(@intFromFloat(item.bounds.x), @intFromFloat(item.bounds.y), 4, 4, .white);
+    if (std.mem.eql(u8, item.node.type, "text")) rl.drawRectangle(@intFromFloat(item.bounds.x), @intFromFloat(item.bounds.y), 4, 4, if (std.mem.eql(u8, item.node.text, "coverage")) .{ .r = 255, .g = 255, .b = 255, .a = 128 } else .white);
 }
 fn frame(renderer: *Renderer, json: []const u8) !rl.Image {
     var scene = try ui.Scene.init(std.heap.page_allocator, json, 128, 128);
@@ -68,11 +68,36 @@ pub fn main() !void {
     defer renderer.deinit();
     var text_cache = backend.Cache.init(std.heap.page_allocator);
     defer text_cache.deinit();
+    const first_metrics = backend.measureCached(&text_cache, "X (YOU)", 11, .{});
+    for (0..100) |_| _ = backend.measureCached(&text_cache, "X (YOU)", 11, .{});
+    try check(text_cache.measurement_runs == 1, "repeated text measurement reuses native shaping metrics");
+    const spaced_metrics = backend.measureCached(&text_cache, "X (YOU)", 11, .{ .letter_spacing = 2 });
+    try check(text_cache.measurement_runs == 2 and spaced_metrics.width > first_metrics.width, "typography changes invalidate cached shaping metrics");
     // Exercise the same shaped glyph rasterizer used by application paint.
     rl.beginDrawing();
     try text_cache.drawStyled("नमस्ते — مرحبا", 0, 0, 24, .white, .{});
     rl.endDrawing();
     try check(text_cache.textures.count() == 1, "native shaped glyph raster upload");
+    var glyphs = text_cache.textures.valueIterator();
+    const glyph_image = try rl.loadImageFromTexture(glyphs.next().?.*);
+    defer rl.unloadImage(glyph_image);
+    var partial_coverage: usize = 0;
+    for (0..@intCast(glyph_image.height)) |y| for (0..@intCast(glyph_image.width)) |x| {
+        const alpha = rl.getImageColor(glyph_image, @intCast(x), @intCast(y)).a;
+        if (alpha > 0 and alpha < 255) partial_coverage += 1;
+    };
+    try check(partial_coverage > 20, "glyph raster contains grayscale edge coverage");
+    const coverage = try frame(&renderer,
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"text","text":"coverage"}]}
+    );
+    try check(@abs(@as(i32, rl.getImageColor(coverage, 1, 1).a) - 128) <= 1, "transparent surfaces preserve source edge coverage");
+    try check(renderer.direct_items == 2 and renderer.masked_items == 0, "unclipped items draw without per-item offscreen passes");
+    rl.unloadImage(coverage);
+    const clipped_coverage = try frame(&renderer,
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"width":40,"height":40,"overflow":"hidden"},"children":[{"id":3,"type":"text","text":"coverage"}]}]}
+    );
+    defer rl.unloadImage(clipped_coverage);
+    try check(@abs(@as(i32, rl.getImageColor(clipped_coverage, 1, 1).a) - 128) <= 1, "clipped content preserves source edge coverage");
     var image = try frame(&renderer,
         \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","width":80,"height":80,"backgroundGradient":"linear-gradient(90deg, #ff0000, #00ff00 50%, #0000ff)"}}]}
     );
@@ -108,6 +133,7 @@ pub fn main() !void {
     const scaled = rl.getImageColor(image, 85, 50);
     const original = rl.getImageColor(image, 21, 21);
     try check(transformed.r > 220 and transformed.g > 220 and scaled.r > 220 and original.a < 10, "world transform applies to children and content");
+    try check(renderer.isolated_contexts == 0, "transforms preserve ordering without allocating group surfaces");
     rl.unloadImage(image);
     image = try frame(&renderer,
         \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","width":80,"height":80,"backgroundImage":"url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVR4nGNQDYj7j4ylTJ1RMAMdFKALoGuggwIAkDFsYfnTE3cAAAAASUVORK5CYII=\")","backgroundSize":"32px 32px","backgroundRepeat":"repeat","borderRadiusCss":"12px"}}]}

@@ -490,8 +490,8 @@ fn getSystemPreferences() ui.sizing.Context {
     return ctx;
 }
 
-fn buildScene(tree: *ui.Tree) !ui.Scene {
-    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .styled_measure_fn = text_backend.measureStyled, .styled_position_fn = text_backend.positionStyled }, getSystemPreferences());
+fn buildScene(tree: *ui.Tree, text_cache: *text_backend.Cache) !ui.Scene {
+    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .ctx = text_cache, .styled_measure_fn = text_backend.measureCached, .styled_position_fn = text_backend.positionStyled }, getSystemPreferences());
 }
 
 pub fn run() void {
@@ -542,7 +542,7 @@ pub fn run() void {
         std.log.err("Could not initialize the native tree: {}", .{err});
         return;
     };
-    var scene = buildScene(&tree) catch |err| {
+    var scene = buildScene(&tree, &text_cache) catch |err| {
         std.log.err("Could not build UI scene: {}", .{err});
         return;
     };
@@ -739,7 +739,7 @@ pub fn run() void {
         const scene_changed = changed.state or animating or resized;
         var paint_changed = false;
         if (layout_changed) {
-            var next = buildScene(&tree) catch |err| {
+            var next = buildScene(&tree, &text_cache) catch |err| {
                 std.log.err("Could not update UI scene: {}", .{err});
                 break;
             };

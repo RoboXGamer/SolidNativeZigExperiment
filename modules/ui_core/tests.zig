@@ -396,6 +396,20 @@ test "plain block container keeps sibling text on one line" {
     try std.testing.expectApproxEqAbs(first.height, label.height, 0.01);
 }
 
+test "centered flex score caption measures the complete split inline run" {
+    var scene = try Scene.init(std.testing.allocator,
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"display":"flex","flexDirection":"column","alignItems":"center","width":112,"height":62,"fontSize":11},"children":[{"id":3,"type":"div","children":[{"id":4,"type":"text","text":"X ("},{"id":5,"type":"text","text":"YOU"},{"id":6,"type":"text","text":")"}]},{"id":7,"type":"div","children":[{"id":8,"type":"text","text":"0"}]}]}]}
+    , 300, 200);
+    defer scene.deinit();
+    const caption = scene.find(3).?;
+    const first = scene.find(4).?;
+    const middle = scene.find(5).?;
+    const last = scene.find(6).?;
+    try std.testing.expectApproxEqAbs(first.bounds.width + middle.bounds.width + last.bounds.width, caption.bounds.width, 0.01);
+    try std.testing.expectEqual(first.bounds.y, last.bounds.y);
+    try std.testing.expect(scene.find(7).?.bounds.y >= caption.bounds.y + caption.bounds.height);
+}
+
 test "text intrinsic width follows the injected metrics" {
     const json =
         \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"text","text":"abcd","style":{"flexBasisContent":true}}]}

@@ -54,6 +54,29 @@ pub fn measureStyled(_: ?*anyopaque, text: []const u8, size: f32, typography: Ty
     if (ui_text_measure_styled(text.ptr, text.len, size, &native, &m) != 0) return .{ .width = m.width, .height = m.height, .ascent = m.ascent, .descent = m.descent, .leading = m.leading };
     return (ui.Text{ .typography = typography }).measure(text, size);
 }
+fn runKey(text: []const u8, size: f32, typography: Typography) u64 {
+    var hash = std.hash.Wyhash.init(0);
+    hash.update(text);
+    hash.update(std.mem.asBytes(&size));
+    inline for (.{ "font_family", "font_style", "language", "text_transform", "text_orientation", "font_feature_settings" }) |field| {
+        const value = @field(typography, field);
+        const length = value.len;
+        hash.update(std.mem.asBytes(&length));
+        hash.update(value);
+    }
+    inline for (.{ "font_weight", "letter_spacing", "word_spacing", "tab_size", "tab_size_is_length" }) |field| hash.update(std.mem.asBytes(&@field(typography, field)));
+    return hash.final();
+}
+pub fn measureCached(ctx: ?*anyopaque, text: []const u8, size: f32, typography: Typography) ui.Metrics {
+    const cache: *Cache = @ptrCast(@alignCast(ctx orelse return measureStyled(null, text, size, typography)));
+    const key = runKey(text, size, typography);
+    if (cache.metrics.get(key)) |metrics| return metrics;
+    const metrics = measureStyled(null, text, size, typography);
+    cache.measurement_runs += 1;
+    if (cache.metrics.count() >= 4096) cache.metrics.clearRetainingCapacity();
+    cache.metrics.put(key, metrics) catch {};
+    return metrics;
+}
 pub fn positionStyled(_: ?*anyopaque, text: []const u8, x: f32, size: f32, typography: Typography) usize {
     const native = NativeStyle.from(typography);
     const offset: usize = @intCast(@max(0, ui_text_position_styled(text.ptr, text.len, size, x, &native)));
@@ -70,27 +93,20 @@ pub fn positionStyled(_: ?*anyopaque, text: []const u8, x: f32, size: f32, typog
 pub const Cache = struct {
     allocator: std.mem.Allocator,
     textures: std.AutoHashMap(u64, rl.Texture2D),
+    metrics: std.AutoHashMap(u64, ui.Metrics),
+    measurement_runs: usize = 0,
     pub fn init(a: std.mem.Allocator) Cache {
-        return .{ .allocator = a, .textures = std.AutoHashMap(u64, rl.Texture2D).init(a) };
+        return .{ .allocator = a, .textures = std.AutoHashMap(u64, rl.Texture2D).init(a), .metrics = std.AutoHashMap(u64, ui.Metrics).init(a) };
     }
     pub fn deinit(self: *Cache) void {
         var it = self.textures.valueIterator();
         while (it.next()) |t| rl.unloadTexture(t.*);
         self.textures.deinit();
+        self.metrics.deinit();
     }
     pub fn drawStyled(self: *Cache, text: []const u8, x: f32, y: f32, size: f32, color: rl.Color, typography: Typography) !void {
         if (text.len == 0) return;
-        var hash = std.hash.Wyhash.init(0);
-        hash.update(text);
-        hash.update(std.mem.asBytes(&size));
-        inline for (.{ "font_family", "font_style", "language", "text_transform", "text_orientation", "overflow_wrap", "paint_order" }) |field| {
-            const value = @field(typography, field);
-            const length = value.len;
-            hash.update(std.mem.asBytes(&length));
-            hash.update(value);
-        }
-        inline for (.{ "font_weight", "letter_spacing", "word_spacing", "tab_size", "tab_size_is_length" }) |field| hash.update(std.mem.asBytes(&@field(typography, field)));
-        const key = hash.final();
+        const key = runKey(text, size, typography);
         if (!self.textures.contains(key)) {
             var w: c_int = 0;
             var h: c_int = 0;
@@ -100,6 +116,7 @@ pub const Cache = struct {
             const image = rl.Image{ .data = @ptrCast(pixels), .width = w, .height = h, .mipmaps = 1, .format = .uncompressed_r8g8b8a8 };
             const texture = try rl.loadTextureFromImage(image);
             errdefer rl.unloadTexture(texture);
+            rl.setTextureFilter(texture, .bilinear);
             // Bound cache growth under rapidly changing counters / HMR.
             if (self.textures.count() >= 512) {
                 var it = self.textures.valueIterator();

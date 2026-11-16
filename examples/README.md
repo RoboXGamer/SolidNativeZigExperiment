@@ -6,10 +6,12 @@ Each demo has its own folder and `app.js` entry. All demos share the root depend
 | --------------- | ------------------------ | --------------------------------------------------------------------------------------------- |
 | `css` (default) | `examples/css/app.js`    | Normal CSS, class/ID selectors, inheritance, reactive classes, imported styles and image URLs |
 | `states`        | `examples/states/app.js` | Async state/city selection with native select controls                                        |
+| `tictactoe`     | `examples/tictactoe/app.js` | Reactive game with player/CPU modes, CSS board, score cards and round-result overlay |
 
 ```powershell
 pnpm dev --example css
 pnpm dev --example states
+pnpm dev --example tictactoe
 ```
 
 Only run one demo at a time: this alpha still shares the generated `src/ui-bundle.js`, `src/ui-hmr.js` and native executable. Stop the running demo before selecting another.

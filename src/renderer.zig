@@ -17,6 +17,9 @@ pub const Renderer = struct {
     composite_shader: rl.Shader,
     width: i32 = 0,
     height: i32 = 0,
+    direct_items: usize = 0,
+    masked_items: usize = 0,
+    isolated_contexts: usize = 0,
 
     pub fn init(a: std.mem.Allocator) !Renderer {
         const shader = try rl.loadShaderFromMemory(null, mask_source);
@@ -55,9 +58,18 @@ pub const Renderer = struct {
         rl.clearBackground(c);
         rl.endTextureMode();
     }
+    fn beginCoverageBlend() void {
+        // Straight-alpha source pixels become premultiplied target pixels.
+        // Raylib's default blend multiplies the alpha channel by itself too,
+        // destroying glyph/rounded-edge coverage in transparent surfaces.
+        rl.gl.rlSetBlendFactorsSeparate(0x0302, 0x0303, 1, 0x0303, 0x8006, 0x8006);
+        rl.beginBlendMode(.custom_separate);
+    }
     fn upload(b: ui.paint.Bitmap) !rl.Texture2D {
         const image = rl.Image{ .data = @ptrCast(b.pixels.ptr), .width = @intCast(b.width), .height = @intCast(b.height), .mipmaps = 1, .format = .uncompressed_r8g8b8a8 };
-        return rl.loadTextureFromImage(image);
+        const texture = try rl.loadTextureFromImage(image);
+        rl.setTextureFilter(texture, .bilinear);
+        return texture;
     }
     fn cached(self: *Renderer, item: ui.Item, a: std.mem.Allocator) !*Cached {
         const n = item.node;
@@ -159,6 +171,7 @@ pub const Renderer = struct {
             const resolution = [2]f32{ @floatFromInt(self.width), @floatFromInt(self.height) };
             rl.beginTextureMode(next);
             rl.clearBackground(.blank);
+            beginCoverageBlend();
             rl.beginShaderMode(self.mask_shader);
             uniform(self.mask_shader, "box", &rect, .vec4);
             uniform(self.mask_shader, "radiiX", &radius.x, .vec4);
@@ -168,6 +181,7 @@ pub const Renderer = struct {
             rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), matrix4(inv));
             self.full(current.texture);
             rl.endShaderMode();
+            rl.endBlendMode();
             rl.endTextureMode();
             const swap = current;
             current = next;
@@ -196,6 +210,7 @@ pub const Renderer = struct {
         const resolution = [2]f32{ @floatFromInt(self.width), @floatFromInt(self.height) };
         clear(next, .blank);
         rl.beginTextureMode(next);
+        beginCoverageBlend();
         rl.beginShaderMode(self.mask_shader);
         uniform(self.mask_shader, "box", &rect, .vec4);
         uniform(self.mask_shader, "radiiX", &radius.x, .vec4);
@@ -205,6 +220,7 @@ pub const Renderer = struct {
         rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), matrix4(inv));
         self.full(current.texture);
         rl.endShaderMode();
+        rl.endBlendMode();
         rl.endTextureMode();
         return next.texture;
     }
@@ -223,10 +239,43 @@ pub const Renderer = struct {
         if (item.bounds.width <= 0 or item.bounds.height <= 0 or !ui.interaction.isVisible(item.node)) return;
         const w4 = scene.worldTransform4x4(item);
         if (std.ascii.eqlIgnoreCase(item.node.style.backfaceVisibility, "hidden") and w4.isBackface()) return;
-        const layer = try self.target(2);
         const c = try self.cached(item, a);
+        // An ordinary item can draw straight into its stacking context. Only
+        // clipping requires isolation into content/mask surfaces. Context opacity
+        // is still applied once to the complete subtree by context().
+        var needs_mask = item.node.clipsX() or item.node.clipsY() or
+            std.mem.eql(u8, item.node.type, "input") or item.node.style.clipPath.len > 0;
+        var parent = item.parent_id;
+        while (!needs_mask) {
+            const p = scene.find(parent orelse break) orelse break;
+            parent = p.parent_id;
+            if (scene.clipApplies(item, p) and (p.node.clipsX() or p.node.clipsY() or p.node.style.clipPath.len > 0)) needs_mask = true;
+        }
+        if (!needs_mask) {
+            self.direct_items += 1;
+            rl.beginTextureMode(dest);
+            beginCoverageBlend();
+            rl.gl.rlPushMatrix();
+            const matrix = w4.m;
+            rl.gl.rlMultMatrixf(&matrix);
+            defer {
+                rl.gl.rlPopMatrix();
+                rl.endBlendMode();
+                rl.endTextureMode();
+            }
+            for (c.layers.items) |effect| if (!effect.inset) textureAt(effect.texture, item.bounds.x + effect.x, item.bounds.y + effect.y);
+            if (c.background) |texture| textureAt(texture, item.bounds.x, item.bounds.y);
+            for (c.layers.items) |effect| if (effect.inset) textureAt(effect.texture, item.bounds.x + effect.x, item.bounds.y + effect.y);
+            if (c.border) |texture| textureAt(texture, item.bounds.x, item.bounds.y);
+            try draw(ctx, scene, item, a);
+            if (c.outline) |outline| textureAt(outline.texture, item.bounds.x + outline.x, item.bounds.y + outline.y);
+            return;
+        }
+        self.masked_items += 1;
+        const layer = try self.target(2);
         clear(layer, .blank);
         rl.beginTextureMode(layer);
+        beginCoverageBlend();
         rl.gl.rlPushMatrix();
         const matrix = w4.m;
         rl.gl.rlMultMatrixf(&matrix);
@@ -235,27 +284,33 @@ pub const Renderer = struct {
         for (c.layers.items) |effect| if (effect.inset) textureAt(effect.texture, item.bounds.x + effect.x, item.bounds.y + effect.y);
         if (c.border) |texture| textureAt(texture, item.bounds.x, item.bounds.y);
         rl.gl.rlPopMatrix();
+        rl.endBlendMode();
         rl.endTextureMode();
         if (self.content_target == null) self.content_target = try rl.loadRenderTexture(self.width, self.height);
         const content = self.content_target.?;
         clear(content, .blank);
         rl.beginTextureMode(content);
+        beginCoverageBlend();
         rl.gl.rlPushMatrix();
         rl.gl.rlMultMatrixf(&matrix);
         draw(ctx, scene, item, a) catch |err| {
             rl.gl.rlPopMatrix();
+            rl.endBlendMode();
             rl.endTextureMode();
             return err;
         };
         rl.gl.rlPopMatrix();
+        rl.endBlendMode();
         rl.endTextureMode();
         self.composite(content.texture, layer, try self.contentMask(scene, item), 1);
         if (c.outline) |outline| {
             rl.beginTextureMode(layer);
+            beginCoverageBlend();
             rl.gl.rlPushMatrix();
             rl.gl.rlMultMatrixf(&matrix);
             textureAt(outline.texture, item.bounds.x + outline.x, item.bounds.y + outline.y);
             rl.gl.rlPopMatrix();
+            rl.endBlendMode();
             rl.endTextureMode();
         }
         self.composite(layer.texture, dest, try self.mask(scene, item), 1);
@@ -263,19 +318,33 @@ pub const Renderer = struct {
     fn context(self: *Renderer, scene: *ui.Scene, root_index: usize, depth: usize, order: []const usize, ctx: *anyopaque, draw: DrawFn, a: std.mem.Allocator) anyerror!rl.RenderTexture2D {
         const target_texture = try self.target(3 + depth);
         clear(target_texture, .blank);
+        try self.paintContext(scene, root_index, target_texture, depth, order, ctx, draw, a);
+        return target_texture;
+    }
+    fn paintContext(self: *Renderer, scene: *ui.Scene, root_index: usize, target_texture: rl.RenderTexture2D, depth: usize, order: []const usize, ctx: *anyopaque, draw: DrawFn, a: std.mem.Allocator) anyerror!void {
         const root_item = scene.items.items[root_index];
         try self.drawItem(scene, root_item, target_texture, ctx, draw, a);
         for (order) |i| {
             const item = scene.items.items[i];
             if (scene.contextOwner(item) != root_item.node.id) continue;
             if (scene.establishesContext(item)) {
-                const child = try self.context(scene, i, depth + 1, order, ctx, draw, a);
-                self.composite(child.texture, target_texture, try self.mask(scene, item), std.math.clamp(item.node.style.opacity, 0, 1));
+                // A transform/z-index establishes paint ordering, but does not
+                // itself require a framebuffer. Recurse in that order directly;
+                // isolate only groups that need subtree-wide compositing.
+                if (item.node.style.opacity == 1 and !std.mem.eql(u8, item.node.style.isolation, "isolate")) {
+                    try self.paintContext(scene, i, target_texture, depth, order, ctx, draw, a);
+                } else {
+                    self.isolated_contexts += 1;
+                    const child = try self.context(scene, i, depth + 1, order, ctx, draw, a);
+                    self.composite(child.texture, target_texture, try self.mask(scene, item), std.math.clamp(item.node.style.opacity, 0, 1));
+                }
             } else try self.drawItem(scene, item, target_texture, ctx, draw, a);
         }
-        return target_texture;
     }
     pub fn render(self: *Renderer, scene: *ui.Scene, ctx: *anyopaque, draw: DrawFn, a: std.mem.Allocator) !void {
+        self.direct_items = 0;
+        self.masked_items = 0;
+        self.isolated_contexts = 0;
         const width = rl.getScreenWidth();
         const height = rl.getScreenHeight();
         if (width != self.width or height != self.height) {

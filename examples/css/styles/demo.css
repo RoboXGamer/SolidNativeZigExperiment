@@ -23,6 +23,8 @@
   gap: 20px;
 }
 .card {
+  display: flex;
+  flex-direction: column;
   width: 320px;
   height: 180px;
   padding: var(--card-padding);

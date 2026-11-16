@@ -1,10 +1,9 @@
 //! Text measurement seam between layout and the rendering backend.
 //!
 //! `ui_core` never measures glyphs itself: the backend owns the font, so it
-//! installs a `MeasureFn` and layout asks for widths, line heights and
-//! ascents. The Raylib backend plugs in `MeasureText`, which makes intrinsic
-//! sizing (min/max-content, flex-basis `content`, auto heights) use real font
-//! metrics instead of a per-character guess.
+//! installs measurement callbacks and layout asks for widths, line heights and
+//! ascents. The Windows backend measures shaped text with its font backend,
+//! so intrinsic sizing uses real metrics instead of a per-character guess.
 //!
 //! Without a measurer (headless layout tests, the Node tree probes) the same
 //! API falls back to a metric estimate, so behaviour stays defined everywhere.
@@ -248,6 +247,8 @@ pub const RubyMetrics = struct {
 
 pub const Text = struct {
     ctx: ?*anyopaque = null,
+    /// Simple callbacks for backends that do not need typography information.
+    /// Used only when the corresponding styled callback is absent.
     measure_fn: ?MeasureFn = null,
     position_fn: ?PositionFn = null,
     styled_measure_fn: ?StyledMeasureFn = null,
@@ -306,7 +307,7 @@ pub const Text = struct {
             metrics.height *= compact_h_scale;
             metrics.ascent *= compact_asc_scale;
         }
-        // Preserve legacy callbacks while giving their fallback spacing semantics.
+        // Apply spacing when the backend supplies the basic measurement callback.
         var offset: usize = 0;
         var advance: f32 = 0;
         const edit = @import("text_edit.zig");

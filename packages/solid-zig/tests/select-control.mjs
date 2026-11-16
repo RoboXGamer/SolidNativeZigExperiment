@@ -27,6 +27,15 @@ function find(node, type) {
 
 // --- Suite 1: Node Tree Serialization (SELECT-01) ---
 {
+  const select = renderer.createElement("select", { style: { borderRadius: "50%" } });
+  assert.equal(snapshot(select).style.borderRadiusCss, "50%", "authored CSS radius overrides the select default");
+  const numeric = renderer.createElement("div", { style: { borderRadius: 8, borderTopLeftRadius: 0 } });
+  const style = snapshot(numeric).style;
+  assert.equal(style.borderRadiusCss, "8px");
+  assert.equal(style.borderTopLeftRadiusCss, "0px");
+  assert.equal("borderRadius" in style, false, "bridge sends one radius representation");
+}
+{
   const select = renderer.createElement("select", { value: "CA" });
   const opt1 = renderer.createElement("option", { value: "UT" });
   renderer.insert(opt1, "Utah");
@@ -142,7 +151,7 @@ function find(node, type) {
 
   createRoot((dispose) => {
     mountApp(() => {
-      const col = renderer.createElement("column");
+      const col = renderer.createElement("div");
       const sel = renderer.createElement("select", {
         value: "item-1",
         onChange: (e) => {
@@ -211,7 +220,7 @@ function find(node, type) {
     let selId = 0;
 
     mountApp(() => {
-      const col = renderer.createElement("column");
+      const col = renderer.createElement("div");
       const sel = renderer.createElement("select", {
         value: "apple",
         onChange: (e) => {

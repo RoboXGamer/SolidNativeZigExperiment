@@ -3,7 +3,7 @@ import { snapshot } from "../src/native.js";
 
 const node = (style, props = {}) => ({
   id: 1,
-  type: "column",
+  type: "div",
   text: "",
   props: { style, ...props },
   children: [],

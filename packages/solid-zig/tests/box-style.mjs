@@ -30,7 +30,7 @@ for (const [input, expected] of [
 assert.equal(physicalStyle({ writingMode: "vertical-rl", inlineSize: 25 }).height, 25);
 assert.equal(physicalStyle({ writingMode: "vertical-lr", blockSize: 25 }).width, 25);
 
-const node = style => ({ id: 1, type: "column", text: "", props: { style }, children: [] });
+const node = style => ({ id: 1, type: "div", text: "", props: { style }, children: [] });
 const projected = snapshot(node({ width: 0, maxWidth: "none", margin: "-1px auto", padding: "20px 0", borderWidth: 4, borderLeftWidth: 0 })).style;
 assert.equal(projected.width, 0);
 assert.equal(projected.maxWidthCss, "none");

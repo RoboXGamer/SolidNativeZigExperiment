@@ -238,9 +238,6 @@ int ui_text_position_styled(const char *text,size_t length,float size,float x,co
     int bytes=original?WideCharToMultiByte(CP_UTF8,0,r.original,original,NULL,0,NULL,NULL):0;
     release_run(&r); return bytes;
 }
-int ui_text_measure(const char *text,size_t length,float size,TextMetrics *out) {return ui_text_measure_styled(text,length,size,NULL,out);}
-unsigned char *ui_text_raster(const char *text,size_t length,float size,int *width,int *height) {return ui_text_raster_styled(text,length,size,NULL,width,height);}
-int ui_text_position(const char *text,size_t length,float size,float x) {return ui_text_position_styled(text,length,size,x,NULL);}
 void ui_text_ime_position(void *window,int x,int y) {
     HIMC im=ImmGetContext((HWND)window); if(!im) return;
     COMPOSITIONFORM composition={0}; composition.dwStyle=CFS_POINT; composition.ptCurrentPos.x=x; composition.ptCurrentPos.y=y;

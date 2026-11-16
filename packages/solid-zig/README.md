@@ -19,10 +19,10 @@ import { mountApp } from "@zig-ui/solid";
 
 function App() {
   const [name, setName] = createSignal("");
-  return <column style={{ gap: 12, padding: 24 }}>
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 24 }}>
     <input value={name()} onInput={event => setName(event.target.value)} />
     <label>Hello {name()}</label>
-  </column>;
+  </div>;
 }
 
 mountApp(App);

@@ -1,6 +1,14 @@
 const std = @import("std");
 const ui = @import("root.zig");
 
+test "comma and space separated CSS colors retain their distinct grammar" {
+    const parse = ui.gradient.parseColor;
+    try std.testing.expectEqual(parse("rgb(255, 0, 0)").?, parse("rgb(255 0 0)").?);
+    try std.testing.expectEqual(parse("hsl(36, 100%, 50%)").?, parse("hsl(36 100% 50%)").?);
+    try std.testing.expect(parse("rgb(255, 0%, 0)") == null);
+    try std.testing.expect(parse("rgb(255, 0, 0 / 0.5)") == null);
+}
+
 test "official Unicode 16 extended grapheme conformance corpus" {
     var lines = std.mem.splitScalar(u8, @embedFile("unicode/GraphemeBreakTest.txt"), '\n');
     var cases: usize = 0;
@@ -42,7 +50,7 @@ fn near(expected: f32, actual: f32) !void {
 
 test "RTL flex and unsafe cross alignment" {
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"display":"flex","direction":"rtl","width":200,"height":20,"alignItems":"unsafe center"},"children":[{"id":2,"type":"column","style":{"width":40,"height":40}},{"id":3,"type":"column","style":{"width":20,"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","direction":"rtl","width":200,"height":20,"alignItems":"unsafe center"},"children":[{"id":2,"type":"div","style":{"width":40,"height":40}},{"id":3,"type":"div","style":{"width":20,"height":10}}]}
     , 200, 20);
     defer scene.deinit();
     try near(160, scene.find(2).?.bounds.x);
@@ -66,7 +74,8 @@ test "normal text collapses whitespace in the shared layout paint projection" {
     try near(30, scene.find(2).?.node.style.lineHeight.?);
 }
 test "step timing curves and transform interpolation avoid a collapsed midpoint" {
-    const timing = ui.animation.Timing.parse("steps(4, end)");
+    var timing = try ui.animation.Timing.parseStrict(std.testing.allocator, "steps(4, end)");
+    defer timing.deinit(std.testing.allocator);
     try near(0.25, timing.solve(0.3));
     const m = ui.animation.interpolateMatrix(ui.transform.Matrix2D.identity, ui.transform.Matrix2D.makeRotate(std.math.pi), 0.5);
     try near(1, @sqrt(m.a * m.a + m.b * m.b));
@@ -74,7 +83,7 @@ test "step timing curves and transform interpolation avoid a collapsed midpoint"
 
 test "named lines and implicit column widths are consumed by placement" {
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"display":"grid","width":300,"height":100,"gridTemplateColumnsCss":"[start] 50px [middle] 100px [end]","gridAutoColumnsCss":"70px"},"children":[{"id":2,"type":"column","style":{"gridColumn":"middle / end"}},{"id":3,"type":"column","style":{"gridColumn":"3 / 4"}}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","width":300,"height":100,"gridTemplateColumnsCss":"[start] 50px [middle] 100px [end]","gridAutoColumnsCss":"70px"},"children":[{"id":2,"type":"div","style":{"gridColumn":"middle / end"}},{"id":3,"type":"div","style":{"gridColumn":"3 / 4"}}]}
     , 300, 100);
     defer scene.deinit();
     try near(50, scene.find(2).?.bounds.x);
@@ -85,7 +94,7 @@ test "named lines and implicit column widths are consumed by placement" {
 test "repeat minmax whitespace and auto-fit collapse differ from auto-fill" {
     const cases = .{ .{ "auto-fit", @as(f32, 300) }, .{ "auto-fill", @as(f32, 100) } };
     inline for (cases) |c| {
-        const json = try std.fmt.allocPrint(std.testing.allocator, "{{\"id\":1,\"type\":\"root\",\"style\":{{\"display\":\"grid\",\"width\":300,\"height\":80,\"gridTemplateColumnsCss\":\"repeat({s}, minmax(100px, 1fr))\"}},\"children\":[{{\"id\":2,\"type\":\"column\"}}]}}", .{c[0]});
+        const json = try std.fmt.allocPrint(std.testing.allocator, "{{\"id\":1,\"type\":\"root\",\"style\":{{\"display\":\"grid\",\"width\":300,\"height\":80,\"gridTemplateColumnsCss\":\"repeat({s}, minmax(100px, 1fr))\"}},\"children\":[{{\"id\":2,\"type\":\"div\"}}]}}", .{c[0]});
         defer std.testing.allocator.free(json);
         var scene = try ui.Scene.init(std.testing.allocator, json, 300, 80);
         defer scene.deinit();
@@ -94,7 +103,7 @@ test "repeat minmax whitespace and auto-fit collapse differ from auto-fill" {
 }
 test "implicit rows set grid auto height and following block position" {
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"width":200,"height":400},"children":[{"id":2,"type":"column","style":{"display":"grid","gridTemplateColumnsCss":"100px 100px","gridAutoRowsCss":"30px 50px","rowGap":10},"children":[{"id":3,"type":"column"},{"id":4,"type":"column"},{"id":5,"type":"column"}]},{"id":6,"type":"column","style":{"height":20}}]}
+        \\{"id":1,"type":"root","style":{"width":200,"height":400},"children":[{"id":2,"type":"div","style":{"display":"grid","gridTemplateColumnsCss":"100px 100px","gridAutoRowsCss":"30px 50px","rowGap":10},"children":[{"id":3,"type":"div"},{"id":4,"type":"div"},{"id":5,"type":"div"}]},{"id":6,"type":"div","style":{"height":20}}]}
     , 200, 400);
     defer scene.deinit();
     try near(90, scene.find(2).?.bounds.height);
@@ -104,7 +113,7 @@ test "implicit rows set grid auto height and following block position" {
 }
 test "grid container alignment distributes tracks on both axes" {
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"display":"grid","width":200,"height":200,"gridTemplateColumnsCss":"50px 50px","gridTemplateRowsCss":"40px","justifyContent":"space-between","alignContent":"center"},"children":[{"id":2,"type":"column"},{"id":3,"type":"column"}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","width":200,"height":200,"gridTemplateColumnsCss":"50px 50px","gridTemplateRowsCss":"40px","justifyContent":"space-between","alignContent":"center"},"children":[{"id":2,"type":"div"},{"id":3,"type":"div"}]}
     , 200, 200);
     defer scene.deinit();
     try near(150, scene.find(3).?.bounds.x);
@@ -112,7 +121,7 @@ test "grid container alignment distributes tracks on both axes" {
 }
 test "absolute percentage insets resolve at positioned ancestor across static parents" {
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"position":"relative","width":300,"height":200},"children":[{"id":2,"type":"column","style":{"width":100,"height":100},"children":[{"id":3,"type":"column","style":{"position":"absolute","leftCss":"50%","widthCss":"50%","topCss":"50%","height":10}}]}]}
+        \\{"id":1,"type":"root","style":{"position":"relative","width":300,"height":200},"children":[{"id":2,"type":"div","style":{"width":100,"height":100},"children":[{"id":3,"type":"div","style":{"position":"absolute","leftCss":"50%","widthCss":"50%","topCss":"50%","height":10}}]}]}
     , 300, 200);
     defer scene.deinit();
     try near(150, scene.find(3).?.bounds.x);
@@ -121,7 +130,7 @@ test "absolute percentage insets resolve at positioned ancestor across static pa
 }
 test "fixed subtree does not scroll its ordinary descendants" {
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"width":100,"height":100,"overflow":"scroll"},"children":[{"id":2,"type":"column","style":{"height":300}},{"id":3,"type":"column","style":{"position":"fixed","top":20,"left":10,"width":50,"height":50},"children":[{"id":4,"type":"column","style":{"height":10}}]}]}
+        \\{"id":1,"type":"root","style":{"width":100,"height":100,"overflow":"scroll"},"children":[{"id":2,"type":"div","style":{"height":300}},{"id":3,"type":"div","style":{"position":"fixed","top":20,"left":10,"width":50,"height":50},"children":[{"id":4,"type":"div","style":{"height":10}}]}]}
     , 100, 100);
     defer scene.deinit();
     var offsets = std.AutoHashMap(u32, ui.ScrollOffset).init(std.testing.allocator);
@@ -132,7 +141,7 @@ test "fixed subtree does not scroll its ordinary descendants" {
 }
 test "nested transform applies to descendant hit testing" {
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"width":200,"height":200},"children":[{"id":2,"type":"column","style":{"width":50,"height":50,"transform":"translate(60px, 20px) scale(2)","transformOrigin":"0 0"},"children":[{"id":3,"type":"button","clickable":true,"style":{"width":20,"height":20,"padding":0}}]}]}
+        \\{"id":1,"type":"root","style":{"width":200,"height":200},"children":[{"id":2,"type":"div","style":{"width":50,"height":50,"transform":"translate(60px, 20px) scale(2)","transformOrigin":"0 0"},"children":[{"id":3,"type":"button","clickable":true,"style":{"width":20,"height":20,"padding":0}}]}]}
     , 200, 200);
     defer scene.deinit();
     try std.testing.expectEqual(@as(?u32, 3), scene.hitTest(90, 40));
@@ -162,10 +171,10 @@ test "native multiline shapeLines is compiled and returns positioned lines" {
 }
 test "runtime transitions interpolate layout color and transform then settle" {
     const old_json =
-        \\{"id":1,"type":"root","style":{"width":300,"height":100,"display":"flex"},"children":[{"id":2,"type":"column","style":{"width":20,"height":20,"backgroundColor":"#ff0000","transform":"translateX(0px)"}},{"id":3,"type":"column","style":{"width":10,"height":10}}]}
+        \\{"id":1,"type":"root","style":{"width":300,"height":100,"display":"flex"},"children":[{"id":2,"type":"div","style":{"width":20,"height":20,"backgroundColor":"#ff0000","transform":"translateX(0px)"}},{"id":3,"type":"div","style":{"width":10,"height":10}}]}
     ;
     const next_json =
-        \\{"id":1,"type":"root","style":{"width":300,"height":100,"display":"flex"},"children":[{"id":2,"type":"column","style":{"width":100,"height":20,"backgroundColor":"#0000ff","transform":"translateX(100px)","transition":"width 1s linear, background-color 1s linear, transform 1s linear"}},{"id":3,"type":"column","style":{"width":10,"height":10}}]}
+        \\{"id":1,"type":"root","style":{"width":300,"height":100,"display":"flex"},"children":[{"id":2,"type":"div","style":{"width":100,"height":20,"backgroundColor":"#0000ff","transform":"translateX(100px)","transition":"width 1s linear, background-color 1s linear, transform 1s linear"}},{"id":3,"type":"div","style":{"width":10,"height":10}}]}
     ;
     var old = try ui.Scene.init(std.testing.allocator, old_json, 300, 100);
     defer old.deinit();
@@ -191,7 +200,7 @@ test "runtime transitions interpolate layout color and transform then settle" {
 
 test "review: nested stacking contexts isolate descendant z-index" {
     const json =
-        \\{"id":1,"type":"root","style":{"width":300,"height":300},"children":[{"id":2,"type":"column","style":{"position":"relative","zIndex":1,"width":100,"height":100},"children":[{"id":3,"type":"button","clickable":true,"style":{"position":"absolute","left":0,"top":0,"width":100,"height":100,"zIndex":100}}]},{"id":4,"type":"button","clickable":true,"style":{"position":"absolute","left":0,"top":0,"width":100,"height":100,"zIndex":2}}]}
+        \\{"id":1,"type":"root","style":{"width":300,"height":300},"children":[{"id":2,"type":"div","style":{"position":"relative","zIndex":1,"width":100,"height":100},"children":[{"id":3,"type":"button","clickable":true,"style":{"position":"absolute","left":0,"top":0,"width":100,"height":100,"zIndex":100}}]},{"id":4,"type":"button","clickable":true,"style":{"position":"absolute","left":0,"top":0,"width":100,"height":100,"zIndex":2}}]}
     ;
     var scene = try ui.Scene.init(std.testing.allocator, json, 300, 300);
     defer scene.deinit();
@@ -201,7 +210,7 @@ test "review: nested stacking contexts isolate descendant z-index" {
 
 test "review: grid minmax redistributes remaining fraction space" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"minmax(200px, 1fr) 1fr","width":300,"height":100},"children":[{"id":2,"type":"column"},{"id":3,"type":"column"}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"minmax(200px, 1fr) 1fr","width":300,"height":100},"children":[{"id":2,"type":"div"},{"id":3,"type":"div"}]}
     ;
     var scene = try ui.Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -211,7 +220,7 @@ test "review: grid minmax redistributes remaining fraction space" {
 
 test "review: column auto flow wraps at explicit row boundary" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"50px 50px","gridTemplateRowsCss":"40px 40px","gridAutoFlow":"column","width":100,"height":80},"children":[{"id":2,"type":"column"},{"id":3,"type":"column"},{"id":4,"type":"column"}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"50px 50px","gridTemplateRowsCss":"40px 40px","gridAutoFlow":"column","width":100,"height":80},"children":[{"id":2,"type":"div"},{"id":3,"type":"div"},{"id":4,"type":"div"}]}
     ;
     var scene = try ui.Scene.init(std.testing.allocator, json, 100, 80);
     defer scene.deinit();
@@ -224,7 +233,7 @@ test "review: column auto flow wraps at explicit row boundary" {
 test "absolute horizontal overconstraint honors containing block RTL direction" {
     // CSS 2.1 10.3.7: ignore left when all three are definite in an RTL containing block.
     var scene = try ui.Scene.init(std.testing.allocator,
-        \\{"id":1,"type":"root","style":{"position":"relative","direction":"rtl","width":300,"height":100},"children":[{"id":2,"type":"column","style":{"position":"absolute","left":10,"right":20,"width":50,"height":10}}]}
+        \\{"id":1,"type":"root","style":{"position":"relative","direction":"rtl","width":300,"height":100},"children":[{"id":2,"type":"div","style":{"position":"absolute","left":10,"right":20,"width":50,"height":10}}]}
     , 300, 100);
     defer scene.deinit();
     try near(230, scene.find(2).?.bounds.x);

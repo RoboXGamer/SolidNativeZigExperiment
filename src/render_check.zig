@@ -34,9 +34,9 @@ fn check(condition: bool, name: []const u8) !void {
 }
 pub fn main() !void {
     const backend = @import("text_backend.zig");
-    const latin = backend.measure(null, "AV ffi", 24);
-    const indic = backend.measure(null, "नमस्ते दुनिया", 24);
-    const arabic = backend.measure(null, "مرحبا بالعالم", 24);
+    const latin = backend.measureStyled(null, "AV ffi", 24, .{});
+    const indic = backend.measureStyled(null, "नमस्ते दुनिया", 24, .{});
+    const arabic = backend.measureStyled(null, "مرحبا بالعالم", 24, .{});
     try check(latin.width > 0 and latin.ascent > 0 and latin.descent > 0 and indic.width > 0 and arabic.width > 0, "native shaping metrics for Latin Indic Arabic");
     rl.setTraceLogLevel(.warning);
     rl.setConfigFlags(.{ .window_hidden = true });
@@ -70,31 +70,31 @@ pub fn main() !void {
     defer text_cache.deinit();
     // Exercise the same shaped glyph rasterizer used by application paint.
     rl.beginDrawing();
-    try text_cache.draw("नमस्ते — مرحبا", 0, 0, 24, .white);
+    try text_cache.drawStyled("नमस्ते — مرحبا", 0, 0, 24, .white, .{});
     rl.endDrawing();
     try check(text_cache.textures.count() == 1, "native shaped glyph raster upload");
     var image = try frame(&renderer,
-        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"position":"absolute","width":80,"height":80,"backgroundGradient":"linear-gradient(90deg, #ff0000, #00ff00 50%, #0000ff)"}}]}
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","width":80,"height":80,"backgroundGradient":"linear-gradient(90deg, #ff0000, #00ff00 50%, #0000ff)"}}]}
     );
     const center = rl.getImageColor(image, 40, 40);
     try check(center.g > 220 and center.r < 30 and center.b < 30, "intermediate gradient stop");
     rl.unloadImage(image);
     image = try frame(&renderer,
-        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"position":"absolute","width":80,"height":80,"backgroundGradient":"radial-gradient(circle closest-side, #ffffff, #000000)"}}]}
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","width":80,"height":80,"backgroundGradient":"radial-gradient(circle closest-side, #ffffff, #000000)"}}]}
     );
     const middle = rl.getImageColor(image, 40, 40);
     const edge = rl.getImageColor(image, 78, 40);
     try check(middle.r > 220 and edge.r < 40, "radial center and edge");
     rl.unloadImage(image);
     image = try frame(&renderer,
-        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"position":"absolute","width":80,"height":80,"backgroundGradient":"conic-gradient(from 0deg, #ff0000, #00ff00 50%, #0000ff)"}}]}
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","width":80,"height":80,"backgroundGradient":"conic-gradient(from 0deg, #ff0000, #00ff00 50%, #0000ff)"}}]}
     );
     const top = rl.getImageColor(image, 40, 5);
     const bottom = rl.getImageColor(image, 40, 75);
     try check(top.r > 180 and bottom.g > 180, "conic angular colors");
     rl.unloadImage(image);
     image = try frame(&renderer,
-        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"position":"absolute","left":20,"top":20,"width":40,"height":40,"overflow":"hidden","borderRadius":18,"opacity":0.5,"backgroundColor":"#ff0000"},"children":[{"id":3,"type":"column","style":{"width":40,"height":40,"backgroundColor":"#0000ff"}}]}]}
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","left":20,"top":20,"width":40,"height":40,"overflow":"hidden","borderRadiusCss":"18px","opacity":0.5,"backgroundColor":"#ff0000"},"children":[{"id":3,"type":"div","style":{"width":40,"height":40,"backgroundColor":"#0000ff"}}]}]}
     );
     const overlap = rl.getImageColor(image, 40, 40);
     const corner = rl.getImageColor(image, 20, 20);
@@ -102,7 +102,7 @@ pub fn main() !void {
     try check(corner.a < 10, "rounded descendant clipping");
     rl.unloadImage(image);
     image = try frame(&renderer,
-        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"position":"absolute","left":20,"top":20,"width":20,"height":20,"transform":"translate(30px, 0px) scale(2)","transformOrigin":"0 0","backgroundColor":"#ff0000"},"children":[{"id":3,"type":"text","style":{"width":4,"height":4}}]}]}
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","left":20,"top":20,"width":20,"height":20,"transform":"translate(30px, 0px) scale(2)","transformOrigin":"0 0","backgroundColor":"#ff0000"},"children":[{"id":3,"type":"text","style":{"width":4,"height":4}}]}]}
     );
     const transformed = rl.getImageColor(image, 51, 21);
     const scaled = rl.getImageColor(image, 85, 50);
@@ -110,7 +110,7 @@ pub fn main() !void {
     try check(transformed.r > 220 and transformed.g > 220 and scaled.r > 220 and original.a < 10, "world transform applies to children and content");
     rl.unloadImage(image);
     image = try frame(&renderer,
-        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"column","style":{"position":"absolute","width":80,"height":80,"backgroundImage":"url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVR4nGNQDYj7j4ylTJ1RMAMdFKALoGuggwIAkDFsYfnTE3cAAAAASUVORK5CYII=\")","backgroundSize":"32px 32px","backgroundRepeat":"repeat","borderRadius":12}}]}
+        \\{"id":1,"type":"root","style":{"width":128,"height":128},"children":[{"id":2,"type":"div","style":{"position":"absolute","width":80,"height":80,"backgroundImage":"url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVR4nGNQDYj7j4ylTJ1RMAMdFKALoGuggwIAkDFsYfnTE3cAAAAASUVORK5CYII=\")","backgroundSize":"32px 32px","backgroundRepeat":"repeat","borderRadiusCss":"12px"}}]}
     );
     const image_light = rl.getImageColor(image, 8, 8);
     const image_dark = rl.getImageColor(image, 24, 8);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { physicalStyle, snapshot } from "../src/native.js";
 
-const node = style => ({ id: 1, type: "column", text: "", props: { style }, children: [] });
+const node = style => ({ id: 1, type: "div", text: "", props: { style }, children: [] });
 
 // ---------------------------------------------------------------------------
 // 1. CSS Positioning & Insets

@@ -41,7 +41,7 @@ const output =
   "\n";
 const path = new URL("packages/solid-zig/src/frame-inputs.json", root);
 if (process.argv.includes("--check")) {
-  if ((await readFile(path, "utf8")) !== output)
+  if ((await readFile(path, "utf8")).replaceAll("\r\n", "\n") !== output)
     throw Error(
       "Native phase schema is stale: node tools/generate-frame-inputs.mjs",
     );

@@ -4,7 +4,7 @@ import { snapshot } from '../packages/solid-zig/src/native.js';
 const file = new URL('../modules/ui_core/fixtures/positioning-browser.json', import.meta.url);
 const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 function node(input, parent = null) {
-  const n = { id: input.id, type: input.text ? 'text' : 'column', text: input.text ?? '', props: { style: input.style }, children: [], parent };
+  const n = { id: input.id, type: input.text ? 'text' : 'div', text: input.text ?? '', props: { style: input.style }, children: [], parent };
   n.children = input.children.map(child => node(child, n));
   return n;
 }

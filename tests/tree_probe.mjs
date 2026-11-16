@@ -1,11 +1,11 @@
 ﻿import assert from "node:assert/strict";
 import { createRoot, createSignal, createComponent, For, Show, flush } from "solid-js";
-import * as renderer from "../ui/renderer.js";
+import * as renderer from "../packages/solid-zig/src/renderer.js";
 
 createRoot(dispose => {
   const [items, setItems] = createSignal(["A", "B", "C"], { ownedWrite: true });
   const [visible, setVisible] = createSignal(true, { ownedWrite: true });
-  const container = renderer.createElement("column");
+  const container = renderer.createElement("div");
   renderer.insert(container, () => createComponent(Show, {
     get when() { return visible(); },
     get children() {

@@ -53,7 +53,7 @@ test "typed length arithmetic and missing contexts" {
 
 test "percentage sizes and padding use containing inline size" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"boxSizing":"border-box","widthCss":"50%","heightCss":"10px","paddingLeftCss":"10%","marginLeftCss":"5%"}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"boxSizing":"border-box","widthCss":"50%","heightCss":"10px","paddingLeftCss":"10%","marginLeftCss":"5%"}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -65,7 +65,7 @@ test "percentage sizes and padding use containing inline size" {
 
 test "explicit zero and none remain distinct" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":0,"height":0,"maxWidth":0}},{"id":3,"type":"column","style":{"maxWidthCss":"none","height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":0,"height":0,"maxWidth":0}},{"id":3,"type":"div","style":{"maxWidthCss":"none","height":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -86,7 +86,7 @@ test "explicit zero on root is definite" {
 
 test "block horizontal auto margins distribute space" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":100,"height":10,"marginLeftAuto":true,"marginRightAuto":true}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":100,"height":10,"marginLeftAuto":true,"marginRightAuto":true}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -97,7 +97,7 @@ test "block horizontal auto margins distribute space" {
 
 test "over-wide block child is not clamped to parent width" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":400,"height":20}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":400,"height":20}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -115,7 +115,7 @@ test "flex explicit zero minimum permits shrinking" {
 
 test "aspect ratio transfers one definite axis" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":100,"aspectRatio":2}},{"id":3,"type":"column","style":{"height":30,"aspectRatio":2}},{"id":4,"type":"column","style":{"width":100,"height":40,"aspectRatio":2}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":100,"aspectRatio":2}},{"id":3,"type":"div","style":{"height":30,"aspectRatio":2}},{"id":4,"type":"div","style":{"width":100,"height":40,"aspectRatio":2}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -126,7 +126,7 @@ test "aspect ratio transfers one definite axis" {
 
 test "content box ratio and conflicting constraints" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":100,"padding":10,"borderWidth":2,"boxSizing":"content-box","aspectRatio":2,"minHeight":60,"maxHeight":30}},{"id":3,"type":"column","style":{"heightCss":"50%","width":20,"aspectRatio":2}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":100,"padding":10,"borderWidth":2,"boxSizing":"content-box","aspectRatio":2,"minHeight":60,"maxHeight":30}},{"id":3,"type":"div","style":{"heightCss":"50%","width":20,"aspectRatio":2}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -137,7 +137,7 @@ test "content box ratio and conflicting constraints" {
 
 test "indefinite percentage height remains auto for ratio" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block"},"children":[{"id":3,"type":"column","style":{"width":100,"heightCss":"50%","aspectRatio":2}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"block"},"children":[{"id":3,"type":"div","style":{"width":100,"heightCss":"50%","aspectRatio":2}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -146,7 +146,7 @@ test "indefinite percentage height remains auto for ratio" {
 
 test "grid and flex constraints use minimum after maximum" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"grid","height":100,"columns":[100]},"children":[{"id":3,"type":"column","style":{"width":75,"height":75,"minWidth":100,"maxWidth":50,"minHeight":100,"maxHeight":50}}]},{"id":4,"type":"column","style":{"display":"flex","height":100},"children":[{"id":5,"type":"column","style":{"width":75,"height":75,"minWidth":100,"maxWidth":50,"minHeight":100,"maxHeight":50}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"grid","height":100,"gridTemplateColumnsCss":"100px"},"children":[{"id":3,"type":"div","style":{"width":75,"height":75,"minWidth":100,"maxWidth":50,"minHeight":100,"maxHeight":50}}]},{"id":4,"type":"div","style":{"display":"flex","height":100},"children":[{"id":5,"type":"div","style":{"width":75,"height":75,"minWidth":100,"maxWidth":50,"minHeight":100,"maxHeight":50}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 300);
     defer scene.deinit();
@@ -175,10 +175,10 @@ test "tree owns changed css length strings" {
     var tree = root.Tree.init(std.testing.allocator);
     defer tree.deinit();
     const first =
-        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"display":"block"},"children":[2]},{"id":2,"type":"column","style":{"widthCss":"50%","height":10}}]}
+        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"display":"block"},"children":[2]},{"id":2,"type":"div","style":{"widthCss":"50%","height":10}}]}
     ;
     const changed =
-        \\{"root":1,"nodes":[{"id":2,"type":"column","style":{"widthCss":"calc(25% + 5px)","height":10}}]}
+        \\{"root":1,"nodes":[{"id":2,"type":"div","style":{"widthCss":"calc(25% + 5px)","height":10}}]}
     ;
     try std.testing.expect(try tree.apply(first));
     try std.testing.expect(try tree.apply(changed));
@@ -199,7 +199,7 @@ test "tree owns changed css length strings" {
     try std.testing.expect(empty.find(2) == null);
 }
 test "zero sides override shorthand and control defaults" {
-    const ordinary = root.Node{ .id = 1, .type = "column", .style = .{ .padding = 20, .paddingLeft = 0, .borderWidth = 4, .borderLeftWidth = 0, .margin = 20, .marginLeft = 0 } };
+    const ordinary = root.Node{ .id = 1, .type = "div", .style = .{ .padding = 20, .paddingLeft = 0, .borderWidth = 4, .borderLeftWidth = 0, .margin = 20, .marginLeft = 0 } };
     try std.testing.expectEqual(@as(f32, 0), ordinary.padding().left);
     try std.testing.expectEqual(@as(f32, 20), ordinary.padding().right);
     try std.testing.expectEqual(@as(f32, 0), ordinary.border().left);
@@ -212,15 +212,15 @@ test "zero sides override shorthand and control defaults" {
 }
 
 test "negative one margin differs from auto" {
-    const fixed = root.Node{ .id = 1, .type = "column", .style = .{ .marginLeft = -1 } };
-    const automatic = root.Node{ .id = 2, .type = "column", .style = .{ .marginLeftAuto = true } };
+    const fixed = root.Node{ .id = 1, .type = "div", .style = .{ .marginLeft = -1 } };
+    const automatic = root.Node{ .id = 2, .type = "div", .style = .{ .marginLeftAuto = true } };
     try std.testing.expectEqual(@as(f32, -1), fixed.margin().left);
     try std.testing.expectEqual(@as(f32, 0), automatic.margin().left);
 }
 
 test "content and border box dimensions include frame once" {
-    const content = root.Node{ .id = 1, .type = "column", .style = .{ .padding = 10, .borderWidth = 2, .boxSizing = "content-box" } };
-    const border = root.Node{ .id = 2, .type = "column", .style = .{ .padding = 10, .borderWidth = 2, .boxSizing = "border-box" } };
+    const content = root.Node{ .id = 1, .type = "div", .style = .{ .padding = 10, .borderWidth = 2, .boxSizing = "content-box" } };
+    const border = root.Node{ .id = 2, .type = "div", .style = .{ .padding = 10, .borderWidth = 2, .boxSizing = "border-box" } };
     try std.testing.expectEqual(@as(f32, 124), content.borderSize(100, 24));
     try std.testing.expectEqual(@as(f32, 64), content.borderSize(40, 24));
     try std.testing.expectEqual(@as(f32, 100), border.borderSize(100, 24));
@@ -230,7 +230,7 @@ test "content and border box dimensions include frame once" {
 
 test "layout applies box sizing to both axes" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"content-box"}},{"id":3,"type":"column","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"border-box"}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"content-box"}},{"id":3,"type":"div","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"border-box"}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -244,7 +244,7 @@ test "layout applies box sizing to both axes" {
 
 test "contents and none generate only descendant boxes" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"none"},"children":[{"id":3,"type":"button","clickable":true}]},{"id":4,"type":"column","style":{"display":"contents"},"children":[{"id":5,"type":"column","style":{"height":10}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"none"},"children":[{"id":3,"type":"button","clickable":true}]},{"id":4,"type":"div","style":{"display":"contents"},"children":[{"id":5,"type":"div","style":{"height":10}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -257,13 +257,13 @@ test "contents and none generate only descendant boxes" {
 
 test "unsupported formatting is rejected instead of flex fallback" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"table"}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"table"}}]}
     ;
     try std.testing.expectError(error.UnsupportedDisplay, Scene.init(std.testing.allocator, json, 100, 100));
 }
 test "block sibling advances by constrained height" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"height":10,"minHeight":50}},{"id":3,"type":"column","style":{"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"height":10,"minHeight":50}},{"id":3,"type":"div","style":{"height":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -273,7 +273,7 @@ test "block sibling advances by constrained height" {
 
 test "nested auto block measures child ratio before sibling placement" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block","width":100},"children":[{"id":3,"type":"column","style":{"aspectRatio":2}}]},{"id":4,"type":"column","style":{"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"block","width":100},"children":[{"id":3,"type":"div","style":{"aspectRatio":2}}]},{"id":4,"type":"div","style":{"height":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -284,7 +284,7 @@ test "nested auto block measures child ratio before sibling placement" {
 
 test "block natural height ignores flex direction" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block","flexDirection":"row"},"children":[{"id":3,"type":"column","style":{"height":10}},{"id":4,"type":"column","style":{"height":10}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"block","flexDirection":"row"},"children":[{"id":3,"type":"div","style":{"height":10}},{"id":4,"type":"div","style":{"height":10}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -294,7 +294,7 @@ test "block natural height ignores flex direction" {
 
 test "nested block margin is an outer offset" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block","width":100,"marginLeft":10},"children":[{"id":3,"type":"column","style":{"width":100,"height":10}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"block","width":100,"marginLeft":10},"children":[{"id":3,"type":"div","style":{"width":100,"height":10}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -305,7 +305,7 @@ test "nested block margin is an outer offset" {
 
 test "minimum wins conflicting maximum" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"width":75,"height":75,"minWidth":100,"maxWidth":50,"minHeight":100,"maxHeight":50}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":75,"height":75,"minWidth":100,"maxWidth":50,"minHeight":100,"maxHeight":50}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -315,7 +315,7 @@ test "minimum wins conflicting maximum" {
 
 test "grid tracks do not override block display" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","columns":[30,30]},"children":[{"id":2,"type":"column","style":{"height":10}},{"id":3,"type":"column","style":{"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","gridTemplateColumnsCss":"30px 30px"},"children":[{"id":2,"type":"div","style":{"height":10}},{"id":3,"type":"div","style":{"height":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -335,7 +335,7 @@ test "layout and hit testing use node identity" {
 
 test "per-side padding and border affect layout" {
     const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"column","style":{"paddingTop":5,"paddingLeft":2,"margin":4},"children":[{"id":3,"type":"text","text":"hi"}]}]}
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"paddingTop":5,"paddingLeft":2,"margin":4},"children":[{"id":3,"type":"text","text":"hi"}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -346,7 +346,7 @@ test "per-side padding and border affect layout" {
 
 test "min/max and aspect ratio constraints" {
     const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"column","style":{"minWidth":50,"maxWidth":100,"aspectRatio":2},"children":[]}]}
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"minWidth":50,"maxWidth":100,"aspectRatio":2},"children":[]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -357,7 +357,7 @@ test "min/max and aspect ratio constraints" {
 
 test "block layout sibling margin collapsing" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"height":10,"marginBottom":20}},{"id":3,"type":"column","style":{"height":10,"marginTop":30}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"height":10,"marginBottom":20}},{"id":3,"type":"div","style":{"height":10,"marginTop":30}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -368,7 +368,7 @@ test "block layout sibling margin collapsing" {
 
 test "empty block margins collapse through" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"height":10,"marginBottom":20}},{"id":3,"type":"column","style":{"marginTop":30,"marginBottom":40}},{"id":4,"type":"column","style":{"height":10,"marginTop":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"height":10,"marginBottom":20}},{"id":3,"type":"div","style":{"marginTop":30,"marginBottom":40}},{"id":4,"type":"div","style":{"height":10,"marginTop":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -428,7 +428,7 @@ test "text line height comes from the measurer" {
 
 test "margin auto resolves through the box model" {
     const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"column"}]}
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div"}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -439,7 +439,7 @@ test "margin auto resolves through the box model" {
 
 test "nested overflow parent tracking" {
     const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"column","style":{"overflow":"hidden"},"children":[{"id":3,"type":"text","text":"hi"}]}]}
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"overflow":"hidden"},"children":[{"id":3,"type":"text","text":"hi"}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -449,7 +449,7 @@ test "nested overflow parent tracking" {
 
 test "flex auto margins center an item on the main axis" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"column","style":{"width":100,"height":20,"marginLeftAuto":true,"marginRightAuto":true}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"div","style":{"width":100,"height":20,"marginLeftAuto":true,"marginRightAuto":true}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -461,7 +461,7 @@ test "flex auto margins center an item on the main axis" {
 
 test "flex auto margin on one side pushes the item to the end" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"column","style":{"width":50,"height":20,"marginLeftAuto":true}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"div","style":{"width":50,"height":20,"marginLeftAuto":true}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -471,7 +471,7 @@ test "flex auto margin on one side pushes the item to the end" {
 
 test "flex-basis auto uses the definite main size" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"column","style":{"width":80,"height":20}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"div","style":{"width":80,"height":20}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -492,7 +492,7 @@ test "flex-basis content uses intrinsic max-content width" {
 
 test "flex cross auto margins center an item on the cross axis" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"column","style":{"width":50,"height":20,"marginTopAuto":true,"marginBottomAuto":true}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"div","style":{"width":50,"height":20,"marginTopAuto":true,"marginBottomAuto":true}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -504,7 +504,7 @@ test "flex cross auto margins center an item on the cross axis" {
 
 test "explicit flex-basis overrides the width property" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"column","style":{"width":50,"height":20,"flexBasis":120}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"div","style":{"width":50,"height":20,"flexBasis":120}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -535,7 +535,7 @@ test "flex shrink stops at min-content width" {
 
 test "C-PARTIAL-GROW: partial flex factors sum < 1 (FLEX-01)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":100},"children":[{"id":2,"type":"column","style":{"flexGrow":0.25,"flexBasis":0,"minWidth":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":100},"children":[{"id":2,"type":"div","style":{"flexGrow":0.25,"flexBasis":0,"minWidth":0}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 50);
     defer scene.deinit();
@@ -546,7 +546,7 @@ test "C-PARTIAL-GROW: partial flex factors sum < 1 (FLEX-01)" {
 
 test "partial flex shrink factor sum < 1 (FLEX-01)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":100},"children":[{"id":2,"type":"column","style":{"flexBasis":140,"flexShrink":0.5}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":100},"children":[{"id":2,"type":"div","style":{"flexBasis":140,"flexShrink":0.5}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 50);
     defer scene.deinit();
@@ -557,7 +557,7 @@ test "partial flex shrink factor sum < 1 (FLEX-01)" {
 
 test "C-BASIS-MIN: raw flex bases separate from hypothetical sizes (FLEX-02)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":80}},{"id":3,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"div","style":{"flexGrow":1,"flexBasis":0,"minWidth":80}},{"id":3,"type":"div","style":{"flexGrow":1,"flexBasis":0,"minWidth":0}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 50);
     defer scene.deinit();
@@ -572,7 +572,7 @@ test "C-BASIS-MIN: raw flex bases separate from hypothetical sizes (FLEX-02)" {
 
 test "flex iterative loop freezing violating items (FLEX-02)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":130}},{"id":3,"type":"column","style":{"flexGrow":1,"flexBasis":0,"minWidth":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"div","style":{"flexGrow":1,"flexBasis":0,"minWidth":130}},{"id":3,"type":"div","style":{"flexGrow":1,"flexBasis":0,"minWidth":0}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 50);
     defer scene.deinit();
@@ -587,7 +587,7 @@ test "flex iterative loop freezing violating items (FLEX-02)" {
 
 test "C-NOWRAP-CROSS: single-line definite cross size fills line (FLEX-04)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"nowrap","alignContent":"flex-start","alignItems":"stretch","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"width":50}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"nowrap","alignContent":"flex-start","alignItems":"stretch","width":200,"height":100},"children":[{"id":2,"type":"div","style":{"width":50}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -599,7 +599,7 @@ test "C-NOWRAP-CROSS: single-line definite cross size fills line (FLEX-04)" {
 
 test "wrap-reverse single line reverses cross position (FLEX-04)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"wrap-reverse","alignItems":"flex-start","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"width":50,"height":30}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"wrap-reverse","alignItems":"flex-start","width":200,"height":100},"children":[{"id":2,"type":"div","style":{"width":50,"height":30}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -612,7 +612,7 @@ test "wrap-reverse single line reverses cross position (FLEX-04)" {
 
 test "cross size remeasurement after main flexing (FLEX-05)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexGrow":1,"flexBasis":50,"aspectRatio":2}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"div","style":{"flexGrow":1,"flexBasis":50,"aspectRatio":2}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 200);
     defer scene.deinit();
@@ -640,7 +640,7 @@ test "visual order preserves document focus sequence (FLEX-06)" {
 
 test "typed flex-basis keywords and percentages (FLEX-07)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"column","style":{"flexBasisCss":"50%"}},{"id":3,"type":"text","text":"hi","style":{"flexBasisCss":"max-content"}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200},"children":[{"id":2,"type":"div","style":{"flexBasisCss":"50%"}},{"id":3,"type":"text","text":"hi","style":{"flexBasisCss":"max-content"}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 50);
     defer scene.deinit();
@@ -652,7 +652,7 @@ test "typed flex-basis keywords and percentages (FLEX-07)" {
 
 test "flex rowGap and columnGap support (FLEX-07)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"wrap","alignContent":"flex-start","width":100,"rowGap":15,"columnGap":10},"children":[{"id":2,"type":"column","style":{"width":50,"height":20}},{"id":3,"type":"column","style":{"width":40,"height":20}},{"id":4,"type":"column","style":{"width":50,"height":20}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","flexWrap":"wrap","alignContent":"flex-start","width":100,"rowGap":15,"columnGap":10},"children":[{"id":2,"type":"div","style":{"width":50,"height":20}},{"id":3,"type":"div","style":{"width":40,"height":20}},{"id":4,"type":"div","style":{"width":50,"height":20}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -668,7 +668,7 @@ test "flex rowGap and columnGap support (FLEX-07)" {
 
 test "C-COLLAPSE-SET: multi-margin strut preserves positive and negative extrema (BLOCK-04)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flow-root","width":200},"children":[{"id":2,"type":"column","style":{"height":10,"marginBottom":20}},{"id":3,"type":"column","style":{"marginTop":-10,"marginBottom":15}},{"id":4,"type":"column","style":{"height":10,"marginTop":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"flow-root","width":200},"children":[{"id":2,"type":"div","style":{"height":10,"marginBottom":20}},{"id":3,"type":"div","style":{"marginTop":-10,"marginBottom":15}},{"id":4,"type":"div","style":{"height":10,"marginTop":0}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -681,14 +681,14 @@ test "C-COLLAPSE-SET: multi-margin strut preserves positive and negative extrema
 
 test "C-CLIP-BFC: overflow:clip does not establish BFC while hidden does (BLOCK-06)" {
     const jsonClip =
-        \\{"id":1,"type":"root","style":{"display":"block","overflow":"clip","width":200},"children":[{"id":2,"type":"column","style":{"height":20,"marginTop":15}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"clip","width":200},"children":[{"id":2,"type":"div","style":{"height":20,"marginTop":15}}]}
     ;
     var sceneClip = try Scene.init(std.testing.allocator, jsonClip, 200, 100);
     defer sceneClip.deinit();
     try std.testing.expectApproxEqAbs(@as(f32, 0), sceneClip.find(2).?.bounds.y, 0.01);
 
     const jsonHidden =
-        \\{"id":1,"type":"root","style":{"display":"block","overflow":"hidden","width":200},"children":[{"id":2,"type":"column","style":{"height":20,"marginTop":15}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"hidden","width":200},"children":[{"id":2,"type":"div","style":{"height":20,"marginTop":15}}]}
     ;
     var sceneHidden = try Scene.init(std.testing.allocator, jsonHidden, 200, 100);
     defer sceneHidden.deinit();
@@ -697,7 +697,7 @@ test "C-CLIP-BFC: overflow:clip does not establish BFC while hidden does (BLOCK-
 
 test "parent and child top and bottom margin collapsing (BLOCK-05)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"column","style":{"display":"block"},"children":[{"id":3,"type":"column","style":{"height":30,"marginTop":10,"marginBottom":25}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"display":"block"},"children":[{"id":3,"type":"div","style":{"height":30,"marginTop":10,"marginBottom":25}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -746,7 +746,7 @@ test "C-TEXT-LINES: multi-line wrap and line height synthesis (TEXT-01, TEXT-04)
 test "baseline synthesis: first-baseline and last-baseline alignment (TEXT-02)" {
     // Flex container with two items: item 2 has height 40, item 3 has height 60.
     const jsonFirst =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","alignItems":"first-baseline","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"height":40}},{"id":3,"type":"column","style":{"height":60}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","alignItems":"first-baseline","width":200,"height":100},"children":[{"id":2,"type":"div","style":{"height":40}},{"id":3,"type":"div","style":{"height":60}}]}
     ;
     var sceneFirst = try Scene.init(std.testing.allocator, jsonFirst, 200, 100);
     defer sceneFirst.deinit();
@@ -758,7 +758,7 @@ test "baseline synthesis: first-baseline and last-baseline alignment (TEXT-02)" 
     try std.testing.expectApproxEqAbs(@as(f32, 0), b3First.y, 0.01);
 
     const jsonLast =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","alignItems":"last-baseline","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"height":40}},{"id":3,"type":"column","style":{"height":60}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","alignItems":"last-baseline","width":200,"height":100},"children":[{"id":2,"type":"div","style":{"height":40}},{"id":3,"type":"div","style":{"height":60}}]}
     ;
     var sceneLast = try Scene.init(std.testing.allocator, jsonLast, 200, 100);
     defer sceneLast.deinit();
@@ -770,7 +770,7 @@ test "baseline synthesis: first-baseline and last-baseline alignment (TEXT-02)" 
 
 test "IFC: inline formatting context with inline-flex boxes (TEXT-02)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","width":150},"children":[{"id":2,"type":"column","style":{"display":"inline-flex","width":60,"height":20}},{"id":3,"type":"column","style":{"display":"inline-flex","width":60,"height":20}},{"id":4,"type":"column","style":{"display":"inline-flex","width":60,"height":20}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","width":150},"children":[{"id":2,"type":"div","style":{"display":"inline-flex","width":60,"height":20}},{"id":3,"type":"div","style":{"display":"inline-flex","width":60,"height":20}},{"id":4,"type":"div","style":{"display":"inline-flex","width":60,"height":20}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 150, 100);
     defer scene.deinit();
@@ -789,7 +789,7 @@ test "IFC: inline formatting context with inline-flex boxes (TEXT-02)" {
 
 test "IFC: textAlign distribution in line boxes" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","width":100,"textAlign":"right"},"children":[{"id":2,"type":"column","style":{"display":"inline-flex","width":40,"height":20}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","width":100,"textAlign":"right"},"children":[{"id":2,"type":"div","style":{"display":"inline-flex","width":40,"height":20}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -800,7 +800,7 @@ test "IFC: textAlign distribution in line boxes" {
 
 test "C-SCROLL-DESCENDANT: grandchild scroll extent through visible parent (SCROLL-01)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"block","overflow":"visible","width":100,"height":100},"children":[{"id":3,"type":"column","style":{"width":250,"height":300}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"div","style":{"display":"block","overflow":"visible","width":100,"height":100},"children":[{"id":3,"type":"div","style":{"width":250,"height":300}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -813,7 +813,7 @@ test "C-SCROLL-DESCENDANT: grandchild scroll extent through visible parent (SCRO
 
     // When parent clips/scrolls, grandchild overflow is isolated from root!
     const jsonClipped =
-        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"block","overflow":"hidden","width":100,"height":100},"children":[{"id":3,"type":"column","style":{"width":250,"height":300}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"div","style":{"display":"block","overflow":"hidden","width":100,"height":100},"children":[{"id":3,"type":"div","style":{"width":250,"height":300}}]}]}
     ;
     var sceneClipped = try Scene.init(std.testing.allocator, jsonClipped, 100, 100);
     defer sceneClipped.deinit();
@@ -826,7 +826,7 @@ test "C-NESTED-WHEEL: scroll chaining across nested scroll containers (SCROLL-02
     // Outer scroll container 1 (100x100) containing child 2 (height 200) -> max_scroll_y = 100
     // Inside child 2, inner scroll container 3 (at x=0, y=0, 80x80) containing grandchild 4 (height 120) -> max_scroll_y = 40
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"flex","width":100,"height":200},"children":[{"id":3,"type":"column","style":{"display":"flex","overflow":"scroll","width":80,"height":80},"children":[{"id":4,"type":"column","style":{"width":80,"height":120}}]}]}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"div","style":{"display":"flex","width":100,"height":200},"children":[{"id":3,"type":"div","style":{"display":"flex","overflow":"scroll","width":80,"height":80},"children":[{"id":4,"type":"div","style":{"width":80,"height":120}}]}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -849,7 +849,7 @@ test "C-NESTED-WHEEL: scroll chaining across nested scroll containers (SCROLL-02
 
 test "per-axis overflow: overflowX vs overflowY (SCROLL-01)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","overflowX":"scroll","overflowY":"hidden","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"width":200,"height":200,"flexShrink":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","overflowX":"scroll","overflowY":"hidden","width":100,"height":100},"children":[{"id":2,"type":"div","style":{"width":200,"height":200,"flexShrink":0}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -871,7 +871,7 @@ test "per-axis overflow: overflowX vs overflowY (SCROLL-01)" {
 
 test "input focusable vs clickable separation and tab navigation (INPUT-02)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","width":100,"height":100},"children":[{"id":2,"type":"button","clickable":false},{"id":3,"type":"column","tabIndex":0},{"id":4,"type":"column","tabIndex":-1},{"id":5,"type":"column","focusable":true}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","width":100,"height":100},"children":[{"id":2,"type":"button","clickable":false},{"id":3,"type":"div","tabIndex":0},{"id":4,"type":"div","tabIndex":-1},{"id":5,"type":"div","focusable":true}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -931,7 +931,7 @@ test "text_edit: grapheme clusters and pointer caret positioning (INPUT-01)" {
 
 test "position: relative offsets without affecting normal flow of siblings (POS-01)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"position":"relative","left":20,"top":10,"width":50,"height":50}},{"id":3,"type":"column","style":{"width":50,"height":50}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","width":200,"height":100},"children":[{"id":2,"type":"div","style":{"position":"relative","left":20,"top":10,"width":50,"height":50}},{"id":3,"type":"div","style":{"width":50,"height":50}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -950,7 +950,7 @@ test "position: relative offsets without affecting normal flow of siblings (POS-
 
 test "position: absolute takes out of flow and uses positioned ancestor padding box (POS-02)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","width":300,"height":300},"children":[{"id":2,"type":"column","style":{"position":"relative","boxSizing":"border-box","width":100,"height":100,"borderTopWidth":5,"borderRightWidth":5,"borderBottomWidth":5,"borderLeftWidth":5,"paddingTop":10,"paddingRight":10,"paddingBottom":10,"paddingLeft":10},"children":[{"id":3,"type":"column","style":{"width":40,"height":40}},{"id":4,"type":"column","style":{"position":"absolute","right":0,"bottom":0,"width":30,"height":30}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block","width":300,"height":300},"children":[{"id":2,"type":"div","style":{"position":"relative","boxSizing":"border-box","width":100,"height":100,"borderTopWidth":5,"borderRightWidth":5,"borderBottomWidth":5,"borderLeftWidth":5,"paddingTop":10,"paddingRight":10,"paddingBottom":10,"paddingLeft":10},"children":[{"id":3,"type":"div","style":{"width":40,"height":40}},{"id":4,"type":"div","style":{"position":"absolute","right":0,"bottom":0,"width":30,"height":30}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 300);
     defer scene.deinit();
@@ -974,7 +974,7 @@ test "position: absolute takes out of flow and uses positioned ancestor padding 
 
 test "position: fixed uses viewport containing block and ignores scroll offsets (POS-03)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"width":100,"height":300}},{"id":3,"type":"column","style":{"position":"fixed","top":10,"left":15,"width":40,"height":40}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"div","style":{"width":100,"height":300}},{"id":3,"type":"div","style":{"position":"fixed","top":10,"left":15,"width":40,"height":40}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -997,7 +997,7 @@ test "position: fixed uses viewport containing block and ignores scroll offsets 
 
 test "position: sticky sticks within scroll container and clamps to parent (POS-04)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"column","style":{"display":"block","height":200},"children":[{"id":3,"type":"column","style":{"position":"sticky","top":10,"width":80,"height":30}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block","overflow":"scroll","width":100,"height":100},"children":[{"id":2,"type":"div","style":{"display":"block","height":200},"children":[{"id":3,"type":"div","style":{"position":"sticky","top":10,"width":80,"height":30}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 100, 100);
     defer scene.deinit();
@@ -1040,7 +1040,7 @@ test "stacking context and z-index hit testing order (STACK-01)" {
 
 test "CSS grid track parsing, repeat, and minmax (GRID-01)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"repeat(3, 1fr)","width":300,"height":100,"gap":0},"children":[{"id":2,"type":"column"},{"id":3,"type":"column"},{"id":4,"type":"column"}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"repeat(3, 1fr)","width":300,"height":100,"gap":0},"children":[{"id":2,"type":"div"},{"id":3,"type":"div"},{"id":4,"type":"div"}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 100);
     defer scene.deinit();
@@ -1059,7 +1059,7 @@ test "CSS grid track parsing, repeat, and minmax (GRID-01)" {
 
 test "CSS grid named areas layout (GRID-02)" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"100px 100px","gridTemplateRowsCss":"40px 60px","gridTemplateAreas":"\"header header\" \"sidebar main\"","width":200,"height":100,"gap":0},"children":[{"id":2,"type":"column","style":{"gridArea":"header"}},{"id":3,"type":"column","style":{"gridArea":"sidebar"}},{"id":4,"type":"column","style":{"gridArea":"main"}}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","gridTemplateColumnsCss":"100px 100px","gridTemplateRowsCss":"40px 60px","gridTemplateAreas":"\"header header\" \"sidebar main\"","width":200,"height":100,"gap":0},"children":[{"id":2,"type":"div","style":{"gridArea":"header"}},{"id":3,"type":"div","style":{"gridArea":"sidebar"}},{"id":4,"type":"div","style":{"gridArea":"main"}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -1090,7 +1090,7 @@ test "CSS grid named areas layout (GRID-02)" {
 test "CSS box alignment safe vs unsafe in flex layout (ALIGN-01)" {
     // Normal center centers even if overflowing (unsafe)
     const jsonUnsafe =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"center","width":50},"children":[{"id":2,"type":"column","style":{"width":100,"height":30,"flexShrink":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"center","width":50},"children":[{"id":2,"type":"div","style":{"width":100,"height":30,"flexShrink":0}}]}
     ;
     var sceneUnsafe = try Scene.init(std.testing.allocator, jsonUnsafe, 50, 50);
     defer sceneUnsafe.deinit();
@@ -1099,7 +1099,7 @@ test "CSS box alignment safe vs unsafe in flex layout (ALIGN-01)" {
 
     // safe center clamps to 0 when overflowing!
     const jsonSafe =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"safe center","width":50},"children":[{"id":2,"type":"column","style":{"width":100,"height":30,"flexShrink":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"safe center","width":50},"children":[{"id":2,"type":"div","style":{"width":100,"height":30,"flexShrink":0}}]}
     ;
     var sceneSafe = try Scene.init(std.testing.allocator, jsonSafe, 50, 50);
     defer sceneSafe.deinit();
@@ -1176,7 +1176,7 @@ test "CSS transitions and cubic-bezier interpolation (ANIM-01)" {
 
 test "absolute RTL overconstraint honors right inset" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","direction":"rtl","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"position":"absolute","left":10,"right":20,"top":0,"width":50,"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","direction":"rtl","width":200,"height":100},"children":[{"id":2,"type":"div","style":{"position":"absolute","left":10,"right":20,"top":0,"width":50,"height":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -1195,7 +1195,7 @@ test "absolute shrink-to-fit subtracts the definite inset" {
 
 test "absolute auto insets retain block static position after preceding sibling" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":100,"padding":10},"children":[{"id":2,"type":"column","style":{"height":20}},{"id":3,"type":"column","style":{"position":"absolute","width":30,"height":15}},{"id":4,"type":"column","style":{"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":100,"padding":10},"children":[{"id":2,"type":"div","style":{"height":20}},{"id":3,"type":"div","style":{"position":"absolute","width":30,"height":15}},{"id":4,"type":"div","style":{"height":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 220, 120);
     defer scene.deinit();
@@ -1206,7 +1206,7 @@ test "absolute auto insets retain block static position after preceding sibling"
 
 test "fixed uses transformed ancestor padding box rather than viewport" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","width":300,"height":200,"padding":20},"children":[{"id":2,"type":"column","style":{"display":"block","transform":"translateX(0px)","width":150,"height":100,"borderWidth":5},"children":[{"id":3,"type":"column","style":{"position":"fixed","left":10,"top":12,"width":30,"height":15}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block","width":300,"height":200,"padding":20},"children":[{"id":2,"type":"div","style":{"display":"block","transform":"translateX(0px)","width":150,"height":100,"borderWidth":5},"children":[{"id":3,"type":"div","style":{"position":"fixed","left":10,"top":12,"width":30,"height":15}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 340, 240);
     defer scene.deinit();
@@ -1218,7 +1218,7 @@ test "fixed uses transformed ancestor padding box rather than viewport" {
 
 test "absolute flex static position uses sole-item alignment without consuming flow space" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"center","alignItems":"center","width":200,"height":100},"children":[{"id":2,"type":"column","style":{"position":"absolute","width":40,"height":20}},{"id":3,"type":"column","style":{"width":60,"height":30}}]}
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row","justifyContent":"center","alignItems":"center","width":200,"height":100},"children":[{"id":2,"type":"div","style":{"position":"absolute","width":40,"height":20}},{"id":3,"type":"div","style":{"width":60,"height":30}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -1241,7 +1241,7 @@ test "right-inset shrink-to-fit still honors intrinsic minimum" {
 
 test "fixed descendant scrolls with its transformed containing block" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","width":200,"height":150},"children":[{"id":2,"type":"column","style":{"display":"block","transform":"translateX(0px)","overflow":"scroll","width":150,"height":100},"children":[{"id":3,"type":"column","style":{"position":"fixed","left":10,"top":40,"width":30,"height":15}},{"id":4,"type":"column","style":{"height":300}}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block","width":200,"height":150},"children":[{"id":2,"type":"div","style":{"display":"block","transform":"translateX(0px)","overflow":"scroll","width":150,"height":100},"children":[{"id":3,"type":"div","style":{"position":"fixed","left":10,"top":40,"width":30,"height":15}},{"id":4,"type":"div","style":{"height":300}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 150);
     defer scene.deinit();
@@ -1254,7 +1254,7 @@ test "fixed descendant scrolls with its transformed containing block" {
 
 test "static block position ignores relative offsets and preserves collapsed margin strut" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","padding":10,"width":200,"height":120},"children":[{"id":2,"type":"column","style":{"position":"relative","top":30,"height":20,"marginBottom":12}},{"id":3,"type":"column","style":{"position":"absolute","width":15,"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","padding":10,"width":200,"height":120},"children":[{"id":2,"type":"div","style":{"position":"relative","top":30,"height":20,"marginBottom":12}},{"id":3,"type":"div","style":{"position":"absolute","width":15,"height":10}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 220, 140);
     defer scene.deinit();
@@ -1263,7 +1263,7 @@ test "static block position ignores relative offsets and preserves collapsed mar
 
 test "inline positioned static location follows inline cursor" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":120},"children":[{"id":2,"type":"text","text":"abcd","style":{"fontSize":10}},{"id":3,"type":"column","style":{"position":"absolute","positionInline":true,"width":15,"height":10}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","width":200,"height":120},"children":[{"id":2,"type":"text","text":"abcd","style":{"fontSize":10}},{"id":3,"type":"div","style":{"position":"absolute","positionInline":true,"width":15,"height":10}}]}
     ;
     var scene = try Scene.initWithText(std.testing.allocator, json, 200, 120, .{ .measure_fn = root.text.fixedMeasurer(1.0) });
     defer scene.deinit();
@@ -1273,7 +1273,7 @@ test "inline positioned static location follows inline cursor" {
 
 test "absolute grid child uses explicit grid area without adding tracks" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"40px 60px"},"children":[{"id":2,"type":"column","style":{"position":"absolute","gridColumn":"2 / 3","gridRow":"2 / 3","left":0,"right":0,"top":0,"bottom":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"40px 60px"},"children":[{"id":2,"type":"div","style":{"position":"absolute","gridColumn":"2 / 3","gridRow":"2 / 3","left":0,"right":0,"top":0,"bottom":0}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -1298,7 +1298,7 @@ test "logical border physical consumer resolves keywords and none before layout"
 
 test "logical border styles reach native raster pixels" {
     inline for (.{ "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset", "none", "hidden" }) |style| {
-        const node = root.Node{ .id = 1, .type = "column", .style = .{ .borderWidth = 9, .borderTopStyle = style, .borderRightStyle = "none", .borderBottomStyle = "none", .borderLeftStyle = "none", .borderTopColor = "currentColor", .color = "#808080" } };
+        const node = root.Node{ .id = 1, .type = "div", .style = .{ .borderWidth = 9, .borderTopStyle = style, .borderRightStyle = "none", .borderBottomStyle = "none", .borderLeftStyle = "none", .borderTopColor = "currentColor", .color = "#808080" } };
         const bitmap = try root.paint.borderBitmap(std.testing.allocator, 80, 30, &node);
         defer std.testing.allocator.free(bitmap.pixels);
         var painted: usize = 0;
@@ -1318,7 +1318,7 @@ test "logical border styles reach native raster pixels" {
 
 test "percentage padding and margins use containing width on both physical axes" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","width":200,"height":80},"children":[{"id":2,"type":"column","style":{"height":10,"paddingTopCss":"10%","paddingBottomCss":"5%","marginTopCss":"5%"}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","width":200,"height":80},"children":[{"id":2,"type":"div","style":{"height":10,"paddingTopCss":"10%","paddingBottomCss":"5%","marginTopCss":"5%"}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 80);
     defer scene.deinit();
@@ -1330,7 +1330,7 @@ test "percentage padding and margins use containing width on both physical axes"
 
 test "perspective establishes nearest fixed containing block through static ancestors" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","padding":20,"width":200,"height":150},"children":[{"id":2,"type":"column","style":{"display":"block","perspective":400,"padding":10,"width":100,"height":80},"children":[{"id":3,"type":"column","style":{"height":50},"children":[{"id":4,"type":"column","style":{"position":"fixed","left":5,"top":7,"width":10,"height":10}}]}]}]}
+        \\{"id":1,"type":"root","style":{"display":"block","padding":20,"width":200,"height":150},"children":[{"id":2,"type":"div","style":{"display":"block","perspective":400,"padding":10,"width":100,"height":80},"children":[{"id":3,"type":"div","style":{"height":50},"children":[{"id":4,"type":"div","style":{"position":"fixed","left":5,"top":7,"width":10,"height":10}}]}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 240, 190);
     defer scene.deinit();
@@ -1340,7 +1340,7 @@ test "perspective establishes nearest fixed containing block through static ance
 
 test "positioned negative free space assigns automatic margins in LTR and RTL" {
     inline for (.{ "ltr", "rtl" }) |direction| {
-        const json = try std.fmt.allocPrint(std.testing.allocator, "{{\"id\":1,\"type\":\"root\",\"style\":{{\"display\":\"block\",\"position\":\"relative\",\"direction\":\"{s}\",\"width\":100,\"height\":100}},\"children\":[{{\"id\":2,\"type\":\"column\",\"style\":{{\"position\":\"absolute\",\"left\":10,\"right\":10,\"top\":0,\"bottom\":0,\"width\":120,\"height\":120,\"marginLeftAuto\":true,\"marginRightAuto\":true,\"marginTopAuto\":true,\"marginBottomAuto\":true}}}}]}}", .{direction});
+        const json = try std.fmt.allocPrint(std.testing.allocator, "{{\"id\":1,\"type\":\"root\",\"style\":{{\"display\":\"block\",\"position\":\"relative\",\"direction\":\"{s}\",\"width\":100,\"height\":100}},\"children\":[{{\"id\":2,\"type\":\"div\",\"style\":{{\"position\":\"absolute\",\"left\":10,\"right\":10,\"top\":0,\"bottom\":0,\"width\":120,\"height\":120,\"marginLeftAuto\":true,\"marginRightAuto\":true,\"marginTopAuto\":true,\"marginBottomAuto\":true}}}}]}}", .{direction});
         defer std.testing.allocator.free(json);
         var scene = try Scene.init(std.testing.allocator, json, 100, 100);
         defer scene.deinit();
@@ -1351,7 +1351,7 @@ test "positioned negative free space assigns automatic margins in LTR and RTL" {
 
 test "absolute named grid area uses the same lines as in-flow placement" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"40px 60px","gridTemplateAreas":"\"a b\" \"c d\""},"children":[{"id":2,"type":"column","style":{"position":"absolute","gridArea":"d","left":0,"right":0,"top":0,"bottom":0}}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"40px 60px","gridTemplateAreas":"\"a b\" \"c d\""},"children":[{"id":2,"type":"div","style":{"position":"absolute","gridArea":"d","left":0,"right":0,"top":0,"bottom":0}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -1364,7 +1364,7 @@ test "absolute named grid area uses the same lines as in-flow placement" {
 
 test "RTL grid static position uses selected area width" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","direction":"rtl","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"100px"},"children":[{"id":2,"type":"column","style":{"position":"absolute","gridColumn":"2 / 3","width":40,"height":20}}]}
+        \\{"id":1,"type":"root","style":{"display":"grid","position":"relative","direction":"rtl","width":200,"height":100,"gridTemplateColumnsCss":"80px 120px","gridTemplateRowsCss":"100px"},"children":[{"id":2,"type":"div","style":{"position":"absolute","gridColumn":"2 / 3","width":40,"height":20}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();
@@ -1373,7 +1373,7 @@ test "RTL grid static position uses selected area width" {
 
 test "opposing absolute calc and percent insets stretch within padding box" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","boxSizing":"border-box","width":200,"height":100,"borderLeftWidth":5,"borderRightWidth":5},"children":[{"id":2,"type":"column","style":{"position":"absolute","leftCss":"calc(10% - 4px)","right":10,"top":0,"bottom":0,"marginLeft":3,"marginRight":7}}]}
+        \\{"id":1,"type":"root","style":{"display":"block","position":"relative","boxSizing":"border-box","width":200,"height":100,"borderLeftWidth":5,"borderRightWidth":5},"children":[{"id":2,"type":"div","style":{"position":"absolute","leftCss":"calc(10% - 4px)","right":10,"top":0,"bottom":0,"marginLeft":3,"marginRight":7}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 200, 100);
     defer scene.deinit();

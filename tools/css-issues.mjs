@@ -105,7 +105,7 @@ const special = {
   "overflow": "Implement independent axes, hidden/clip/scroll/auto semantics, propagated descendant overflow, focus visibility and nested scroll behavior (BLOCK-06, SCROLL-01/02).",
   "overflow-clip": "Clip without inventing a scroll container or BFC; the current overflow != visible block-context shortcut is incorrect (BLOCK-06).",
   "logical-properties": "Map inline/block preferred/min/max dimensions and logical edges for writing modes/directions; preserve declaration precedence when physical/logical properties mix.",
-  "layout-direction-override": "Provide real CSS ltr/rtl/bidi-related semantics; the legacy style.direction field currently carries flex-axis values, which is a different concept.",
+  "layout-direction-override": "Provide CSS ltr/rtl and bidirectional text semantics, coordinating writing direction with flex and grid layout.",
   "writing-mode": "Map inline/block axes and edges for horizontal/vertical modes consistently across sizing, text, controls and paint, including the necessary text-layout dependencies.",
   "text-wrap": "Build actual width-dependent line construction and paint runs; Text.wrap is disconnected and only returns summary counts (TEXT-03/04).",
   "text-wrap-balance": "Implement balancing as a line-construction strategy on real shaped runs; greedy word counts alone cannot implement balanced text.",

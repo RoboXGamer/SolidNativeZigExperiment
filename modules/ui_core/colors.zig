@@ -69,7 +69,7 @@ pub fn angle(s: []const u8, allow_number: bool) ?f64 {
 const Arguments = struct {
     channels: [3][]const u8,
     alpha: ?[]const u8 = null,
-    legacy: bool = false,
+    comma_separated: bool = false,
 };
 
 fn topLevel(input: []const u8, needle: u8) bool {
@@ -81,12 +81,13 @@ fn topLevel(input: []const u8, needle: u8) bool {
     }
     return false;
 }
-fn arguments(body: []const u8, allow_legacy: bool) ?Arguments {
+// Comma-separated and space-separated CSS colors have different grammar rules.
+fn arguments(body: []const u8, allow_commas: bool) ?Arguments {
     var result: Arguments = undefined;
     result.alpha = null;
-    result.legacy = topLevel(body, ',');
-    if (result.legacy) {
-        if (!allow_legacy or topLevel(body, '/')) return null;
+    result.comma_separated = topLevel(body, ',');
+    if (result.comma_separated) {
+        if (!allow_commas or topLevel(body, '/')) return null;
         var it = @import("css_syntax.zig").Split{ .input = body, .separator = ',' };
         for (&result.channels) |*c| {
             c.* = std.mem.trim(u8, it.next() orelse return null, ws);
@@ -514,22 +515,22 @@ pub fn parseColor(input: []const u8) ?[4]u8 {
         const lab = eq(name, "lab") or eq(name, "lch") or eq(name, "oklab") or eq(name, "oklch");
         if (!rgb and !hsl and !hwb and !lab and !eq(name, "color")) return null;
         const args = arguments(body, rgb or hsl) orelse return null;
-        const alpha = if (args.alpha) |a| component(a, 1, !args.legacy) orelse return null else 1;
+        const alpha = if (args.alpha) |a| component(a, 1, !args.comma_separated) orelse return null else 1;
         const c = args.channels;
         if (rgb) {
-            if (args.legacy and (suffix(c[0], "%") != suffix(c[1], "%") or suffix(c[0], "%") != suffix(c[2], "%"))) return null;
+            if (args.comma_separated and (suffix(c[0], "%") != suffix(c[1], "%") or suffix(c[0], "%") != suffix(c[2], "%"))) return null;
             return pack(.{
-                (component(c[0], 255, !args.legacy) orelse return null) / 255,
-                (component(c[1], 255, !args.legacy) orelse return null) / 255,
-                (component(c[2], 255, !args.legacy) orelse return null) / 255,
+                (component(c[0], 255, !args.comma_separated) orelse return null) / 255,
+                (component(c[1], 255, !args.comma_separated) orelse return null) / 255,
+                (component(c[2], 255, !args.comma_separated) orelse return null) / 255,
             }, alpha);
         }
         if (hsl or hwb) {
-            const hue = if (!args.legacy and eq(c[0], "none")) 0 else angle(c[0], true) orelse return null;
-            if (args.legacy and (!suffix(c[1], "%") or !suffix(c[2], "%"))) return null;
+            const hue = if (!args.comma_separated and eq(c[0], "none")) 0 else angle(c[0], true) orelse return null;
+            if (args.comma_separated and (!suffix(c[1], "%") or !suffix(c[2], "%"))) return null;
             // Number S/L/W/B values use a 0..100 scale, like percentages.
-            const x = std.math.clamp((component(c[1], 100, !args.legacy) orelse return null) / 100, 0, 1);
-            const y = std.math.clamp((component(c[2], 100, !args.legacy) orelse return null) / 100, 0, 1);
+            const x = std.math.clamp((component(c[1], 100, !args.comma_separated) orelse return null) / 100, 0, 1);
+            const y = std.math.clamp((component(c[2], 100, !args.comma_separated) orelse return null) / 100, 0, 1);
             if (hsl) return pack(hueRgb(hue, x, y), alpha);
             if (x + y >= 1) return pack(.{ x / (x + y), x / (x + y), x / (x + y) }, alpha);
             var out = hueRgb(hue, 1, 0.5);

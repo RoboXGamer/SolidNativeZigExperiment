@@ -456,7 +456,7 @@ pub const Scene = struct {
             const contribution = if (child.style.width) |v| child.constrain(child.borderSize(v, child_frame), true) else child.constrain(self.intrinsicWidth(child, minimum), true);
             const child_width = contribution + child.margin().horizontal();
             if (row) {
-                if (in_flow_seen > 0) width += n.style.gap;
+                if (in_flow_seen > 0) width += n.mainGap(true);
                 width += child_width;
             } else if (!is_flex and !minimum and @import("layout_block.zig").isInlineLevel(child)) {
                 // Text fragments share one line; a Solid expression boundary
@@ -507,7 +507,7 @@ pub const Scene = struct {
             const contribution = if (child.style.height) |v| child.constrain(child.borderSize(v, child_frame), false) else child.constrain(self.intrinsicHeight(child), false);
             const child_height = contribution + child.margin().vertical();
             if (row) height = @max(height, child_height) else {
-                if (in_flow_seen > 0 and is_flex) height += n.style.gap;
+                if (in_flow_seen > 0 and is_flex) height += n.mainGap(false);
                 height += child_height;
             }
             in_flow_seen += 1;
@@ -1304,7 +1304,7 @@ pub const Scene = struct {
                 if (row) {
                     total = @max(total, height + margins.vertical());
                 } else {
-                    if (in_flow_seen > 0) total += n.style.gap;
+                    if (in_flow_seen > 0) total += n.mainGap(false);
                     total += height + margins.vertical();
                 }
                 in_flow_seen += 1;
@@ -1387,7 +1387,7 @@ pub const Scene = struct {
                 total += self.outerHeight(child);
                 in_flow_seen += 1;
             }
-            if (in_flow_seen > 1) total += n.style.gap * @as(f32, @floatFromInt(in_flow_seen - 1));
+            if (in_flow_seen > 1) total += n.mainGap(false) * @as(f32, @floatFromInt(in_flow_seen - 1));
         }
         total += frame;
         if (std.mem.eql(u8, n.type, "button") or std.mem.eql(u8, n.type, "input")) total = @max(total, 44);

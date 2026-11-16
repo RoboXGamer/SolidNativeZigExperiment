@@ -410,6 +410,26 @@ test "centered flex score caption measures the complete split inline run" {
     try std.testing.expect(scene.find(7).?.bounds.y >= caption.bounds.y + caption.bounds.height);
 }
 
+test "auto height flex card includes CSS row gaps before placing its children" {
+    var scene = try Scene.init(std.testing.allocator,
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"column"},"children":[{"id":2,"type":"div","style":{"display":"flex","flexDirection":"column","width":380,"rowGap":20,"paddingTop":26,"paddingBottom":26},"children":[{"id":3,"type":"div","style":{"height":18}},{"id":4,"type":"div","style":{"height":64}},{"id":5,"type":"div","style":{"height":16}}]}]}
+    , 500, 600);
+    defer scene.deinit();
+    const card = scene.find(2).?;
+    try std.testing.expectApproxEqAbs(@as(f32, 190), card.bounds.height, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 190), scene.naturalHeight(card.node), 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 190), scene.naturalHeightForWidth(card.node, 380), 0.01);
+    try std.testing.expect(scene.find(5).?.bounds.bottom() <= card.bounds.bottom() - 26 + 0.01);
+}
+
+test "intrinsic flex row width includes CSS column gaps" {
+    var scene = try Scene.init(std.testing.allocator,
+        \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"column","alignItems":"center"},"children":[{"id":2,"type":"div","style":{"display":"flex","flexDirection":"row","columnGap":17},"children":[{"id":3,"type":"div","style":{"width":30,"height":10}},{"id":4,"type":"div","style":{"width":40,"height":10}}]}]}
+    , 500, 200);
+    defer scene.deinit();
+    try std.testing.expectApproxEqAbs(@as(f32, 87), scene.find(2).?.bounds.width, 0.01);
+}
+
 test "text intrinsic width follows the injected metrics" {
     const json =
         \\{"id":1,"type":"root","style":{"display":"flex","flexDirection":"row"},"children":[{"id":2,"type":"text","text":"abcd","style":{"flexBasisContent":true}}]}

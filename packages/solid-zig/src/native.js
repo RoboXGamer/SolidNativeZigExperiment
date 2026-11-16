@@ -3,7 +3,9 @@ import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import frameSchema from "./frame-inputs.json" with { type: "json" };
 const frameInputs = frameSchema.phases;
-import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia, getStyleSheetVersion } from './stylesheets.js';
+import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia, getStyleSheetVersion, invalidateStyleConditions } from './stylesheets.js';
+import { changed, getMutationVersion, work, tracking, observe } from './invalidation.js';
+export { work as discoveryWork, resetWork as resetDiscoveryWork } from './invalidation.js';
 export { setStyleSheet, removeStyleSheet } from './stylesheets.js';
 
 import { createModuleHost } from "./module-runtime.js";
@@ -61,6 +63,7 @@ function mount(Component) {
   const nextRoot = renderer.node("root");
   const nextDispose = renderer.render(() => renderer.createComponent(Component, {}), nextRoot);
   if (dispose) dispose();
+  renderer.forgetTree(root);
   hoverTarget = focusTarget = activeTarget = null;
   hoverPath.clear();
   activePath.clear();
@@ -323,7 +326,6 @@ export function isPopoverOpen(node) {
 }
 
 export function showPopover(node) {
-  hostVersion++;
   if (!node || !node.props?.popover) return;
   const kind = String(node.props.popover).toLowerCase();
   if (kind !== "manual") {
@@ -335,13 +337,14 @@ export function showPopover(node) {
   }
   openPopovers.add(node);
   node._popoverOpen = true;
+  changed(node, 'props');
 }
 
 export function hidePopover(node) {
-  hostVersion++;
   if (!node) return;
   openPopovers.delete(node);
   node._popoverOpen = false;
+  changed(node, 'props');
 }
 
 export function togglePopover(node, force) {
@@ -1073,61 +1076,39 @@ function fingerprint(value) {
     return item;
   });
 }
-function prepareSnapshot(node) {
+function prepareSnapshot(node, force = false) {
+  if (!force && !node._snapshotDirty && !node._snapshotDirtyChildren?.size && node._snapshotOwnVersion !== undefined) return node._snapshotSubtreeVersion;
+  work.prepare++;
+  const beforeInheritance = node._cssInheritanceVersion;
+  const beforeComputed = node._cssComputedVersion;
+  if (force) node._cssDirty = true;
   computedNodeStyle(node);
   const children = node.children || [];
-  const internal = Object.fromEntries(
-    Object.entries(node).filter(
-      ([key]) =>
-        key.startsWith("_") &&
-        !key.startsWith("_css") &&
-        !key.startsWith("_snapshot"),
-    ),
-  );
-  if (internal._slottedChildren)
-    internal._slottedChildren = internal._slottedChildren.map(
-      (child) => child.id,
-    );
-  const control = fingerprint([
-    node.type,
-    node.props,
-    Object.fromEntries(
-      Object.entries(internal).filter(
-        ([key]) => !["_isHovered", "_isActive", "_isFocused"].includes(key),
-      ),
-    ),
-    node.parent?._snapshotControlVersion,
-    node._snapshotRootContext,
-    children.map((child) => child.id),
-  ]);
-  if (control !== node._snapshotControlSignature) {
-    node._snapshotControlSignature = control;
-    node._snapshotControlVersion = ++snapshotVersion;
+  const slotHost = children.some(child => child.type === 'slot');
+  const ownDirty = force || slotHost || node._snapshotDirty || node._snapshotOwnVersion === undefined;
+  if (ownDirty) node._snapshotOwnVersion = ++snapshotVersion;
+  const pending = node._snapshotDirtyChildren || new Set();
+  // Synthetic/distributed children and option selection share control state.
+  // Keep this conservative traversal bounded to the affected control subtree.
+  const control = slotHost || ['select', 'slot', 'details'].includes(node.type);
+  if (control) for (const child of children) pending.add(child);
+  if (force || beforeInheritance !== node._cssInheritanceVersion || beforeComputed !== node._cssComputedVersion) {
+    for (const child of children) if (force || beforeInheritance !== node._cssInheritanceVersion || child._cssNeedsParent) {
+      child._snapshotDirty = child._cssDirty = true;
+      pending.add(child);
+    }
   }
-  const own = fingerprint([
-    node.id,
-    node.type,
-    node.text,
-    node.props,
-    node.states,
-    internal,
-    node._cssComputedVersion,
-    node.parent?._snapshotControlVersion,
-    node._snapshotRootContext,
-    children.map((child) => child.id),
-  ]);
-  if (own !== node._snapshotOwnSignature) {
-    node._snapshotOwnSignature = own;
-    node._snapshotOwnVersion = ++snapshotVersion;
-  }
-  const childVersions = children.map(prepareSnapshot);
-  const subtree = JSON.stringify([node._snapshotOwnVersion, childVersions]);
-  if (subtree !== node._snapshotSubtreeSignature) {
-    node._snapshotSubtreeSignature = subtree;
-    node._snapshotSubtreeVersion = ++snapshotVersion;
-  }
+  // Cold/reparented nodes have no retained context yet.
+  if (!node._snapshotCache) for (const child of children) pending.add(child);
+  node._snapshotPreparedChildren = new Set([...pending].filter(child => child.parent === node || children.includes(child)));
+  for (const child of node._snapshotPreparedChildren) prepareSnapshot(child, force || control);
+  node._snapshotDirtyChildren = new Set();
+  node._snapshotDirty = false;
+  node._snapshotSubtreeVersion = ++snapshotVersion;
   return node._snapshotSubtreeVersion;
 }
+const changedSnapshots = new Map();
+let captureSnapshots = false;
 export function snapshot(
   node,
   inherited = {},
@@ -1135,8 +1116,9 @@ export function snapshot(
   quoteDepth = 0,
 ) {
   if (snapshotDepth === 0) {
+    captureSnapshots = node === root;
     if (node === root) reconcileInteractionTree();
-    node._snapshotRootContext = fingerprint([
+    const environment = fingerprint([
       [...envVars],
       [...propertyRegistry],
       [...fontFaceRegistry],
@@ -1147,8 +1129,14 @@ export function snapshot(
       [...activeViewTransitionTypes],
       renderer.getTarget(),
       renderer.getTargetText(),
+      getStyleSheetVersion(),
+      hostVersion,
+      renderer.getFullVersion(),
     ]);
-    prepareSnapshot(node);
+    const force = node !== root || environment !== node._snapshotEnvironment;
+    if (force) invalidateStyleConditions();
+    node._snapshotEnvironment = environment;
+    prepareSnapshot(node, force);
   }
   snapshotDepth++;
   try {
@@ -1166,14 +1154,17 @@ export function snapshot(
       if (cache.version === node._snapshotSubtreeVersion) return cache.value;
       const [textStyle, currentVars, nextQuoteDepth] =
         node._snapshotChildContext;
-      const children = node.children.map((child) =>
-        snapshot(child, textStyle, currentVars, nextQuoteDepth),
-      );
-      const value = children.every(
-        (child, i) => child === cache.value.children[i],
-      )
-        ? cache.value
-        : { ...cache.value, children };
+      let children;
+      for (const child of node._snapshotPreparedChildren || []) {
+        const i = node.children.indexOf(child);
+        if (i < 0) continue;
+        const value = snapshot(child, textStyle, currentVars, nextQuoteDepth);
+        if (value !== cache.value.children[i]) {
+          children ||= cache.value.children.slice();
+          children[i] = value;
+        }
+      }
+      const value = children ? { ...cache.value, children } : cache.value;
       node._snapshotCache = {
         key,
         value,
@@ -1182,6 +1173,7 @@ export function snapshot(
       return value;
     }
     const value = snapshotUncached(node, inherited, inheritedVars, quoteDepth);
+    if (captureSnapshots) changedSnapshots.set(node.id, value);
     if (ordinary)
       node._snapshotCache = {
         key,
@@ -1194,6 +1186,7 @@ export function snapshot(
   }
 }
 function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
+  work.snapshot++;
   let authored = resolveUnsetValues(computedNodeStyle(node), inherited);
   const nodeStates = node.states || (node.props?.states instanceof Set ? node.props.states : (Array.isArray(node.props?.states) ? new Set(node.props.states) : (typeof node.props?.states === "object" ? new Set(Object.keys(node.props.states).filter(k => node.props.states[k])) : new Set())));
   if (node.props?.state) nodeStates.add(String(node.props.state));
@@ -1217,7 +1210,10 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
     const defaultSlot = node.children.find(c => c.type === "slot" && !c.props.name);
     const namedSlots = new Map();
     for (const c of node.children) {
-      if (c.type === "slot" && c.props.name) namedSlots.set(c.props.name, c);
+      if (c.type === "slot") {
+        c._slottedChildren = [];
+        if (c.props.name) namedSlots.set(c.props.name, c);
+      }
     }
     for (const child of node.children) {
       if (child.type === "slot") continue;
@@ -1279,7 +1275,15 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
   if (activeViewTransition && effectivePropsStyle.activeViewTransition) {
     Object.assign(effectivePropsStyle, effectivePropsStyle.activeViewTransition);
   }
-  const nestedStyle = resolveNestedStyles(node, effectivePropsStyle);
+  const nestedStyle = tracking(node, () => {
+    // Slotted styling is defined on the host, outside the ordinary inheritance
+    // context. Host style changes must revisit its distributed children.
+    if (node.props?.slot || node.parent?.type === 'slot') {
+      observe(node.parent, 'props');
+      if (node.parent?.type === 'slot') observe(node.parent.parent, 'props');
+    }
+    return resolveNestedStyles(node, effectivePropsStyle);
+  }, 'nested');
   const currentVars = resolveNodeVariables(nestedStyle, inheritedVars);
   const style = physicalStyle(nestedStyle, inherited, currentVars, node);
 
@@ -1909,8 +1913,26 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
         };
         childrenNodes = summaryChild ? [summaryChild, contentBox] : [contentBox];
       }
-      node._snapshotChildContext = [textStyle, currentVars, nextQuoteDepth];
-      return childrenNodes.map(child => snapshot(child, textStyle, currentVars, nextQuoteDepth));
+      const context = [textStyle, currentVars, nextQuoteDepth];
+      const contextKey = fingerprint([textStyle, [...currentVars], nextQuoteDepth]);
+      const previous = node._snapshotCache?.value.children;
+      let result;
+      if (previous && contextKey === node._snapshotChildContextKey &&
+          previous.length === childrenNodes.length && childrenNodes.every((child, i) => child.id === previous[i].id)) {
+        result = previous;
+        for (const child of node._snapshotPreparedChildren || []) {
+          const i = childrenNodes.indexOf(child);
+          if (i < 0) continue;
+          const value = snapshot(child, ...context);
+          if (value !== previous[i]) {
+            if (result === previous) result = previous.slice();
+            result[i] = value;
+          }
+        }
+      } else result = childrenNodes.map(child => snapshot(child, ...context));
+      node._snapshotChildContext = context;
+      node._snapshotChildContextKey = contextKey;
+      return result;
     })(),
   };
 }
@@ -1979,8 +2001,52 @@ export function isSelectedOption(optNode) {
   return false;
 }
 
+let identityRoot, identityStructure = -1, identities = new Map(), selectIdentities = new Set();
+let identityFullVersion = -1;
+const identityChanges = new Set();
+function attached(node) {
+  for (let n = node; n; n = n.parent) if (n === root) return true;
+  return false;
+}
+function ensureIdentityIndex() {
+  if (identityRoot !== root || identityStructure !== renderer.getStructureVersion()) {
+    const full = identityRoot !== root || identityFullVersion !== renderer.getFullVersion();
+    if (full) { identities = new Map(); selectIdentities = new Set(); }
+    const visited = new Set();
+    const index = n => {
+      if (visited.has(n)) return;
+      visited.add(n);
+      work.membership++;
+      identityChanges.add(n.id);
+      if (n.type === 'details') identityChanges.add(n.id + 1000000);
+      if (attached(n)) {
+        identities.set(n.id, n);
+        if (n.type === 'select') selectIdentities.add(n);
+      } else { identities.delete(n.id); selectIdentities.delete(n); }
+      n.children.forEach(index);
+    };
+    if (full) index(root);
+    else for (const n of renderer.getStructureChanges()) index(n);
+    identityRoot = root;
+    identityStructure = renderer.getStructureVersion();
+    identityFullVersion = renderer.getFullVersion();
+  }
+}
+const liveIdentity = id => identities.has(id) || identities.get(id - 1000000)?.type === 'details';
+function identityOrder(id) {
+  let n = identities.get(id);
+  const order = [];
+  if (!n) { n = identities.get(id - 1000000); order.push(1); }
+  for (; n?.parent; n = n.parent) order.unshift(n.parent.children.indexOf(n));
+  return order;
+}
 export function findId(node, id) {
   if (!node) return null;
+  if (!id) return null;
+  if (node === root) {
+    ensureIdentityIndex();
+    return identities.get(id) || null;
+  }
   if (node.id === id) return node;
   for (const child of node.children || []) {
     const match = findId(child, id);
@@ -1990,15 +2056,13 @@ export function findId(node, id) {
 }
 
 export function closeAllSelects(exceptNode = null) {
-  hostVersion++;
-  function walk(n) {
-    if (!n) return;
-    if (n.type === "select" && n !== exceptNode) {
+  ensureIdentityIndex();
+  for (const n of selectIdentities) {
+    if (n !== exceptNode && n._open) {
       n._open = false;
+      changed(n, 'props');
     }
-    for (const child of n.children || []) walk(child);
   }
-  walk(root);
 }
 
 export function dispatch(target, name, type, value) {
@@ -2017,16 +2081,15 @@ export function dispatch(target, name, type, value) {
 }
 
 export function dispatchSelectChange(selectNode, newValue) {
-  hostVersion++;
   selectNode._userInteracted = true;
   selectNode.props.value = newValue;
   selectNode._value = newValue;
+  changed(selectNode, 'props');
   dispatch(selectNode, "onInput", "input", newValue);
   dispatch(selectNode, "onChange", "change", newValue);
 }
 
 export function dispatchClick(id) {
-  hostVersion++;
   const target = findId(root, id);
   if (!target) {
     closeAllSelects();
@@ -2035,6 +2098,7 @@ export function dispatchClick(id) {
   }
   if (target.props.disabled) return;
   target._userInteracted = true;
+  changed(target, 'props');
 
   closeAllAutoPopovers(target);
   const popoverTargetId = target.props?.popoverTarget ?? target.props?.popovertarget;
@@ -2089,22 +2153,22 @@ export function findById(id) {
 }
 
 export function dispatchInput(id, value) {
-  hostVersion++;
   const target = findId(root, id);
   if (!target || target.type !== "input" || target.props.disabled || isReadOnly(target)) return;
   target._userInteracted = true;
   target.props.value = value;
+  changed(target, 'props');
   dispatch(target, "onInput", "input", value);
 }
 
 export function dispatchKey(id, key) {
-  hostVersion++;
   if (key === "Escape") {
     closeAllAutoPopovers();
   }
   const target = findId(root, id);
   if (!target) return;
   if (target.type === "select" && !target.props.disabled) {
+    changed(target, 'props');
     const options = getOptions(target).filter(o => !o.props.disabled);
     if (options.length === 0) return;
 
@@ -2186,11 +2250,13 @@ function updatePath(previous, next, key) {
   for (const node of previous)
     if (!next.has(node)) {
       node[key] = false;
+      changed(node, key === '_isHovered' ? 'hover' : 'active');
       changes.push([node, false]);
     }
   for (const node of next)
     if (!previous.has(node)) {
       node[key] = true;
+      changed(node, key === '_isHovered' ? 'hover' : 'active');
       changes.push([node, true]);
     }
   return changes;
@@ -2205,11 +2271,9 @@ export function dispatchPointer(hoveredId, activeId = 0, focusedId = 0) {
   const activeChanges = updatePath(activePath, nextActive, "_isActive");
   activePath = nextActive;
   const nextFocus = findId(root, focusedId);
-  if (changes.length || activeChanges.length || focusTarget !== nextFocus)
-    hostVersion++;
   if (focusTarget !== nextFocus) {
-    if (focusTarget) focusTarget._isFocused = false;
-    if (nextFocus) nextFocus._isFocused = true;
+    if (focusTarget) { focusTarget._isFocused = false; changed(focusTarget, 'focus'); }
+    if (nextFocus) { nextFocus._isFocused = true; changed(nextFocus, 'focus'); }
     focusTarget = nextFocus;
   }
   // Handlers observe a complete path, with common ancestors left untouched.
@@ -2229,11 +2293,14 @@ export function mountApp(Component) {
   }
   globalThis.uiSnapshot = () => JSON.stringify(snapshot(root));
   let lastRevision, committedRevision, pendingRevision, lastPatch, lastMap;
+  let lastRoot, lastFullVersion = -1;
+  let pendingRemoved = [];
   const collectChanges = () => {
     reconcileInteractionTree();
     const revision = fingerprint([
       root.id,
       renderer.getTreeVersion(),
+      getMutationVersion(),
       hostVersion,
       getStyleSheetVersion(),
       globalThis.__uiViewport,
@@ -2245,32 +2312,65 @@ export function mountApp(Component) {
       [...activeViewTransitionTypes],
     ]);
     if (revision === lastRevision) {
-      if (revision === committedRevision)
+      if (revision === committedRevision) {
+        changedSnapshots.clear();
         return { root: root.id, nodes: [], removed: [] };
+      }
       pendingCommit = lastMap;
       pendingRevision = revision;
       return lastPatch;
     }
     const nodes = [];
-    const current = new Map();
+    const current = new Map(pendingCommit || []);
+    ensureIdentityIndex();
+    const tree = snapshot(root);
+    let removed = pendingRemoved;
+    const structural = lastRoot !== root.id || lastFullVersion !== renderer.getFullVersion() || !committed.size;
+    lastRoot = root.id;
+    lastFullVersion = renderer.getFullVersion();
+    const live = structural ? new Set() : null;
     function visit(node) {
+      work.bridge++;
+      live?.add(node.id);
       const previous = committed.get(node.id);
       if (previous?.snapshot === node) {
-        current.set(node.id, previous);
-        node.children.forEach(visit);
         return;
       }
       const flat = {
         ...node,
-        children: node.children.map((child) => child.id),
+        children: node.children.map((child) => typeof child === 'object' ? child.id : child),
       };
       const signature = JSON.stringify(flat);
-      current.set(node.id, { snapshot: node, signature });
+      current.set(node.id, previous?.signature === signature ? previous : { snapshot: flat, signature });
       if (previous?.signature !== signature) nodes.push(flat);
-      node.children.forEach(visit);
     }
-    visit(snapshot(root));
-    const removed = [...committed.keys()].filter((id) => !current.has(id));
+    if (structural) {
+      const walk = node => { visit(node); node.children.forEach(walk); };
+      walk(tree);
+      removed = [...committed.keys()].filter(id => !live.has(id));
+      for (const id of current.keys()) if (!live.has(id)) current.delete(id);
+    } else {
+      const absent = new Set(pendingRemoved);
+      for (const id of identityChanges) {
+        if (liveIdentity(id)) absent.delete(id);
+        else { if (committed.has(id)) absent.add(id); current.delete(id); }
+      }
+      removed = [...absent];
+      // Preserve changes collected before an acknowledgement, even if the next
+      // mutation touches a different identity or restores the original value.
+      const candidates = new Map([...current].map(([id, record]) => [id, record.snapshot]));
+      for (const [id, value] of changedSnapshots) if (liveIdentity(id)) candidates.set(id, value);
+      const ordered = [...candidates.values()].map(node => ({node, order:identityOrder(node.id)}));
+      ordered.sort((a,b) => {
+        for (let i=0; i<Math.min(a.order.length,b.order.length); i++) if (a.order[i] !== b.order[i]) return a.order[i] - b.order[i];
+        return a.order.length - b.order.length;
+      });
+      for (const {node} of ordered) visit(node);
+    }
+    identityChanges.clear();
+    renderer.clearStructureChanges();
+    changedSnapshots.clear();
+    pendingRemoved = removed;
     pendingCommit = current;
     pendingRevision = lastRevision = revision;
     lastMap = current;
@@ -2279,8 +2379,10 @@ export function mountApp(Component) {
   };
   // Preserve phase granularity across the bridge. Existing nodes send only
   // changed input groups; full nodes are needed only when creating identities.
+  let framePatch, framePacket;
   globalThis.uiFrameChanges = () => {
     const patch = collectChanges();
+    if (framePatch === patch) return framePacket;
     const nodes = [],
       updates = [];
     const project = (node, phase) => {
@@ -2315,47 +2417,78 @@ export function mountApp(Component) {
       );
       return values;
     };
+    const equalValue = (a, b) => a === b || (a != null && b != null && typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b));
+    const nodeValue = (node, key) => key === 'visibilitySpecified'
+      ? Boolean(node.style.interactionSpecified & 1)
+      : key === 'paintTypographySpecified'
+        ? node.style.typographySpecified & frameSchema.paintTypographyMask
+        : node[key];
+    const styleValue = (node, key, phase) => phase === 'layout' && key === 'typographySpecified'
+      ? node.style[key] & ~frameSchema.paintTypographyMask
+      : phase === 'interaction' && key === 'interactionSpecified'
+        ? node.style[key] & ~1 : node.style[key];
+    const equalPhase = (before, next, phase) => {
+      const schema = frameInputs[phase];
+      for (const key of schema.node) if (!equalValue(nodeValue(before, key), nodeValue(next, key))) return false;
+      for (const key of schema.style) if (!equalValue(styleValue(before, key, phase), styleValue(next, key, phase))) return false;
+      return true;
+    };
+    const projection = (record, phase) => {
+      record.phases ||= {};
+      record.phases[phase] ||= project(record.snapshot, phase);
+      return record.phases[phase];
+    };
     for (const node of patch.nodes) {
-      const before = committed.get(node.id)?.snapshot;
+      const before = committed.get(node.id);
       if (!before) {
         nodes.push(node);
         continue;
       }
       const delta = { id: node.id };
       for (const phase of Object.keys(frameInputs)) {
-        const values = project(node, phase);
-        if (JSON.stringify(values) !== JSON.stringify(project(before, phase)))
-          delta[phase] = values;
+        const next = pendingCommit.get(node.id);
+        if (!equalPhase(before.snapshot, next.snapshot, phase)) delta[phase] = projection(next, phase);
+        else if (before.phases?.[phase]) (next.phases ||= {})[phase] = before.phases[phase];
       }
       if (Object.keys(delta).length > 1) updates.push(delta);
     }
-    return JSON.stringify({
+    framePatch = patch;
+    framePacket = JSON.stringify({
       root: patch.root,
       nodes,
       updates,
       removed: patch.removed,
     });
+    return framePacket;
   };
   globalThis.uiCommit = () => {
     if (pendingCommit) {
-      committed = pendingCommit;
+      for (const [id, record] of pendingCommit) committed.set(id, record);
+      for (const id of pendingRemoved) committed.delete(id);
       committedRevision = pendingRevision;
     }
     pendingCommit = undefined;
+    pendingRemoved = [];
   };
   globalThis.uiDispatchClick = (id) => dispatchClick(id);
   globalThis.uiDispatchPointer = dispatchPointer;
   globalThis.uiDispatchInput = (id, value) => dispatchInput(id, value);
   globalThis.uiDispatchKey = (id, key) => dispatchKey(id, key);
   globalThis.uiDispose = () => {
+    renderer.forgetTree(root);
     dispose?.();
     dispose = undefined;
     globalThis.__uiModules?.dispose();
     root = renderer.node("root");
+    identities.clear();
+    selectIdentities.clear();
+    identityChanges.clear();
+    renderer.clearStructureChanges();
     hoverTarget = focusTarget = activeTarget = null;
     hoverPath.clear();
     activePath.clear();
     committed.clear();
+    changedSnapshots.clear();
     pendingCommit = undefined;
   };
   mount(Component);

@@ -520,3 +520,6 @@ export function setStyleSheet(id: string, rules: any[]): void;
 export function removeStyleSheet(id: string): void;
 /** Updates hover/active ancestry and focus in one interaction transaction. Zero clears a target. */
 export function dispatchPointer(hoveredId: number, activeId?: number, focusedId?: number): void;
+/** Diagnostic work counts; excludes shallow retained-array copies and native rendering. */
+export const discoveryWork: Readonly<Record<"prepare" | "css" | "selectors" | "snapshot" | "bridge" | "membership", number>>;
+export function resetDiscoveryWork(): void;

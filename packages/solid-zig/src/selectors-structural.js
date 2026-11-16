@@ -1,4 +1,5 @@
 // CSS Selectors Level 3 / Level 4 Engine for Solid Native
+import { observe } from './invalidation.js';
 // Supports:
 // - :nth-child(), :nth-last-child()
 // - :nth-child(An+B of <selector>), :nth-last-child(An+B of <selector>)
@@ -178,6 +179,8 @@ function matchesSimpleSelector(node, part, context = {}) {
 
   // Pseudo-classes
   if (part.startsWith(":")) {
+    observe(node, 'parent');
+    observe(node.parent, 'children');
     const parent = node.parent;
     const siblings = parent ? parent.children : [node];
     const index = siblings.indexOf(node) + 1; // 1-based
@@ -304,6 +307,7 @@ function splitCompoundSelector(compound) {
 // Matches a single compound selector (e.g. "div.card:first-child") against node
 function matchesCompound(node, compound, context) {
   if (!node) return false;
+  observe(node, 'props');
   const parts = splitCompoundSelector(compound.trim());
   for (const part of parts) {
     if (!matchesSimpleSelector(node, part, context)) return false;
@@ -369,6 +373,7 @@ function matchComplex(node, tokens, context) {
 
   if (!matchesCompound(node, targetCompound, context)) return false;
   if (tokens.length === 1) return true;
+  observe(node, 'parent');
 
   const combinator = tokens[lastIndex - 1];
   const remainingTokens = tokens.slice(0, lastIndex - 1);
@@ -380,6 +385,7 @@ function matchComplex(node, tokens, context) {
     // Descendant combinator
     let ancestor = node.parent;
     while (ancestor) {
+      observe(ancestor, 'parent');
       if (matchComplex(ancestor, remainingTokens, context)) return true;
       ancestor = ancestor.parent;
     }
@@ -388,6 +394,7 @@ function matchComplex(node, tokens, context) {
     // Next adjacent sibling
     if (!node.parent) return false;
     const siblings = node.parent.children;
+    observe(node.parent, 'children');
     const idx = siblings.indexOf(node);
     if (idx <= 0) return false;
     return matchComplex(siblings[idx - 1], remainingTokens, context);
@@ -395,6 +402,7 @@ function matchComplex(node, tokens, context) {
     // Subsequent sibling
     if (!node.parent) return false;
     const siblings = node.parent.children;
+    observe(node.parent, 'children');
     const idx = siblings.indexOf(node);
     for (let i = idx - 1; i >= 0; i--) {
       if (matchComplex(siblings[i], remainingTokens, context)) return true;

@@ -1,0 +1,68 @@
+The Meson build system
+Version: 1.12.1
+Source dir: C:\Users\A5IN\.t3\worktrees\draft1\t3-6db09a1f-3028ba7d0d14b5d1\prototypes\thorvg\.deps\thorvg
+Build dir: C:\Users\A5IN\.t3\worktrees\draft1\t3-6db09a1f-3028ba7d0d14b5d1\prototypes\thorvg\.build\tvg
+Build type: native build
+Project name: thorvg
+Project version: 1.1.3
+C++ compiler for the host machine: zig c++ (clang 22.1.8 "clang version 22.1.8")
+C++ linker for the host machine: zig c++ ld.zigcc 0.17.0
+Host machine cpu family: x86_64
+Host machine cpu: x86_64
+Found pkg-config: YES (C:\msys64\ucrt64\bin\pkg-config.exe) 2.5.1
+Configuring config.h using configuration
+Build targets in project: 1
+
+thorvg 1.1.3
+
+    Build Type        : release
+    Prefix            : c:/
+    File I/O          : YES
+    Multi-Tasking     : YES
+    Partial Rendering : YES
+    SIMD              : none
+    Log Message       : NO
+    Tests             : NO
+
+  Raster Engine
+    CPU               : YES
+    GL                : YES
+    WebGPU            : NO
+
+  Loader
+    SVG               : NO
+    TTF               : YES
+    OTF               : NO
+    LOTTIE            : NO
+    PNG               : NO
+    JPG               : NO
+    WEBP              : NO
+    MEDIA             : NO
+
+  Saver
+    GIF               : NO
+
+  Binding
+    CAPI              : YES
+
+  Tool
+    Svg2Png           : NO
+    Lottie2Gif        : NO
+
+  Extra
+    Lottie Expressions: NO
+    OpenMP            : NO
+    OpenGL Variant    : OpenGL
+
+  User defined options
+    Native files      : C:\Users\A5IN\.t3\worktrees\draft1\t3-6db09a1f-3028ba7d0d14b5d1\prototypes\thorvg\zig-native.ini
+    bindings          : capi
+    default_library   : static
+    engines           : cpu,gl
+    extra             :
+    loaders           : ttf
+    simd              : false
+    static            : true
+    threads           : true
+
+Found ninja-1.13.2 at C:\ProgramData\chocolatey\bin\ninja.exe

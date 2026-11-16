@@ -1,0 +1,9 @@
+{
+  "cpu_gl_max_rgb_error": 60,
+  "cpu_gl_pixels_error_gt8": 2303,
+  "viewport": [
+    800,
+    600
+  ],
+  "cpu_full_smart_identical": true
+}

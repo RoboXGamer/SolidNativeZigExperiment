@@ -1,0 +1,18 @@
+{
+  "probe.exe": {
+    "bytes": 1399808,
+    "sha256": "dfa4d789243f71050cbca173549555887b186c3f425755130e2b244d8126ef9e"
+  },
+  "abi-smoke.exe": {
+    "bytes": 1498624,
+    "sha256": "09b6fe575cfdd1a78eb5df119e08503d78b4a74c9237ef28f1344b9422175f33"
+  },
+  "glfw3.dll": {
+    "bytes": 305664,
+    "sha256": "66ba8fa846a870e8e69b9af283eb80c3d3549d08a38f3f2193d449aad7e92e1d"
+  },
+  "libthorvg-1.a": {
+    "bytes": 3937316,
+    "sha256": "2a55cac6febb4f0b5de7b5fca1ebc12127d793a24a9ffe562f5c7d1467c94232"
+  }
+}

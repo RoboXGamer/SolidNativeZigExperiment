@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:14px var(--font-sans);color:var(--foreground)}h3{font-size:15px;margin:20px 0 10px}.row{display:grid;grid-template-columns:minmax(150px,240px) 1fr 90px;gap:8px;align-items:center;margin:9px 0}.track{height:18px;background:var(--secondary);border-radius:3px}.bar{height:18px;background:var(--chart-1);border-radius:3px}.number{font-family:var(--font-mono);font-size:12px}.note{font-size:12px;color:var(--muted-foreground)}@media(max-width:500px){.row{grid-template-columns:150px 1fr 75px}}</style></head><body>
+<div class="note">ThorVG 1.1.3 · Intel GL 3.3 · 1280 × 800 · scalar SW · p50 bars, p95 in parentheses · ms</div>
+<h3>1 board(s)</h3>
+<div class="row"><span>SW sparse, cached shadow</span><div class="track"><div class="bar" style="width:6.93%"></div></div><span class="number">1.10 (1.25)</span></div>
+<div class="row"><span>SW forced full, cached shadow</span><div class="track"><div class="bar" style="width:100.00%"></div></div><span class="number">15.94 (16.95)</span></div>
+<div class="row"><span>SW sparse + full upload</span><div class="track"><div class="bar" style="width:20.68%"></div></div><span class="number">3.30 (4.14)</span></div>
+<div class="row"><span>GL retained, cached shadow</span><div class="track"><div class="bar" style="width:25.48%"></div></div><span class="number">4.06 (4.49)</span></div>
+<div class="row"><span>SW sparse, live bounded shadow</span><div class="track"><div class="bar" style="width:20.87%"></div></div><span class="number">3.33 (4.30)</span></div>
+<h3>64 board(s)</h3>
+<div class="row"><span>SW sparse, cached shadow</span><div class="track"><div class="bar" style="width:2.40%"></div></div><span class="number">0.42 (0.62)</span></div>
+<div class="row"><span>SW forced full, cached shadow</span><div class="track"><div class="bar" style="width:100.00%"></div></div><span class="number">17.61 (18.81)</span></div>
+<div class="row"><span>SW sparse + full upload</span><div class="track"><div class="bar" style="width:13.68%"></div></div><span class="number">2.41 (3.64)</span></div>
+<div class="row"><span>GL retained, cached shadow</span><div class="track"><div class="bar" style="width:51.91%"></div></div><span class="number">9.14 (9.99)</span></div>
+<div class="row"><span>SW sparse, live bounded shadow</span><div class="track"><div class="bar" style="width:20.11%"></div></div><span class="number">3.54 (4.00)</span></div>
+<p class="note">100 samples after 20 warmups. GL includes forced completion; no swap, vsync, JS, layout, text rebuild or OS input. Live effects can defeat sparse redraw. Synthetic retained workload; no claim about end-to-end hover.</p>
+</body></html>

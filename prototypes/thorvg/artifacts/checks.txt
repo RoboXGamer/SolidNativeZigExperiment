@@ -1,0 +1,190 @@
+GL_VENDOR=Intel
+GL_RENDERER=Intel(R) RaptorLake-S Mobile Graphics Controller
+GL_VERSION=3.3.0 - Build 32.0.101.7026
+GL no-clear diagnostic differing pixels=800 bbox=(1066,0)-(1066,799)
+PASS GL clearing restores initial pixels at fractional target edge
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial sw full 3.3510 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 480000 / 480000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS resize and 150 percent DPI preserve logical geometry
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS same-canvas resize and DPI round trip restores pixels
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial sw smart 3.8634 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 160400 / 480000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS resize and 150 percent DPI preserve logical geometry
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS same-canvas resize and DPI round trip restores pixels
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial gl full 25.3356 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 480000 / 480000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS resize and 150 percent DPI preserve logical geometry
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS same-canvas resize and DPI round trip restores pixels
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial gl smart 24.0570 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 480000 / 480000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS resize and 150 percent DPI preserve logical geometry
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS same-canvas resize and DPI round trip restores pixels
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial sw smart 10.7606 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 360900 / 1080000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial gl full 39.9671 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 1080000 / 1080000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial sw smart 1.1109 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 24836 / 480000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS resize and 150 percent DPI preserve logical geometry
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS same-canvas resize and DPI round trip restores pixels
+DirectWrite layout 303.037 x 57.193; 2 lines
+Initial gl full 31.5053 ms
+PASS opaque background
+PASS overlap follows z order
+PASS rotation and translation produce expected interior
+PASS rounded corner exposes board behind tile corner
+PASS subtree opacity applied once at overlap
+PASS single child agrees with opacity overlap
+PASS nested clip retains inside
+PASS both nested clips reject outside
+PASS drop shadow visible beyond board
+PASS unchanged frame stable
+PASS hover changes tile interior
+PASS hover produced changed pixels
+Hover dirty region summed area 480000 / 480000
+PASS sparse hover equals forced full redraw
+PASS geometry shrink restores old pixels exactly
+PASS geometry and color reversal restores initial image
+PASS transform damage equals forced full redraw
+PASS transform restores previous position
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS resize and 150 percent DPI preserve logical geometry
+DirectWrite layout 303.037 x 57.193; 2 lines
+PASS same-canvas resize and DPI round trip restores pixels
+ASSERTION_FAILURES=0

@@ -1,0 +1,9 @@
+{
+  "matrix_rows": 144,
+  "raw_samples": 14400,
+  "warmups_per_row": 20,
+  "samples_per_row": 100,
+  "pass_assertions": 269,
+  "fail_assertions": 0,
+  "successful_exit_marker": true
+}

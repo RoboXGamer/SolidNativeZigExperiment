@@ -32,6 +32,51 @@ fn check(condition: bool, name: []const u8) !void {
     }
     std.debug.print("PASS native: {s}\n", .{name});
 }
+fn drawGlyph(context: *anyopaque, _: *ui.Scene, item: ui.Item, _: std.mem.Allocator) !void {
+    if (!std.mem.eql(u8, item.node.type, "text") and !std.mem.eql(u8, item.node.type, "input")) return;
+    const cache: *@import("text_backend.zig").Cache = @ptrCast(@alignCast(context));
+    try cache.drawStyled("AV ffi", item.bounds.x, item.bounds.y, 13.1, .white, .{});
+}
+fn fontFrame(renderer: *Renderer, cache: *@import("text_backend.zig").Cache, json: []const u8, scale: f32) !rl.Image {
+    var scene = try ui.Scene.init(std.heap.page_allocator, json, 128, 128);
+    defer scene.deinit();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    _ = cache.setScale(scale);
+    rl.beginDrawing();
+    try renderer.renderAtScale(&scene, cache, drawGlyph, arena.allocator(), scale);
+    rl.endDrawing();
+    var image = try rl.loadImageFromTexture(renderer.targets.items[3].texture);
+    rl.imageFlipVertical(&image);
+    return image;
+}
+fn fontPixels() !void {
+    var renderer = try Renderer.init(std.heap.page_allocator);
+    defer renderer.deinit();
+    var cache = @import("text_backend.zig").Cache.init(std.heap.page_allocator);
+    defer cache.deinit();
+    for ([_]f32{ 1, 1.25, 1.5, 2 }) |scale| {
+        const direct = try fontFrame(&renderer, &cache,
+            \\{"id":1,"type":"root","children":[{"id":2,"type":"text","style":{"position":"absolute","left":10.25,"top":10.5,"width":100,"height":45}}]}
+        , scale);
+        defer rl.unloadImage(direct);
+        const clipped = try fontFrame(&renderer, &cache,
+            \\{"id":1,"type":"root","children":[{"id":3,"type":"div","style":{"position":"absolute","width":110,"height":60,"overflow":"hidden"},"children":[{"id":2,"type":"input","style":{"position":"absolute","left":10.25,"top":10.5,"width":100,"height":45,"backgroundColor":"transparent"}}]}]}
+        , scale);
+        defer rl.unloadImage(clipped);
+        try check(direct.width == @as(i32, @intFromFloat(128 * scale)) and clipped.width == direct.width, "DPI compositor allocates physical-resolution surfaces");
+        var visible: usize = 0;
+        var differences: usize = 0;
+        for (0..@intCast(direct.height)) |y| for (0..@intCast(direct.width)) |x| {
+            const a = rl.getImageColor(direct, @intCast(x), @intCast(y));
+            const b = rl.getImageColor(clipped, @intCast(x), @intCast(y));
+            if (a.a > 0) visible += 1;
+            if (@abs(@as(i32, a.a) - b.a) > 1) differences += 1;
+        };
+        std.debug.print("Font compositor scale {d}: {d} visible pixels, {d} mask differences\n", .{ scale, visible, differences });
+        try check(visible > 20 and differences == 0, "fractional text coverage survives input and ancestor masks at each DPI");
+    }
+}
 pub fn main() !void {
     const backend = @import("text_backend.zig");
     const latin = backend.measureStyled(null, "AV ffi", 24, .{});
@@ -42,6 +87,8 @@ pub fn main() !void {
     rl.setConfigFlags(.{ .window_hidden = true });
     rl.initWindow(128, 128, "Native paint regression");
     defer rl.closeWindow();
+    try @import("text_check.zig").run();
+    try fontPixels();
     defer ui_cursor_shutdown();
     try check(ui_cursor_start() == 1, "persistent cursor message ownership");
     ui_cursor_update("pointer", 7, 0, 0);
@@ -79,7 +126,7 @@ pub fn main() !void {
     rl.endDrawing();
     try check(text_cache.textures.count() == 1, "native shaped glyph raster upload");
     var glyphs = text_cache.textures.valueIterator();
-    const glyph_image = try rl.loadImageFromTexture(glyphs.next().?.*);
+    const glyph_image = try rl.loadImageFromTexture(glyphs.next().?.texture);
     defer rl.unloadImage(glyph_image);
     var partial_coverage: usize = 0;
     for (0..@intCast(glyph_image.height)) |y| for (0..@intCast(glyph_image.width)) |x| {

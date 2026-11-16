@@ -71,7 +71,7 @@ pub const fallback_line_height_ratio: f32 = 1.2;
 pub const fallback_ascent_ratio: f32 = 0.8;
 pub const fallback_descent_ratio: f32 = 0.2;
 
-/// Per-run text metrics, all in device pixels for the requested font size.
+/// Per-run text metrics in logical CSS pixels, independent of display DPI.
 pub const Metrics = struct {
     width: f32 = 0,
     /// Line box height, i.e. what one line of this run occupies vertically.
@@ -194,6 +194,7 @@ pub fn resolveQuotes(quotes: []const u8, lang: []const u8, depth: usize) ?QuoteP
 }
 pub const StyledMeasureFn = *const fn (?*anyopaque, []const u8, f32, Typography) Metrics;
 pub const StyledPositionFn = *const fn (?*anyopaque, []const u8, f32, f32, Typography) usize;
+pub const StyledCaretFn = *const fn (?*anyopaque, []const u8, usize, f32, Typography) f32;
 
 pub fn isIdeographic(cp: u21) bool {
     return (cp >= 0x4E00 and cp <= 0x9FFF) or
@@ -253,6 +254,7 @@ pub const Text = struct {
     position_fn: ?PositionFn = null,
     styled_measure_fn: ?StyledMeasureFn = null,
     styled_position_fn: ?StyledPositionFn = null,
+    styled_caret_fn: ?StyledCaretFn = null,
     typography: Typography = .{},
 
     pub fn measureRuby(self: Text, base_text: []const u8, annotation_text: []const u8, font_size: f32, ruby_pos: []const u8) RubyMetrics {
@@ -288,7 +290,7 @@ pub const Text = struct {
         const is_compact = std.mem.eql(u8, self.typography.math_shift, "compact");
         const compact_h_scale: f32 = if (is_compact) 0.9 else 1.0;
         const compact_asc_scale: f32 = if (is_compact) 0.85 else 1.0;
-        if (content.len == 0) {
+        if (content.len == 0 and self.styled_measure_fn == null) {
             const h = px * fallback_line_height_ratio * compact_h_scale;
             const asc = px * fallback_ascent_ratio * compact_asc_scale;
             const desc = px * fallback_descent_ratio;
@@ -356,6 +358,12 @@ pub const Text = struct {
         if (self.styled_position_fn) |f| return f(self.ctx, content, x, size(font_size), self.typography);
         if (self.position_fn) |f| return f(self.ctx, content, x, size(font_size));
         return null;
+    }
+
+    /// Shape the full run so kerning, ligatures and bidi agree with paint.
+    pub fn caret(self: Text, content: []const u8, offset: usize, font_size: f32) f32 {
+        if (self.styled_caret_fn) |f| return f(self.ctx, content, @min(offset, content.len), size(font_size), self.typography);
+        return self.width(content[0..@min(offset, content.len)], font_size);
     }
 
     /// Returns an arena-owned ellipsized run; the authoring text is untouched.

@@ -16,7 +16,7 @@ Testing is explicitly **PAUSED**: no builds, tests, typechecks or test authoring
 - **Bridge & Universal Renderer**:
   - `modules/solid_bridge/root.zig`: Added `hover(id, is_hovered)`, `active(id, is_active)`, and `focus(id, is_focused)` to `Runtime`.
   - `packages/solid-zig/src/native.js`: Implemented `dispatchHover`, `dispatchActive`, and `dispatchFocus`; registered global dispatchers `uiDispatchHover`, `uiDispatchActive`, `uiDispatchFocus`.
-  - Supported pseudo-classes in JSX styling: `:hover`, `:active`, `:focus` (as well as `_hover`, `_active`, `_focus`) on all elements including `<a>` elements and non-`<a>` elements (`<button>`, `<input>`, `<select>`, `<div>`, `<row>`, etc.).
+  - Supported pseudo-classes in JSX styling: `:hover`, `:active`, `:focus` (as well as `_hover`, `_active`, `_focus`) on all elements including `<a>` elements and non-`<a>` elements (`<button>`, `<input>`, `<select>`, `<div>`, etc.).
 - **Retained State**:
   - `modules/ui_core/tree.zig` & `modules/ui_core/scene.zig`: Added `hovered`, `active`, `focused` flags to `FlatNode` and `Node`.
 

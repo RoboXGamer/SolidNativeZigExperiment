@@ -8,7 +8,7 @@ The CSS demo had three independent interaction problems:
 
 ## Input and cursor behavior
 
-The Windows loop now applies one hover/active/focus transaction before synchronization, layout and paint. Hover and active flags cover the target's ancestor path; common ancestors retain their state while moving between descendants. `onHover` runs after the entire path is updated and only for nodes whose state changed. Focus stays on the focused control. The legacy dispatch functions remain available.
+The Windows loop applies one hover/active/focus transaction before synchronization, layout and paint. Hover and active flags cover the target's ancestor path; common ancestors retain their state while moving between descendants. `onHover` runs after the entire path is updated and only for nodes whose state changed. Focus stays on the focused control.
 
 Leaving the client area clears hover. Changes to the retained tree reconcile interaction paths even if the target ID and physical mouse position stay the same. A layout change that moves another target beneath a stationary pointer schedules an immediate follow-up frame rather than waiting for another mouse movement.
 
@@ -28,7 +28,7 @@ QuickJS's vendored C interpreter is compiled with `-O2` by default, including in
 
 Measured locally on Windows with the actual CSS example, QuickJS native host, a 1,280 × 720 hidden window, Zig Debug application, and 30 sequential samples per operation. The native scene contained 24 items. Each run first acknowledged its initial snapshot. Values below are milliseconds; these small samples describe this demo and machine.
 
-The legacy hover operation alternates between button padding and its text using leave/enter dispatches, then calls `uiChanges()`, parses the patch JSON, and calls `uiCommit()`. The same operation was used before and after the fix. The batched operation uses the new single pointer transaction and change/commit calls without parsing the returned patch.
+The historical hover operation alternated between button padding and its text using leave/enter dispatches and the former full-node change API. The same operation was used before and after that fix. The current probe uses pointer transactions and phase-aware changes, so new runs are not directly comparable to the historical numbers below.
 
 | Build and operation | p50 | p95 | Maximum |
 | --- | ---: | ---: | ---: |

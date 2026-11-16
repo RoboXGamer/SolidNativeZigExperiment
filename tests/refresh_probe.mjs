@@ -1,7 +1,7 @@
 ﻿import assert from "node:assert/strict";
 import { createSignal, createComponent, onCleanup } from "solid-js";
 import { $$registry, $$component, $$refresh } from "solid-js/refresh";
-import { node, render, createElement, createTextNode, insertNode } from "../ui/renderer.js";
+import { node, render, createElement, createTextNode, insertNode } from "../packages/solid-zig/src/renderer.js";
 
 const hot = { data: {}, accept(fn) { this.callback = fn; }, invalidate() { throw Error("Unexpected invalidation"); } };
 const [parentCount, setParentCount] = createSignal(0);

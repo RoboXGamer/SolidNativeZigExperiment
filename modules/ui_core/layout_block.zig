@@ -44,11 +44,6 @@ pub const CollapsibleMarginSet = struct {
     }
 };
 
-/// CSS margin collapsing for two adjoining margins (kept for backwards compatibility).
-pub fn collapsePair(a: f32, b: f32) f32 {
-    return CollapsibleMarginSet.fromMargin(a).collapseWithMargin(b).resolve();
-}
-
 /// Detects whether a node establishes an independent Block Formatting Context (BFC).
 /// Per CSS Display 3 and CSS Overflow 3:
 /// - display: flow-root establishes a BFC.

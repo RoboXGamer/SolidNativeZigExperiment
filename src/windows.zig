@@ -491,7 +491,7 @@ fn getSystemPreferences() ui.sizing.Context {
 }
 
 fn buildScene(tree: *ui.Tree) !ui.Scene {
-    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .measure_fn = text_backend.measure, .position_fn = text_backend.position, .styled_measure_fn = text_backend.measureStyled, .styled_position_fn = text_backend.positionStyled }, getSystemPreferences());
+    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .styled_measure_fn = text_backend.measureStyled, .styled_position_fn = text_backend.positionStyled }, getSystemPreferences());
 }
 
 pub fn run() void {

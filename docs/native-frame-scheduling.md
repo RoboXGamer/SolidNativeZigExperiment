@@ -8,7 +8,7 @@ The host no longer equates an input event with a frame, or a bridge patch with l
 
 `modules/ui_core/frame_inputs.zig` defines the corresponding node inputs and phase deltas. `node tools/generate-frame-inputs.mjs` generates `packages/solid-zig/src/frame-inputs.json` from those declarations. The JavaScript test command checks that the generated contract is current.
 
-The JavaScript host resolves CSS and compares computed native inputs with the last acknowledged snapshot. `uiFrameChanges()` sends complete nodes for new identities, phase-specific updates for existing identities, and removals. Multiple Solid writes before collection coalesce into one update per node. `uiCommit()` acknowledges a batch; until then it remains available for retry. The legacy `uiChanges()` full-node API remains available for diagnostics and existing callers.
+The JavaScript host resolves CSS and compares computed native inputs with the last acknowledged snapshot. `uiFrameChanges()` sends complete nodes for new identities, phase-specific updates for existing identities, and removals. Multiple Solid writes before collection coalesce into one update per node. `uiCommit()` acknowledges a batch; until then it remains available for retry.
 
 The native retained tree applies a batch atomically and advances per-node and tree phase revisions. Existing identities with unchanged child edges commit only the staged entries; they do not clone or traverse the full node map. Structural changes validate the complete graph. Unknown identities, duplicate updates and invalid structures leave the previous tree and revisions intact.
 

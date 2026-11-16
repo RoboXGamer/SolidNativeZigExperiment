@@ -15,6 +15,6 @@
       "@zig-ui/solid/renderer": ["./packages/solid-zig/src/renderer.js"]
     }
   },
-  "include": ["examples/**/*", "ui/**/*", "packages/solid-zig/src/**/*"],
+  "include": ["examples/**/*", "packages/solid-zig/src/**/*"],
   "exclude": ["node_modules", "src", "vendor", ".zig-cache", "zig-out"]
 }

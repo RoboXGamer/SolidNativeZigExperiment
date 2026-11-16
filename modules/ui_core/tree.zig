@@ -122,7 +122,6 @@ pub const Tree = struct {
         copy.text = try a.dupe(u8, n.text);
         copy.value = try a.dupe(u8, n.value);
         copy.placeholder = try a.dupe(u8, n.placeholder);
-        copy.style.columns = try a.dupe(f32, n.style.columns);
         const s_info = @typeInfo(core.Style).@"struct";
         inline for (s_info.field_names, s_info.field_types) |fname, ftype| {
             if (ftype == []const u8) {
@@ -153,7 +152,6 @@ pub const Tree = struct {
                 if (@field(style, name)) |value| @field(style, name) = try allocator.dupe(u8, value);
             }
         }
-        style.columns = try allocator.dupe(f32, style.columns);
         return .{ .id = n.id, .type = try allocator.dupe(u8, n.type), .text = try allocator.dupe(u8, n.text), .value = try allocator.dupe(u8, n.value), .placeholder = try allocator.dupe(u8, n.placeholder), .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .readOnly = n.readOnly, .readWrite = n.readWrite, .popoverOpen = n.popoverOpen, .intrinsicAspectRatio = n.intrinsicAspectRatio, .hovered = n.hovered, .active = n.active, .focused = n.focused, .style = style, .children = children };
     }
 };

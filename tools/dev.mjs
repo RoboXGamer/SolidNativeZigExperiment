@@ -21,8 +21,8 @@ const clean = id => {
 };
 function external(id) {
   id = id.split("?")[0];
-  if (id === "/ui/native.js" || id === "/packages/solid-zig/src/native.js") return "native-host";
-  if (id === "/ui/renderer.js" || id === "/packages/solid-zig/src/renderer.js") return "native-renderer";
+  if (id === "/packages/solid-zig/src/native.js") return "native-host";
+  if (id === "/packages/solid-zig/src/renderer.js") return "native-renderer";
   if (/^\/node_modules\/\.vite\/deps\/solid-js_refresh\.js(?:\?|$)/.test(id)) return "solid-refresh";
   if (/^\/node_modules\/\.vite\/deps\/solid-js\.js(?:\?|$)/.test(id)) return "solid-js";
   // Unoptimized package paths must share the embedded Solid runtime too.

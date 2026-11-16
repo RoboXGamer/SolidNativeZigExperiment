@@ -20,23 +20,23 @@ setTimeout(() => {
       max_ms: sorted.at(-1),
     };
   }
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   const idle = [],
     hover = [];
   let previous = null;
   for (let i = 0; i < 30; i++) {
     const start = performance.now();
-    uiChanges();
+    uiFrameChanges();
     uiCommit();
     idle.push(performance.now() - start);
   }
   for (let i = 0; i < 30; i++) {
     const target = i % 2 ? text.id : button.id;
     const start = performance.now();
-    if (previous !== null) uiDispatchHover(previous, false);
-    uiDispatchHover(target, true);
-    const changes = JSON.parse(uiChanges());
+    if (previous !== null) uiDispatchPointer(0, 0, 0);
+    uiDispatchPointer(target, 0, 0);
+    const changes = JSON.parse(uiFrameChanges());
     uiCommit();
     hover.push(performance.now() - start);
     previous = target;
@@ -50,7 +50,7 @@ setTimeout(() => {
               return [n, ...n.children.flatMap(flatten)];
             })
             .find((n) => n.id === button.id).style.backgroundColor,
-          changedNodes: changes.nodes.length,
+          changedNodes: changes.nodes.length + changes.updates.length,
         }),
       );
   }
@@ -67,7 +67,7 @@ setTimeout(() => {
     for (let i = 0; i < 30; i++) {
       const start = performance.now();
       uiDispatchPointer(i % 2 ? text.id : button.id, 0, 0);
-      uiChanges();
+      uiFrameChanges();
       uiCommit();
       batch.push(performance.now() - start);
     }

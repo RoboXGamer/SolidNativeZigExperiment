@@ -68,14 +68,10 @@ function mount(Component) {
   dispose = nextDispose;
 }
 
-// Containers are flex boxes by default (the custom elements are flex
-// primitives); text nodes stay block leaves. The default direction has to match
-// the axis that height/width resolution assumes, otherwise boxes are sized for
-// one axis and their children laid out on the other directions.
 function flexDirectionOf(node, style) {
   if (typeof style.flexDirection === "string") return style.flexDirection;
   if (node.type === "select") return "column";
-  return ["row", "label", "button", "input", "option"].includes(node.type) ? "row" : "column";
+  return ["div", "label", "button", "input", "option"].includes(node.type) ? "row" : "column";
 }
 
 function blockifyDisplay(d) {
@@ -114,10 +110,8 @@ function displayOf(node, style) {
     } else {
       resolvedDisplay = d;
     }
-  } else if (node.type === "text") {
+  } else if (node.type === "text" || node.type === "div") {
     resolvedDisplay = "block";
-  } else if (node.type === "grid") {
-    resolvedDisplay = "grid";
   } else if (node.type === "table") {
     resolvedDisplay = "table";
   } else if (node.type === "caption") {
@@ -1573,31 +1567,10 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
   };
   const containIntrinsicWidth = styleLength(style.containIntrinsicWidth ?? style.containIntrinsicSize);
   const containIntrinsicHeight = styleLength(style.containIntrinsicHeight ?? style.containIntrinsicSize);
-  let columns = [];
   let gridTemplateColumnsCss = null;
   if (displayOf(node, style) === "grid" && style.gridTemplateColumns != null) {
     if (typeof style.gridTemplateColumns === "string") {
       gridTemplateColumnsCss = style.gridTemplateColumns.trim();
-      try {
-        const parts = gridTemplateColumnsCss.split(/\s+/);
-        const parsed = parts.map(track => {
-          if (/^\d+(?:\.\d+)?fr$/.test(track)) return -Number(track.slice(0, -2));
-          if (/^\d+(?:\.\d+)?px$/.test(track)) return Number(track.slice(0, -2));
-          const num = Number(track);
-          if (Number.isFinite(num)) return num;
-          throw Error("complex track");
-        });
-        columns = parsed;
-      } catch {
-        columns = [];
-      }
-    } else if (Array.isArray(style.gridTemplateColumns)) {
-      columns = style.gridTemplateColumns.map(track => {
-        if (typeof track === "number") return track;
-        if (/^\d+(?:\.\d+)?fr$/.test(track)) return -Number(track.slice(0, -2));
-        if (/^\d+(?:\.\d+)?px$/.test(track)) return Number(track.slice(0, -2));
-        return Number(track) || 0;
-      });
     }
   }
   const isButton = node.type === "button";
@@ -1650,7 +1623,7 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
     borderRightWidth: lengths.borderRightWidth != null ? lengths.borderRightWidth : 1,
     borderBottomWidth: lengths.borderBottomWidth != null ? lengths.borderBottomWidth : 1,
     borderLeftWidth: lengths.borderLeftWidth != null ? lengths.borderLeftWidth : 1,
-    borderRadius: typeof style.borderRadius === "number" ? style.borderRadius : 4,
+    borderRadiusCss: radiusCss(style.borderRadius ?? 4),
     paddingTop: lengths.paddingTop != null ? lengths.paddingTop : 6,
     paddingBottom: lengths.paddingBottom != null ? lengths.paddingBottom : 6,
     paddingLeft: lengths.paddingLeft != null ? lengths.paddingLeft : 10,
@@ -1730,7 +1703,6 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
       columnGap: colGapParsed?.num ?? null,
       rowGapCss: rowGapParsed?.css ?? null,
       columnGapCss: colGapParsed?.css ?? null,
-      columns,
       backgroundColor: typeof style.backgroundColor === "string" ? style.backgroundColor : "",
       borderColor: typeof style.borderColor === "string" ? style.borderColor : "",
       borderTopColor: typeof style.borderTopColor === "string" ? style.borderTopColor : "",
@@ -1757,11 +1729,6 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
       borderTopRightRadiusCss:radiusCss(style.borderTopRightRadius),
       borderBottomRightRadiusCss:radiusCss(style.borderBottomRightRadius),
       borderBottomLeftRadiusCss:radiusCss(style.borderBottomLeftRadius),
-      borderRadius: typeof style.borderRadius === "number" ? style.borderRadius : 0,
-      borderTopLeftRadius: typeof style.borderTopLeftRadius === "number" ? style.borderTopLeftRadius : 0,
-      borderTopRightRadius: typeof style.borderTopRightRadius === "number" ? style.borderTopRightRadius : 0,
-      borderBottomRightRadius: typeof style.borderBottomRightRadius === "number" ? style.borderBottomRightRadius : 0,
-      borderBottomLeftRadius: typeof style.borderBottomLeftRadius === "number" ? style.borderBottomLeftRadius : 0,
       boxSizing: typeof style.boxSizing === "string" ? style.boxSizing : "content-box",
       overflow,
       overflowX,
@@ -1811,7 +1778,7 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
       gridTemplateColumnsCss: gridTemplateColumnsCss,
       gridAutoColumnsCss: typeof style.gridAutoColumns === 'string' ? style.gridAutoColumns : null,
       gridAutoRowsCss: typeof style.gridAutoRows === 'string' ? style.gridAutoRows : null,
-      gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : (Array.isArray(style.gridTemplateRows) ? style.gridTemplateRows.join(" ") : null),
+      gridTemplateRowsCss: typeof style.gridTemplateRows === "string" ? style.gridTemplateRows : null,
       gridAutoFlow: typeof style.gridAutoFlow === "string" ? style.gridAutoFlow : "row",
       gridTemplateAreas: typeof style.gridTemplateAreas === "string" ? style.gridTemplateAreas : "",
       gridColumn: style.gridColumn != null ? String(style.gridColumn) : (style.gridColumnStart != null || style.gridColumnEnd != null ? `${style.gridColumnStart ?? "auto"} / ${style.gridColumnEnd ?? "auto"}` : ""),
@@ -2249,49 +2216,6 @@ export function dispatchPointer(hoveredId, activeId = 0, focusedId = 0) {
   for (const [node, value] of changes)
     if (typeof node.props.onHover === "function") node.props.onHover(value);
 }
-export function dispatchHover(id, hovered) {
-  const next = hovered
-    ? findId(root, id)
-    : hoverTarget?.id === id
-      ? null
-      : hoverTarget;
-  const nextPath = ancestorPath(next);
-  const changes = updatePath(hoverPath, nextPath, "_isHovered");
-  if (changes.length) hostVersion++;
-  hoverPath = nextPath;
-  hoverTarget = next;
-  for (const [node, value] of changes)
-    if (typeof node.props.onHover === "function") node.props.onHover(value);
-}
-
-export function dispatchActive(id, active) {
-  const target = findId(root, id);
-  activeTarget = active
-    ? target
-    : activeTarget === target
-      ? null
-      : activeTarget;
-  const next = ancestorPath(activeTarget);
-  if (updatePath(activePath, next, "_isActive").length) hostVersion++;
-  activePath = next;
-}
-
-export function dispatchFocus(id, focused) {
-  if (
-    (focused && focusTarget?.id !== id) ||
-    (!focused && focusTarget?.id === id)
-  )
-    hostVersion++;
-  const target = findId(root, id);
-  if (focused && focusTarget && focusTarget !== target)
-    focusTarget._isFocused = false;
-  if (target) {
-    target._isFocused = Boolean(focused);
-  }
-  if (focused) focusTarget = target;
-  else if (focusTarget === target) focusTarget = null;
-}
-
 export function mountApp(Component) {
   globalThis.__uiRenderer = renderer;
   globalThis.__uiSolid = solid;
@@ -2353,7 +2277,6 @@ export function mountApp(Component) {
     lastPatch = { root: root.id, nodes, removed };
     return lastPatch;
   };
-  globalThis.uiChanges = () => JSON.stringify(collectChanges());
   // Preserve phase granularity across the bridge. Existing nodes send only
   // changed input groups; full nodes are needed only when creating identities.
   globalThis.uiFrameChanges = () => {
@@ -2421,10 +2344,7 @@ export function mountApp(Component) {
     pendingCommit = undefined;
   };
   globalThis.uiDispatchClick = (id) => dispatchClick(id);
-  globalThis.uiDispatchHover = (id, hovered) => dispatchHover(id, hovered);
   globalThis.uiDispatchPointer = dispatchPointer;
-  globalThis.uiDispatchActive = (id, active) => dispatchActive(id, active);
-  globalThis.uiDispatchFocus = (id, focused) => dispatchFocus(id, focused);
   globalThis.uiDispatchInput = (id, value) => dispatchInput(id, value);
   globalThis.uiDispatchKey = (id, key) => dispatchKey(id, key);
   globalThis.uiDispose = () => {

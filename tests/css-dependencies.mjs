@@ -117,18 +117,18 @@ try {
     setItem = writeItem;
     const [text, writeText] = createSignal("Short", { ownedWrite: true });
     setText = writeText;
-    rootNode = renderer.createElement("column", { id: "scene" });
+    rootNode = renderer.createElement("div", { id: "scene" });
     renderer.effect(rootClass, (value) => {
       renderer.setProp(rootNode, "class", value);
     });
-    const row = renderer.createElement("row", { class: "row" });
-    item = renderer.createElement("column");
+    const row = renderer.createElement("div", { class: "row" });
+    item = renderer.createElement("div");
     renderer.effect(itemClass, (value) => {
       renderer.setProp(item, "class", value);
     });
-    sibling = renderer.createElement("column", { class: "sibling" });
-    variable = renderer.createElement("column", { class: "variable" });
-    panel = renderer.createElement("column", { class: "panel" });
+    sibling = renderer.createElement("div", { class: "sibling" });
+    variable = renderer.createElement("div", { class: "variable" });
+    panel = renderer.createElement("div", { class: "panel" });
     renderer.insert(panel, text);
     renderer.insertNode(row, item);
     renderer.insertNode(row, sibling);
@@ -137,14 +137,14 @@ try {
     renderer.insertNode(rootNode, panel);
     renderer.insertNode(
       rootNode,
-      renderer.createElement("column", {
+      renderer.createElement("div", {
         class: "inherit-bg",
         style: { height: 10 },
       }),
     );
     renderer.insertNode(
       rootNode,
-      renderer.createElement("column", { style: { width: 100, height: 10 } }),
+      renderer.createElement("div", { style: { width: 100, height: 10 } }),
     );
     return rootNode;
   });
@@ -223,7 +223,7 @@ try {
     await writeFile(fixture, output, "utf8");
   else if (process.argv.includes("--check"))
     assert.equal(
-      await readFile(fixture, "utf8"),
+      (await readFile(fixture, "utf8")).replaceAll("\r\n", "\n"),
       output,
       "computed CSS bridge fixtures are stale",
     );

@@ -32,7 +32,7 @@ try {
   assert.equal(rules.length, 4);
   assert.match(JSON.stringify(rules), /data:image\/png;base64/);
   setStyleSheet("test", rules);
-  const parent = node("column");
+  const parent = node("div");
   parent.props = { id: "target", class: "card", style: { width: 400 } };
   const child = node("text", "Hello");
   child.parent = parent;

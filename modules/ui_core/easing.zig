@@ -263,7 +263,7 @@ const LinearIterator = struct {
 };
 
 pub const LinearEasing = struct {
-    /// parseStrict owns points; parse borrows source until its last evaluation.
+    /// Parsed points are owned; source is used temporarily while parsing.
     points: []const LinearPoint = &.{},
     source: ?[]const u8 = null,
 
@@ -331,12 +331,6 @@ pub const Timing = union(enum) {
     bezier: CubicBezier,
     steps: Steps,
     linear: LinearEasing,
-
-    /// Allocation-free compatibility API. linear() borrows the supplied text;
-    /// use parseStrict when the curve must outlive that text or reject invalid CSS.
-    pub fn parse(value: []const u8) Timing {
-        return parseBorrowed(value) catch .{ .bezier = CubicBezier.ease };
-    }
 
     fn parseBorrowed(value: []const u8) ParseError!Timing {
         var p = Parser{ .input = value };

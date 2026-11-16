@@ -47,7 +47,7 @@ export interface NativeStyle {
   gap?: NativeLength;
   rowGap?: NativeLength;
   columnGap?: NativeLength;
-  gridTemplateColumns?: string | Array<number | string>;
+  gridTemplateColumns?: string;
   padding?: number | string;
   paddingTop?: NativeLength;
   paddingRight?: NativeLength;
@@ -227,7 +227,7 @@ export interface NativeStyle {
   zIndex?: number | string;
   detailsContent?: NativeStyle;
   activeViewTransition?: NativeStyle;
-  gridTemplateRows?: string | Array<number | string>;
+  gridTemplateRows?: string;
   gridAutoFlow?: "row" | "column" | "row dense" | "column dense" | string;
   gridTemplateAreas?: string;
   ":read-only"?: NativeStyle;
@@ -416,15 +416,12 @@ export namespace JSX {
   type Element = SolidElement;
   interface ElementChildrenAttribute { children: {}; }
   interface IntrinsicElements {
-    row: NativeProps;
-    column: NativeProps;
     div: NativeProps;
     label: NativeProps;
     text: NativeProps;
     button: NativeProps;
     input: NativeProps;
     textarea: NativeProps;
-    grid: NativeProps;
     select: NativeProps;
     option: NativeProps;
     optgroup: NativeProps;

@@ -1,5 +1,5 @@
 ﻿import assert from "node:assert/strict";
-import { createModuleHost } from "../ui/module-runtime.js";
+import { createModuleHost } from "../packages/solid-zig/src/module-runtime.js";
 const state = {};
 const host = createModuleHost({ host: state });
 const main = 'const dep = require("dep"); require("host").value = dep.value;';

@@ -7,8 +7,6 @@ pub const Radii = [4]f32; // top-left, top-right, bottom-right, bottom-left
 pub const EllipticalRadii = struct { x: Radii = .{ 0, 0, 0, 0 }, y: Radii = .{ 0, 0, 0, 0 } };
 
 fn length(value: []const u8, basis: ?f32, font_size: f32) ?f32 {
-    // Retain the bridge's legacy unitless pixel spelling as well as CSS lengths.
-    if (std.fmt.parseFloat(f32, value)) |number| return if (std.math.isFinite(number)) number else null else |_| {}
     const resolved = core.sizing.resolve(value, .{ .percentage = basis, .font_size = font_size }) catch return null;
     return switch (resolved) {
         .length => |v| v,
@@ -36,8 +34,7 @@ fn radiusList(value: []const u8, basis: f32, font_size: f32) ?Radii {
 /// Resolve percentages against the border-box width/height separately, then
 /// shrink all corners by the single CSS overlap factor.
 pub fn resolvedRadii(n: *const core.Node, w: f32, h: f32) EllipticalRadii {
-    const legacy = radii(n);
-    var result = EllipticalRadii{ .x = legacy, .y = legacy };
+    var result = EllipticalRadii{};
     if (n.style.borderRadiusCss) |value| {
         var parts = css.Split{ .input = value, .separator = '/' };
         const horizontal = parts.next() orelse "";
@@ -107,10 +104,6 @@ pub fn ellipticalContains(box: core.Rect, radius: EllipticalRadii, x: f32, y: f3
     return true;
 }
 
-pub fn radii(n: *const core.Node) Radii {
-    const s = n.style;
-    return .{ if (s.borderTopLeftRadius > 0) s.borderTopLeftRadius else s.borderRadius, if (s.borderTopRightRadius > 0) s.borderTopRightRadius else s.borderRadius, if (s.borderBottomRightRadius > 0) s.borderBottomRightRadius else s.borderRadius, if (s.borderBottomLeftRadius > 0) s.borderBottomLeftRadius else s.borderRadius };
-}
 pub fn normalized(r: Radii, w: f32, h: f32) Radii {
     var scale: f32 = 1;
     const sums = .{ r[0] + r[1], r[3] + r[2], r[0] + r[3], r[1] + r[2] };

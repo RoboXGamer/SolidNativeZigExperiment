@@ -1275,26 +1275,16 @@ pub const Scene = struct {
         const row = std.mem.eql(u8, n.style.display, "flex") and (std.mem.eql(u8, n.style.flexDirection, "row") or std.mem.eql(u8, n.style.flexDirection, "row-reverse"));
         const block = std.mem.eql(u8, n.style.display, "block") or std.mem.eql(u8, n.style.display, "flow-root");
         var total: f32 = 0;
-        var row_height: f32 = 0;
-        const count = @max(1, n.style.columns.len);
-        var fixed: f32 = 0;
-        var fractions: f32 = 0;
-        if (grid) for (n.style.columns) |track| {
-            if (track >= 0) fixed += track else fractions -= track;
-        };
-        const free = @max(0, inner_width - fixed - n.style.gap * @as(f32, @floatFromInt(count - 1)));
         if (block) {
             const block_output = @import("layout_block.zig").computeBlockLayout(self, n, inner_width, null);
             total = block_output.consumed_height;
         } else {
             var in_flow_seen: usize = 0;
-            for (n.children, 0..) |*child, i| {
+            for (n.children) |*child| {
                 if (child.isOutOfFlow()) continue;
                 const margins = child.margin();
                 const child_frame = child.padding().horizontal() + child.border().horizontal();
-                const track = if (grid and n.style.columns.len > 0) n.style.columns[i % count] else @as(f32, -1);
-                const available = if (!grid or n.style.columns.len == 0) inner_width else if (track >= 0) track else if (fractions > 0) free * -track / fractions else 0;
-                var child_width = child.constrain(if (child.style.width) |value| child.borderSize(value, child_frame) else @max(0, available - margins.horizontal()), true);
+                var child_width = child.constrain(if (child.style.width) |value| child.borderSize(value, child_frame) else @max(0, inner_width - margins.horizontal()), true);
                 if (child.style.width == null) if (child.style.height) |preferred_height| if (child.aspectRatio()) |ratio| {
                     const child_frame_y = child.padding().vertical() + child.border().vertical();
                     const child_height = child.constrain(child.borderSize(preferred_height, child_frame_y), false);
@@ -1302,14 +1292,7 @@ pub const Scene = struct {
                     child_width = child.constrain(child.borderSize(basis * ratio, child_frame), true);
                 };
                 const height = self.naturalHeightForWidth(child, child_width);
-                if (grid) {
-                    row_height = @max(row_height, height + margins.vertical());
-                    if ((in_flow_seen + 1) % count == 0 or in_flow_seen + 1 == n.children.len) {
-                        total += row_height;
-                        if (in_flow_seen + 1 < n.children.len) total += n.style.gap;
-                        row_height = 0;
-                    }
-                } else if (row) {
+                if (row) {
                     total = @max(total, height + margins.vertical());
                 } else {
                     if (in_flow_seen > 0) total += n.style.gap;
@@ -1359,7 +1342,11 @@ pub const Scene = struct {
         }
         var total: f32 = 0;
         if (std.mem.eql(u8, n.style.display, "grid")) {
-            const column_count = @max(n.style.columns.len, 1);
+            var tracks_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer tracks_arena.deinit();
+            const available = n.style.width orelse 0;
+            const tracks = @import("layout_grid.zig").parseTrackList(tracks_arena.allocator(), n.style.gridTemplateColumnsCss orelse "", available, n.mainGap(true)) catch &.{};
+            const column_count = @max(tracks.len, 1);
             var row_height: f32 = 0;
             var in_flow_seen: usize = 0;
             for (n.children) |*child| {

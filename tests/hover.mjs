@@ -32,7 +32,7 @@ try {
   let button, text, sibling, staticNode, inheritedNode;
   const events = [];
   function App() {
-    const container = renderer.createElement("column");
+    const container = renderer.createElement("div");
     button = renderer.createElement("button", {
       class: "button",
       onHover: (value) => events.push(value),
@@ -41,7 +41,7 @@ try {
     renderer.insertNode(button, text);
     sibling = renderer.createElement("label", { class: "sibling" });
     renderer.insertNode(sibling, renderer.createTextNode("Sibling"));
-    staticNode = renderer.createElement("column", {
+    staticNode = renderer.createElement("div", {
       class: "static environment",
     });
     inheritedNode = renderer.createElement("label", { class: "inherited" });
@@ -56,10 +56,10 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 10));
   const flatten = (tree) => [tree, ...tree.children.flatMap(flatten)];
   const nodes = () => flatten(JSON.parse(uiSnapshot()));
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   uiDispatchPointer(button.id, 0, 0);
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   assert.equal(
     nodes().find((n) => n.id === button.id).style.backgroundColor,
@@ -74,7 +74,7 @@ try {
   const staticSnapshot = staticNode._snapshotCache.value;
   const parsed = parses;
   uiDispatchPointer(text.id, text.id, button.id);
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   assert.equal(
     nodes().find((n) => n.id === button.id).style.backgroundColor,
@@ -105,10 +105,10 @@ try {
   const snapshot = uiSnapshot();
   uiDispatchPointer(text.id, text.id, button.id);
   assert.equal(uiSnapshot(), snapshot, "identical pointer state is idempotent");
-  assert.equal(JSON.parse(uiChanges()).nodes.length, 0);
+  assert.equal(JSON.parse(uiFrameChanges()).nodes.length + JSON.parse(uiFrameChanges()).updates.length, 0);
   uiCommit();
   uiDispatchPointer(sibling.id, 0, 0);
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   assert.deepEqual(events, [true, false]);
   assert.equal(
@@ -126,10 +126,10 @@ try {
     "host environment changes invalidate cached snapshots",
   );
   uiDispatchPointer(text.id, 0, 0);
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   renderer.insertNode(staticNode, button);
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   assert.equal(
     nodes().find((n) => n.id === staticNode.id).hovered,
@@ -146,7 +146,7 @@ try {
     "purple",
   );
   uiDispatchPointer(0, 0, 0);
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   assert.equal(nodes().find((n) => n.id === staticNode.id).hovered, false);
   assert.notEqual(
@@ -159,18 +159,18 @@ try {
     null,
     "removing the last stylesheet clears cached styles",
   );
-  uiChanges();
+  uiFrameChanges();
   uiCommit();
   button.setAttribute("class", "new-class");
-  const patch = JSON.parse(uiChanges());
+  const patch = JSON.parse(uiFrameChanges());
   assert.equal(patch.root, JSON.parse(uiSnapshot()).id);
   assert.equal(
-    uiChanges(),
+    uiFrameChanges(),
     JSON.stringify(patch),
     "an unacknowledged patch remains available",
   );
   uiCommit();
-  assert.equal(JSON.parse(uiChanges()).nodes.length, 0);
+  assert.equal(JSON.parse(uiFrameChanges()).nodes.length + JSON.parse(uiFrameChanges()).updates.length, 0);
   console.log(
     "PASS hover ancestry, active/focus batching, sibling selectors, snapshot/declaration reuse, idempotence and host invalidation",
   );

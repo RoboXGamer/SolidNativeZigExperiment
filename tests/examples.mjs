@@ -17,12 +17,12 @@ const originalEntry = process.env.DRAFT1_ENTRY;
 const originalExample = process.env.DRAFT1_EXAMPLE;
 try {
   for (const name of ["css", "states"]) {
-    process.env.DRAFT1_ENTRY = "/ui/app.js";
+    process.env.DRAFT1_ENTRY = "/examples/css/app.js";
     const selected = configureExample(["--example", name]);
     assert.equal(
       selected.entry,
       `/examples/${name}/app.js`,
-      "explicit selection overrides the legacy entry",
+      "explicit selection overrides the environment entry",
     );
     const result = await build({ logLevel: "silent", build: { write: false } });
     const output = (Array.isArray(result) ? result[0] : result).output;

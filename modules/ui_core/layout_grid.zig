@@ -275,19 +275,6 @@ fn compute(
 
     // 1. Parse explicit tracks
     var col_tracks = try parseTrackList(allocator, n.style.gridTemplateColumnsCss orelse "", inner_width, col_gap);
-    if (col_tracks.len == 0 and n.style.columns.len > 0) {
-        // Fallback to legacy numeric columns array
-        var legacy_cols: std.ArrayList(TrackDef) = .empty;
-        defer legacy_cols.deinit(allocator);
-        for (n.style.columns) |c| {
-            if (c >= 0) {
-                try legacy_cols.append(allocator, .{ .min = .{ .unit = .px, .val = c }, .max = .{ .unit = .px, .val = c } });
-            } else {
-                try legacy_cols.append(allocator, .{ .min = .{ .unit = .auto }, .max = .{ .unit = .fr, .val = -c } });
-            }
-        }
-        col_tracks = try legacy_cols.toOwnedSlice(allocator);
-    }
     if (col_tracks.len == 0) {
         const one_col = try allocator.alloc(TrackDef, 1);
         one_col[0] = .{ .min = .{ .unit = .auto }, .max = .{ .unit = .fr, .val = 1 } };

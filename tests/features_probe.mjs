@@ -1,5 +1,5 @@
 import * as solid from "solid-js";
-import * as renderer from "../ui/renderer.js";
+import * as renderer from "../packages/solid-zig/src/renderer.js";
 
 // The probe in features.js expects the same globals that mountApp() installs.
 globalThis.__uiSolid = solid;

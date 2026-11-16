@@ -5,6 +5,13 @@ const initial =
     \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"width":300,"color":"red"},"children":[2]},{"id":2,"type":"text","text":"hello world","style":{"fontSize":16,"fontWeightCss":"bolder","borderColor":"currentColor"}}]}
 ;
 var measurements: usize = 0;
+test "grid intrinsic height derives column count from CSS tracks" {
+    var scene = try ui.Scene.init(a,
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"display":"grid","gridTemplateColumnsCss":"50px 50px"},"children":[{"id":3,"type":"div","style":{"height":10}},{"id":4,"type":"div","style":{"height":10}},{"id":5,"type":"div","style":{"height":10}}]}]}
+    , 100, 100);
+    defer scene.deinit();
+    try std.testing.expectEqual(@as(f32, 20), scene.naturalHeight(scene.find(2).?.node));
+}
 fn measure(_: ?*anyopaque, content: []const u8, size: f32) ui.Metrics {
     measurements += 1;
     return .{ .width = @as(f32, @floatFromInt(content.len)) * size / 2, .height = size, .ascent = size * 0.8 };
@@ -96,7 +103,7 @@ test "visibility ownership survives interaction updates and popovers invalidate 
     var tree = ui.Tree.init(a);
     defer tree.deinit();
     _ = try tree.applyChanges(
-        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"visibility":"hidden"},"children":[2]},{"id":2,"type":"column","style":{"visibility":"visible","interactionSpecified":1}}]}
+        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"visibility":"hidden"},"children":[2]},{"id":2,"type":"div","style":{"visibility":"visible","interactionSpecified":1}}]}
     );
     var scene = try ui.Scene.fromTree(&tree, 300, 200);
     defer scene.deinit();
@@ -119,7 +126,7 @@ test "paint refreshes own data and scroll offsets do not accumulate" {
     var tree = ui.Tree.init(a);
     defer tree.deinit();
     _ = try tree.applyChanges(
-        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"width":200,"height":60,"overflow":"scroll"},"children":[2]},{"id":2,"type":"column","style":{"width":100,"height":300}}]}
+        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"width":200,"height":60,"overflow":"scroll"},"children":[2]},{"id":2,"type":"div","style":{"width":100,"height":300}}]}
     );
     var scene = try ui.Scene.fromTree(&tree, 200, 100);
     defer scene.deinit();
@@ -192,7 +199,7 @@ test "real computed CSS batches match cold scene layout and effective styles" {
 
 test "a leaf paint or hover update visits one identity in a thousand node scene" {
     const count = 1000;
-    const Flat = struct { id: u32, type: []const u8 = "column", style: ui.Style = .{}, children: []const u32 = &.{} };
+    const Flat = struct { id: u32, type: []const u8 = "div", style: ui.Style = .{}, children: []const u32 = &.{} };
     const nodes = try a.alloc(Flat, count + 1);
     defer a.free(nodes);
     const ids = try a.alloc(u32, count);
@@ -260,7 +267,7 @@ test "inheritance read edges update even when the effective value is unchanged" 
     var tree = ui.Tree.init(a);
     defer tree.deinit();
     _ = try tree.applyChanges(
-        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"color":"red","cursor":"pointer"},"children":[2,4]},{"id":2,"type":"column","style":{"textDecoration":"underline","textDecorationLine":"underline","textEmphasisStyle":"circle","textDecorationColor":"red","textEmphasisColor":"red"},"children":[3]},{"id":3,"type":"text","text":"inherited"},{"id":4,"type":"column","style":{"color":"green","cursor":"crosshair","textDecoration":"underline","textDecorationLine":"underline","textEmphasisStyle":"circle","textDecorationColor":"green","textEmphasisColor":"green"},"children":[5]},{"id":5,"type":"text","text":"isolated"}]}
+        \\{"root":1,"nodes":[{"id":1,"type":"root","style":{"color":"red","cursor":"pointer"},"children":[2,4]},{"id":2,"type":"div","style":{"textDecoration":"underline","textDecorationLine":"underline","textEmphasisStyle":"circle","textDecorationColor":"red","textEmphasisColor":"red"},"children":[3]},{"id":3,"type":"text","text":"inherited"},{"id":4,"type":"div","style":{"color":"green","cursor":"crosshair","textDecoration":"underline","textDecorationLine":"underline","textEmphasisStyle":"circle","textDecorationColor":"green","textEmphasisColor":"green"},"children":[5]},{"id":5,"type":"text","text":"isolated"}]}
     );
     var scene = try ui.Scene.fromTree(&tree, 300, 200);
     defer scene.deinit();

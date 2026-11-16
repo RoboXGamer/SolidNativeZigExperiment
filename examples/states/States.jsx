@@ -62,7 +62,7 @@ export default function States() {
   );
 
   return (
-    <column style={{ padding: 20, gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", padding: 20, gap: 8 }}>
       <label>Loading states: {loadingStates() ? "yes" : "no"}</label>
       <label>State:</label>
       <select
@@ -98,7 +98,7 @@ export default function States() {
       <label>
         Selection: {selectedCity() ?? ""}, {selectedState() ?? ""}
       </label>
-    </column>
+    </div>
   );
 }
 

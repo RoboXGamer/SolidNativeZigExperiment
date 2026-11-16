@@ -17,6 +17,7 @@ pub const Renderer = struct {
     composite_shader: rl.Shader,
     width: i32 = 0,
     height: i32 = 0,
+    scale: f32 = 1,
     direct_items: usize = 0,
     masked_items: usize = 0,
     isolated_contexts: usize = 0,
@@ -45,7 +46,7 @@ pub const Renderer = struct {
     }
     fn target(self: *Renderer, index: usize) !rl.RenderTexture2D {
         while (self.targets.items.len <= index) {
-            const texture = try rl.loadRenderTexture(self.width, self.height);
+            const texture = try rl.loadRenderTexture(@intFromFloat(@ceil(@as(f32, @floatFromInt(self.width)) * self.scale)), @intFromFloat(@ceil(@as(f32, @floatFromInt(self.height)) * self.scale)));
             self.targets.append(self.allocator, texture) catch |err| {
                 rl.unloadRenderTexture(texture);
                 return err;
@@ -53,8 +54,12 @@ pub const Renderer = struct {
         }
         return self.targets.items[index];
     }
-    fn clear(t: rl.RenderTexture2D, c: rl.Color) void {
+    fn beginTarget(self: *Renderer, t: rl.RenderTexture2D) void {
         rl.beginTextureMode(t);
+        rl.gl.rlScalef(self.scale, self.scale, 1);
+    }
+    fn clear(self: *Renderer, t: rl.RenderTexture2D, c: rl.Color) void {
+        self.beginTarget(t);
         rl.clearBackground(c);
         rl.endTextureMode();
     }
@@ -138,17 +143,29 @@ pub const Renderer = struct {
     }
     fn matrix4(m: ui.transform.Matrix4x4) rl.Matrix {
         return .{
-            .m0 = m.m[0], .m1 = m.m[1], .m2 = m.m[2], .m3 = m.m[3],
-            .m4 = m.m[4], .m5 = m.m[5], .m6 = m.m[6], .m7 = m.m[7],
-            .m8 = m.m[8], .m9 = m.m[9], .m10 = m.m[10], .m11 = m.m[11],
-            .m12 = m.m[12], .m13 = m.m[13], .m14 = m.m[14], .m15 = m.m[15],
+            .m0 = m.m[0],
+            .m1 = m.m[1],
+            .m2 = m.m[2],
+            .m3 = m.m[3],
+            .m4 = m.m[4],
+            .m5 = m.m[5],
+            .m6 = m.m[6],
+            .m7 = m.m[7],
+            .m8 = m.m[8],
+            .m9 = m.m[9],
+            .m10 = m.m[10],
+            .m11 = m.m[11],
+            .m12 = m.m[12],
+            .m13 = m.m[13],
+            .m14 = m.m[14],
+            .m15 = m.m[15],
         };
     }
     fn textureAt(texture: rl.Texture2D, x: f32, y: f32) void {
         rl.drawTextureV(texture, .{ .x = x, .y = y }, .white);
     }
     fn full(self: *Renderer, texture: rl.Texture2D) void {
-        rl.drawTexturePro(texture, .{ .x = 0, .y = 0, .width = @floatFromInt(self.width), .height = -@as(f32, @floatFromInt(self.height)) }, .{ .x = 0, .y = 0, .width = @floatFromInt(self.width), .height = @floatFromInt(self.height) }, .{ .x = 0, .y = 0 }, 0, .white);
+        rl.drawTexturePro(texture, .{ .x = 0, .y = 0, .width = @floatFromInt(texture.width), .height = -@as(f32, @floatFromInt(texture.height)) }, .{ .x = 0, .y = 0, .width = @floatFromInt(self.width), .height = @floatFromInt(self.height) }, .{ .x = 0, .y = 0 }, 0, .white);
     }
     fn uniform(shader: rl.Shader, name: [:0]const u8, value: *const anyopaque, kind: rl.ShaderUniformDataType) void {
         rl.setShaderValue(shader, rl.getShaderLocation(shader, name), value, kind);
@@ -156,7 +173,7 @@ pub const Renderer = struct {
     fn mask(self: *Renderer, scene: *ui.Scene, item: ui.Item) !rl.Texture2D {
         var current = try self.target(0);
         var next = try self.target(1);
-        clear(current, .white);
+        self.clear(current, .white);
         var parent = item.parent_id;
         while (parent) |pid| {
             const p = scene.find(pid) orelse break;
@@ -169,7 +186,7 @@ pub const Renderer = struct {
             const radius = if (p_shape) |s| s.radii else ui.paint.paddingRadii(p.node, p.bounds);
             const axes = [2]f32{ if (p.node.clipsX() or p_shape != null) 1 else 0, if (p.node.clipsY() or p_shape != null) 1 else 0 };
             const resolution = [2]f32{ @floatFromInt(self.width), @floatFromInt(self.height) };
-            rl.beginTextureMode(next);
+            self.beginTarget(next);
             rl.clearBackground(.blank);
             beginCoverageBlend();
             rl.beginShaderMode(self.mask_shader);
@@ -178,6 +195,7 @@ pub const Renderer = struct {
             uniform(self.mask_shader, "radiiY", &radius.y, .vec4);
             uniform(self.mask_shader, "axes", &axes, .vec2);
             uniform(self.mask_shader, "resolution", &resolution, .vec2);
+            uniform(self.mask_shader, "deviceScale", &self.scale, .float);
             rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), matrix4(inv));
             self.full(current.texture);
             rl.endShaderMode();
@@ -192,7 +210,7 @@ pub const Renderer = struct {
     fn contentMask(self: *Renderer, scene: *ui.Scene, item: ui.Item) !rl.Texture2D {
         const current = try self.target(0);
         const next = try self.target(1);
-        clear(current, .white);
+        self.clear(current, .white);
         const input = std.mem.eql(u8, item.node.type, "input");
         const has_shape = item.node.style.clipPath.len > 0;
         const basic_shape = if (has_shape) ui.paint.parseBasicShape(item.node.style.clipPath, item.bounds, item.node.fontSize()) else null;
@@ -200,7 +218,7 @@ pub const Renderer = struct {
         const clips_y = item.node.clipsY() or input or basic_shape != null;
         if (!clips_x and !clips_y) return current.texture;
         const inv = scene.worldTransform4x4(item).inverse() orelse {
-            clear(current, .blank);
+            self.clear(current, .blank);
             return current.texture;
         };
         const box = if (basic_shape) |s| s.box else item.node.paddingBox(item.bounds);
@@ -208,8 +226,8 @@ pub const Renderer = struct {
         const radius = if (basic_shape) |s| s.radii else ui.paint.paddingRadii(item.node, item.bounds);
         const axes = [2]f32{ if (clips_x) 1 else 0, if (clips_y) 1 else 0 };
         const resolution = [2]f32{ @floatFromInt(self.width), @floatFromInt(self.height) };
-        clear(next, .blank);
-        rl.beginTextureMode(next);
+        self.clear(next, .blank);
+        self.beginTarget(next);
         beginCoverageBlend();
         rl.beginShaderMode(self.mask_shader);
         uniform(self.mask_shader, "box", &rect, .vec4);
@@ -217,6 +235,7 @@ pub const Renderer = struct {
         uniform(self.mask_shader, "radiiY", &radius.y, .vec4);
         uniform(self.mask_shader, "axes", &axes, .vec2);
         uniform(self.mask_shader, "resolution", &resolution, .vec2);
+        uniform(self.mask_shader, "deviceScale", &self.scale, .float);
         rl.setShaderValueMatrix(self.mask_shader, rl.getShaderLocation(self.mask_shader, "inverseWorld"), matrix4(inv));
         self.full(current.texture);
         rl.endShaderMode();
@@ -225,7 +244,7 @@ pub const Renderer = struct {
         return next.texture;
     }
     fn composite(self: *Renderer, source: rl.Texture2D, dest: rl.RenderTexture2D, mask_texture: rl.Texture2D, opacity: f32) void {
-        rl.beginTextureMode(dest);
+        self.beginTarget(dest);
         rl.beginBlendMode(.alpha_premultiply);
         rl.beginShaderMode(self.composite_shader);
         rl.setShaderValueTexture(self.composite_shader, rl.getShaderLocation(self.composite_shader, "maskTexture"), mask_texture);
@@ -253,7 +272,7 @@ pub const Renderer = struct {
         }
         if (!needs_mask) {
             self.direct_items += 1;
-            rl.beginTextureMode(dest);
+            self.beginTarget(dest);
             beginCoverageBlend();
             rl.gl.rlPushMatrix();
             const matrix = w4.m;
@@ -273,8 +292,8 @@ pub const Renderer = struct {
         }
         self.masked_items += 1;
         const layer = try self.target(2);
-        clear(layer, .blank);
-        rl.beginTextureMode(layer);
+        self.clear(layer, .blank);
+        self.beginTarget(layer);
         beginCoverageBlend();
         rl.gl.rlPushMatrix();
         const matrix = w4.m;
@@ -286,10 +305,10 @@ pub const Renderer = struct {
         rl.gl.rlPopMatrix();
         rl.endBlendMode();
         rl.endTextureMode();
-        if (self.content_target == null) self.content_target = try rl.loadRenderTexture(self.width, self.height);
+        if (self.content_target == null) self.content_target = try rl.loadRenderTexture(@intFromFloat(@ceil(@as(f32, @floatFromInt(self.width)) * self.scale)), @intFromFloat(@ceil(@as(f32, @floatFromInt(self.height)) * self.scale)));
         const content = self.content_target.?;
-        clear(content, .blank);
-        rl.beginTextureMode(content);
+        self.clear(content, .blank);
+        self.beginTarget(content);
         beginCoverageBlend();
         rl.gl.rlPushMatrix();
         rl.gl.rlMultMatrixf(&matrix);
@@ -304,7 +323,7 @@ pub const Renderer = struct {
         rl.endTextureMode();
         self.composite(content.texture, layer, try self.contentMask(scene, item), 1);
         if (c.outline) |outline| {
-            rl.beginTextureMode(layer);
+            self.beginTarget(layer);
             beginCoverageBlend();
             rl.gl.rlPushMatrix();
             rl.gl.rlMultMatrixf(&matrix);
@@ -317,7 +336,7 @@ pub const Renderer = struct {
     }
     fn context(self: *Renderer, scene: *ui.Scene, root_index: usize, depth: usize, order: []const usize, ctx: *anyopaque, draw: DrawFn, a: std.mem.Allocator) anyerror!rl.RenderTexture2D {
         const target_texture = try self.target(3 + depth);
-        clear(target_texture, .blank);
+        self.clear(target_texture, .blank);
         try self.paintContext(scene, root_index, target_texture, depth, order, ctx, draw, a);
         return target_texture;
     }
@@ -342,25 +361,30 @@ pub const Renderer = struct {
         }
     }
     pub fn render(self: *Renderer, scene: *ui.Scene, ctx: *anyopaque, draw: DrawFn, a: std.mem.Allocator) !void {
+        return self.renderAtScale(scene, ctx, draw, a, rl.getWindowScaleDPI().x);
+    }
+    /// The explicit scale seam also exercises physical targets on a 96-DPI CI monitor.
+    pub fn renderAtScale(self: *Renderer, scene: *ui.Scene, ctx: *anyopaque, draw: DrawFn, a: std.mem.Allocator, scale: f32) !void {
         self.direct_items = 0;
         self.masked_items = 0;
         self.isolated_contexts = 0;
         const width = rl.getScreenWidth();
         const height = rl.getScreenHeight();
-        if (width != self.width or height != self.height) {
+        if (width != self.width or height != self.height or scale != self.scale) {
             for (self.targets.items) |t| rl.unloadRenderTexture(t);
             self.targets.clearRetainingCapacity();
             if (self.content_target) |t| rl.unloadRenderTexture(t);
             self.content_target = null;
             self.width = width;
             self.height = height;
+            self.scale = scale;
         }
         const order = try scene.getPaintOrder(a);
         if (order.len == 0) return;
         const result = try self.context(scene, order[0], 0, order, ctx, draw, a);
         rl.beginBlendMode(.alpha_premultiply);
         // The screen is the only target with a background already present.
-        rl.drawTexturePro(result.texture, .{ .x = 0, .y = 0, .width = @floatFromInt(width), .height = -@as(f32, @floatFromInt(height)) }, .{ .x = 0, .y = 0, .width = @floatFromInt(width), .height = @floatFromInt(height) }, .{ .x = 0, .y = 0 }, 0, .{ .r = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255), .g = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255), .b = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255), .a = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255) });
+        rl.drawTexturePro(result.texture, .{ .x = 0, .y = 0, .width = @floatFromInt(result.texture.width), .height = -@as(f32, @floatFromInt(result.texture.height)) }, .{ .x = 0, .y = 0, .width = @floatFromInt(width), .height = @floatFromInt(height) }, .{ .x = 0, .y = 0 }, 0, .{ .r = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255), .g = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255), .b = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255), .a = @intFromFloat(std.math.clamp(scene.items.items[order[0]].node.style.opacity, 0, 1) * 255) });
         rl.endBlendMode();
         var ids: std.ArrayList(u32) = .empty;
         defer ids.deinit(a);

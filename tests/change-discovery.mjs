@@ -236,9 +236,9 @@ try {
   assert.equal(get(second).style.height, 53, 'inline structural dependency responds to reorder');
   assert.equal(get(second).style.opacity, 1);
   coldParity('inline structural selectors');
-  first.props.class = 'eligible';
+  second.props.style = {':first-child': {height:67}};
   r.markTreeChanged(); commit();
-  assert.equal(get(second).style.width, null, 'raw mutation escape hatch recomputes structural styles');
+  assert.equal(get(second).style.height, 67, 'raw mutation escape hatch recomputes structural styles');
   let host, slot, named, content, setContent;
   mountApp(() => {
     host = r.createElement('div');

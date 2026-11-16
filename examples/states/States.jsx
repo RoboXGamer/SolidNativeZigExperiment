@@ -63,8 +63,8 @@ export default function States() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", padding: 20, gap: 8 }}>
-      <label>Loading states: {loadingStates() ? "yes" : "no"}</label>
-      <label>State:</label>
+      <div>Loading states: {loadingStates() ? "yes" : "no"}</div>
+      <div>State:</div>
       <select
         value={selectedState() ?? ""}
         onChange={(e) => setSelectedState(e.target.value)}
@@ -79,8 +79,8 @@ export default function States() {
         </For>
       </select>
 
-      <label>Loading cities: {loadingCities() ? "yes" : "no"}</label>
-      <label>City:</label>
+      <div>Loading cities: {loadingCities() ? "yes" : "no"}</div>
+      <div>City:</div>
       <select
         value={selectedCity() ?? ""}
         onChange={(e) => setSelectedCity(e.target.value)}
@@ -95,9 +95,9 @@ export default function States() {
         </For>
       </select>
 
-      <label>
+      <div>
         Selection: {selectedCity() ?? ""}, {selectedState() ?? ""}
-      </label>
+      </div>
     </div>
   );
 }

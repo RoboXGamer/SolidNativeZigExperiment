@@ -4,11 +4,13 @@ Each demo has its own folder and `app.js` entry. All demos share the root depend
 
 | Example         | Entry                    | Purpose                                                                                       |
 | --------------- | ------------------------ | --------------------------------------------------------------------------------------------- |
+| `counter`       | `examples/counter/app.js` | The README's minimal Solid signal, button and imported stylesheet |
 | `css` (default) | `examples/css/app.js`    | Normal CSS, class/ID selectors, inheritance, reactive classes, imported styles and image URLs |
 | `states`        | `examples/states/app.js` | Async state/city selection with native select controls                                        |
 | `tictactoe`     | `examples/tictactoe/app.js` | Reactive game with player/CPU modes, CSS board, score cards and round-result overlay |
 
 ```powershell
+pnpm dev --example counter
 pnpm dev --example css
 pnpm dev --example states
 pnpm dev --example tictactoe

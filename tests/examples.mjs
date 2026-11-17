@@ -7,6 +7,7 @@ import {
   configureExample,
 } from "../tools/example-entry.mjs";
 
+assert.ok(listExamples().includes("counter"));
 assert.ok(listExamples().includes("css"));
 assert.ok(listExamples().includes("states"));
 assert.ok(listExamples().includes("tictactoe"));
@@ -17,7 +18,7 @@ assert.throws(() => configureExample(["--example"]), /needs a name/);
 const originalEntry = process.env.DRAFT1_ENTRY;
 const originalExample = process.env.DRAFT1_EXAMPLE;
 try {
-  for (const name of ["css", "states", "tictactoe"]) {
+  for (const name of ["counter", "css", "states", "tictactoe"]) {
     process.env.DRAFT1_ENTRY = "/examples/css/app.js";
     const selected = configureExample(["--example", name]);
     assert.equal(
@@ -70,6 +71,14 @@ try {
         ),
         "CSS demo must not leak into states",
       );
+    }
+    else if (name === "counter") {
+      const button = nodes.find((n) => n.type === "button");
+      assert.ok(button, "counter has a native button");
+      assert.match(JSON.stringify(snapshot), /Clicked 0 times/);
+      vm.runInContext(`uiDispatchClick(${button.id}); __uiSolid.flush()`, context);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      assert.match(vm.runInContext("uiSnapshot()", context), /Clicked 1 times/);
     }
     else {
       const read = () => JSON.parse(vm.runInContext("uiSnapshot()", context));

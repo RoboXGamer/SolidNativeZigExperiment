@@ -1,89 +1,194 @@
-# Solid + Raylib experiment
+# Solid Native · Zig
 
-Implementation roadmaps: [Exact/clock/driver and Windows tracking](docs/plans/exact-tracking.md),
-[HMR reliability audit](docs/audit/hmr-bridge.md), and
-[Rune adaptations](docs/plans/rune-adaptation.md). These are planned work;
-the diagnostic probes record current failures rather than implemented fixes.
+**Write native desktop interfaces with Solid JSX and ordinary CSS, powered by Zig. No WebView.**
 
-This is an early native UI experiment. The Solid Vite plugin compiles JSX for a custom universal renderer in QuickJS-NG. The JavaScript host coalesces changes against the last acknowledged commit and sends node creation/removal plus separate layout, paint, interaction and motion inputs to Zig. Zig retains those nodes, updates the affected stages, draws with Raylib when pixels need updating, and routes input back by node ID.
+The goal is a small, approachable native UI toolkit: compose components, manage state with Solid, import a `.css` file, and let the native runtime handle layout, text, drawing and input. Application code stays in familiar JSX and CSS; the engine underneath is Zig.
 
-Windows text uses DirectWrite natural layout and DPI-sized grayscale coverage. Measurement, painting, caret hit testing and horizontal selection share native layouts; the compositor keeps text at device resolution through clipping and opacity layers. See [native text implementation and validation](docs/native-text.md) for supported typography and remaining limits.
+**Status:** experimental, with a working Windows host and runnable examples. The project uses Solid **2.0.0-rc.21**. There is no published SDK yet; CSS support is a subset and HMR needs substantial hardening. Other platform hosts are future work.
 
-`modules/ui_core` contains backend-independent retained tree storage, box model, geometry, text metrics, block/flex/grid layout, positioning and transitions, clipping, hit testing, scrolling, and UTF-8 editing state. The renderer injects a `MeasureFn` (the Windows sample shares Uniscribe shaping between measurement and paint); headless callers have a documented estimator. `modules/solid_bridge` owns QuickJS jobs, timers and the change/input interface. `packages/solid-zig` contains the JavaScript renderer and module host. Each Zig module has its own build helper and standalone build entry point. The application in `src` supplies Raylib and the Windows watchers. These modules remain local development code; no library release has been made.
+![Tic-tac-toe setup screen rendered by the native Windows application](docs/images/tictactoe-native.png)
 
-## Setup
+*Actual native framebuffer from the [tic-tac-toe example](examples/tictactoe/App.jsx), using Solid, CSS, the Zig renderer and DirectWrite text. The game includes player/CPU modes, scores and round-result overlays. [Screenshot provenance](docs/images/README.md).*
 
-Requires Zig 0.17.0, Node.js, pnpm, and Git. From this directory:
+[Try it](#run-it-on-windows) · [Small example](#a-small-complete-example) · [What works](#what-works-today) · [Roadmap](#where-this-is-going) · [Development guide](docs/development.md)
+
+## A small, complete example
+
+A signal, a button and a normal stylesheet. This is the complete component in [examples/counter/App.jsx](examples/counter/App.jsx):
+
+```jsx
+import { createSignal } from "solid-js";
+import "./app.css";
+
+export default function App() {
+  const [count, setCount] = createSignal(0);
+  return (
+    <div class="counter">
+      <div>Solid + CSS. Native.</div>
+      <button onClick={() => setCount(count() + 1)}>
+        {`Clicked ${count()} times`}
+      </button>
+    </div>
+  );
+}
+```
+
+The accompanying [app.css](examples/counter/app.css) controls layout, typography and hover:
+
+```css
+.counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 24px;
+  background-color: #192a32;
+  color: #e9edf2;
+  font-family: system-ui;
+  font-size: 28px;
+}
+
+.counter button {
+  padding: 16px 28px;
+  border-radius: 12px;
+  background-color: #31c3bd;
+  color: #192a32;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.counter button:hover {
+  background-color: #65e9e4;
+}
+```
+
+Mount it in [app.js](examples/counter/app.js):
+
+```js
+import { mountApp } from "@zig-ui/solid";
+import App from "./App.jsx";
+
+mountApp(App);
+```
+
+![The counter component and stylesheet above rendered in the native Windows host](docs/images/counter-native.png)
+
+*The same component and stylesheet running natively. Clicking the button updates its text through Solid's signal. The screenshot shows the initial state; it is a static capture.*
+
+After setup, run `pnpm dev --example counter`. There is no per-example Zig code or separate package installation. The repository supplies the shared native host and Vite configuration.
+
+## Run it on Windows
+
+Requires **Zig 0.17.0**, **Node.js**, **pnpm** and **Git**. Run these commands from the repository root:
 
 ```powershell
 node tools/setup.mjs
 pnpm install --frozen-lockfile
-pnpm run build:ui
+pnpm dev --example counter
+```
+
+Setup fetches the pinned QuickJS-NG source. `pnpm dev` starts Vite, builds the development bootstrap and launches the native application. Closing the app stops the owned Vite server; Ctrl+C stops the owned native process tree.
+
+To build and run a production bundle:
+
+```powershell
+pnpm build:ui --example counter
 zig build run
 ```
 
-The demos live in `examples/`: `css` demonstrates normal CSS files and `states` demonstrates the async state/city dropdown. Run `pnpm dev --example css` or `pnpm dev --example states`; omitting the selector uses `css`. See [the examples guide](examples/README.md) for build commands and adding a demo. The adapter lives in `packages/solid-zig/src`.
+The production UI bundle embeds local image assets and runs without a Vite server. This is a source-build workflow; a standalone SDK or installer is not provided yet.
 
-`jsconfig.json` points the editor at the native JSX/style declarations. Application modules import `mountApp` from `@zig-ui/solid`.
+## Explore the examples
 
-For Windows development, run `pnpm dev`. It starts Vite and the native HMR adapter, builds the development bootstrap, and launches the Zig application. Closing the app stops Vite; Ctrl+C stops the owned native process tree. The two-terminal workflow is also available: `pnpm dev:ui`, then `pnpm dev:app`.
+| Example | What it demonstrates | Run |
+| --- | --- | --- |
+| [Counter](examples/counter/App.jsx) | Minimal component, signal updates, imported CSS and hover | `pnpm dev --example counter` |
+| [CSS](examples/css/App.jsx) | Reactive classes, cascade, variables, inheritance, local imports and embedded images | `pnpm dev --example css` |
+| [Tic-tac-toe](examples/tictactoe/App.jsx) | Solid control flow, game state, CPU timers, CSS board, scores and overlays | `pnpm dev --example tictactoe` |
+| [States and cities](examples/states/States.jsx) | Async loading and dependent select controls using local delayed fixture data | `pnpm dev --example states` |
 
-The adapter compiles the application dependency graph through Vite and listens to Vite's HMR WebSocket. Its QuickJS module host supports imports, re-exports, literal dynamic imports, module caching, hot data, dispose/prune callbacks and dependency acceptance. Ordinary helper changes propagate to importers; Solid Refresh handles component boundaries. Component-local state may reset when a component is replaced. An invalidated boundary remounts the application. Compile errors leave the last patch file intact; a runtime failure during an update is not transactional. Changes to Zig, the renderer/host implementation or Vite configuration require an app restart.
+![CSS demo rendered natively, with styled cards and an embedded background image](docs/images/css-native.png)
 
-The host supports Solid's client runtime rather than reimplementing its primitives. Signals, effects, memos, deferred/optimistic state, stores/projections, actions, lifecycle hooks, contexts, children, unique IDs, lazy components/modules and the requested control-flow components come from the pinned `solid-js` package. Native layout and input operate on the resulting universal-renderer nodes. Browser DOM APIs, Node built-ins, computed dynamic import paths and top-level-await application modules need additional host support.
+*The CSS example exercises real stylesheet imports and native rendering. Its toggle changes a card's class reactively. [Read the source stylesheet](examples/css/styles/demo.css).*
 
-## CSS files
+Omitting `--example` selects `css`. Run one example at a time: the examples share generated bundles and the native executable. See the [examples guide](examples/README.md) to add your own.
 
-Import ordinary stylesheets with `import "./app.css"` and use `class`, `className`, `classList` and `id` in JSX. Run `pnpm dev`, edit `examples/css/styles/demo.css`, and click the demo's toggle to test reactive class changes. Existing native properties use their CSS spelling in files (`background-color`, `font-size`, `grid-template-columns`, etc.). Inline style objects remain supported.
+## What works today
 
-Use `<div>` for layout containers. It defaults to `display: block`; set `display: flex` or `display: grid` in CSS as needed. Flex containers default to a row, and `flex-direction: column` stacks children vertically.
+- **Solid reactivity and components.** The pinned Solid client runtime supplies signals, effects, memos, stores, lifecycle hooks, context and control flow. A universal renderer connects the resulting nodes to the native host.
+- **CSS files end to end.** Import `.css` files and use `class`, `classList`, IDs, custom properties, inheritance, supported selectors and cascade rules. Styles resolve into the native retained tree.
+- **Native layout and painting.** Block, flex and grid layout, positioning, scrolling, text editing, rounded corners, gradients, shadows, clipping, transforms, opacity and runtime transitions have implementations and targeted tests. Support varies by property and value.
+- **Windows text.** DirectWrite shares shaped layouts between measurement, painting, caret hit testing and horizontal selection. Glyph coverage is rendered at device resolution.
+- **Work scheduled by changes.** The bridge separates layout, paint, interaction and motion inputs. The host waits for events while idle and can process unchanged input without drawing or swapping buffers. Timers and transitions schedule further work.
+- **An existing development loop.** Vite builds JSX and styles and delivers updates to QuickJS. Basic updates work, but failed updates, cleanup and recovery have known defects tracked in the [HMR audit](docs/audit/hmr-bridge.md).
 
-The Vite plugin uses Lightning CSS for parsing and local `@import` bundling, PostCSS to read normalized declarations, and pinned cssstyle definitions for shorthand expansion. The runtime resolves author styles by importance, layer, specificity and source order, with inline styles participating in the cascade. It resolves custom properties and inheritance before producing the existing native snapshot. Unchanged computed styles are cached. CSS-only edits preserve component state through the native module host; removing a CSS import prunes its stylesheet.
+These are working implementation areas, not a claim of complete browser compatibility or production readiness. The [development guide](docs/development.md) describes the supported CSS subset, host restrictions and checks.
 
-`css-properties.json` is generated from cssstyle 6.2.0 by `node tools/generate-css-metadata.mjs`; its notice is in `packages/solid-zig/LICENSE-cssstyle`. Keep the version pinned when using the compiler's shorthand metadata adapter.
+## How it works
 
-The demo selector subset is ASCII type, universal, class and ID selectors, compounds, comma lists, descendant/child/sibling combinators, and `:root`, `:hover`, `:focus`, `:active`, `:disabled`, `:enabled`, `:checked`, `:empty`. `:root` matches the retained native root. Unsupported selectors and at-rules fail the build with a diagnostic. CSS Modules are intentionally rejected. `@media` supports viewport width/height boundaries plus the existing preference evaluator; `@supports` uses the existing host capability evaluator. Simple named cascade layers are supported; nested/scoped layer semantics and full browser query conformance are not claimed.
-
-Local `@import` paths resolve relative to the importing stylesheet. Local `url()` paths resolve relative to the stylesheet that declares them, including inside imports; `/file.png` resolves under `public`. Assets are embedded as data URLs, so production rendering needs no Vite server or source asset files. The native renderer paints a single raster background with sizing (`auto`, `cover`, `contain`, lengths/percentages), two-value positioning, repeat/repeat-x/repeat-y/no-repeat, rounded clipping and alpha composition. Raster cursor URLs also accept embedded PNG/JPEG/WebP images. Browser-only URL consumers, remote resources, full multi-layer image semantics, `@font-face` and `@keyframes` are outside this demo milestone. Property behavior still depends on the native implementation; accepting a stylesheet does not certify every CSS property/value.
-
-Verification commands:
-
-```powershell
-pnpm test
-pnpm test:css:bundle
-pnpm test:css:dev
-zig build
-zig build test-native
-pnpm test:smoke
+```text
+Your Solid components + CSS
+             |
+      Vite + Solid compiler
+             |
+     JavaScript in QuickJS-NG
+             |
+   Retained nodes + changed inputs
+             |
+    Zig layout, input and painting
+             |
+   Native Windows window + DirectWrite
 ```
 
-The CSS tests cover nested imports and URLs, source order, specificity, shorthand/longhand conflicts, layers and `!important`, inheritance, variables/cycles, font-relative inheritance, viewport changes, and the actual native Vite development graph. The production bundle test clicks the reactive demo button; native framebuffer tests check decoded background-image pixels, repetition and rounded clipping. CSS source errors retain the last successfully published development graph.
+Vite runs during development or bundling. QuickJS runs the application JavaScript inside the native executable. JSX elements such as `<div>` and `<button>` become nodes in our retained UI tree. Zig lays out and paints those nodes and routes input back to Solid by node ID.
 
-Pointer state is applied before snapshot, layout and paint in the input frame. Hover and active state include ancestors, so moving onto a button's text keeps the button hovered. Windows client cursors are retained across `WM_SETCURSOR` messages. `pnpm test:hover` checks interaction and cache invalidation; after building the CSS example, `pnpm test:hover:native` checks the real native frame pipeline. See [the hover latency investigation](docs/hover-input-latency.md) for measurements and reproduction commands.
+The current compositor uses Raylib/OpenGL, with DirectWrite for Windows text. These are implementation choices being evaluated as the toolkit develops.
 
-Native event processing is independent of painting and presentation: unchanged input wakes and cursor-only updates poll/wait through Raylib without drawing or swapping buffers. Paint updates retain measured boxes, while geometry inputs request layout. `pnpm test:frames:native` verifies the phase-aware bridge and scheduling in the actual event-waiting executable, then restores the normal CSS example. The phase contract, schema generation and remaining limits are described in [native frame scheduling](docs/native-frame-scheduling.md).
+| Part | Responsibility |
+| --- | --- |
+| [Solid adapter](packages/solid-zig) | Universal renderer, CSS runtime, node changes and module host |
+| [UI core](modules/ui_core) | Backend-independent retained storage, styles, layout, hit testing, scrolling and editing state |
+| [Solid bridge](modules/solid_bridge) | QuickJS runtime, jobs, timers and the native change/input interface |
+| [Windows application](src) | Window, renderer, text backend, input and development watchers |
 
-QuickJS's C interpreter is compiled with `-O2` by default even when the Zig application uses Debug mode. To debug the interpreter without that override, build with `zig build -Dquickjs-optimize=false`.
+## Where this is going
 
-Run `pnpm build:ui` before `zig build run` for the production bundle. Run commands from this directory. Generated bundles and the QuickJS checkout are ignored by Git. QuickJS-NG is MIT licensed; retain its checkout license when distributing the application.
+The vision is to make everyday native application development feel as direct as writing a Solid component and a stylesheet: reusable UI, dependable iteration, good text and input, accessibility, and measurable control over runtime work and memory.
 
-Run `pnpm run test:refresh` to check Solid Refresh and the universal renderer in Node's development runtime.
+The next work is about making that foundation reliable and testable. **The items below are planned; merging the planning documents did not implement them.**
 
-The implemented Aâ€“E paths now include the native select control, box/block/flex
-layout, expanded grid/positioning/alignment, shaped text, scrolling and editing,
-cached paint effects, subtree transforms/opacity and runtime transitions. Native
-render tests and an actual Solid/QuickJS application smoke test supplement the
-core and JavaScript suites. See [the current implementation and verification
-handoff](docs/tasks/phase-e-broaden-css.md) for commands, ownership and limits.
+| Workstream | Intended result | Plan and tracking |
+| --- | --- | --- |
+| HMR reliability | Consistent update ownership, failure recovery, cleanup, diagnostics and end-to-end regression coverage | [Audit and evidence](docs/audit/hmr-bridge.md) · [#364](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/364) |
+| Shared clock + app driver | Controlled time, deterministic scheduling, shared input delivery and frame barriers for repeatable native tests | [Two tasks, one implementation PR](docs/plans/clock-driver.md) · [#343](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/343) |
+| Windows host integration | UI Automation, IME, accessible text, keyboard conventions, DPI/settings changes and desktop integration | [17 scoped tasks](docs/plans/windows-host.md) · [#346](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/346) |
+| Memory and layout efficiency | Measured allocation/resource budgets and an isolated compact-layout experiment | [Rune adaptations](docs/plans/rune-adaptation.md) · [#377](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/377) · [#378](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/378) |
+| Rendering correctness and backend choice | Replayable rendering failures, reference comparisons and matched quality/performance evidence before selecting backends | [Rendering plan](docs/plans/rune-adaptation.md#6-differential-rendering-with-minimized-replayable-failures) · [#379](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/379) · [#380](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/380) |
+| Easier adoption | Package the adapter/SDK for use outside this checkout | [#333](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/333) |
 
-The Windows host waits for events while idle and schedules frames for active
-JavaScript timers or native transitions. Paint textures are cached; tree/layout
-updates still rebuild the scene. This is a native UI experiment, not a complete
-browser engine or a released desktop toolkit. Full stylesheet/cascade/query conformance,
-advanced CSS families, complete controls/accessibility and full browser-oracle
-conformance remain in the catalog backlog. The 2026-11-11 audit is historical;
-its old percentages must not be treated as current measurements.
+The [implementation index](docs/plans/exact-tracking.md) connects the plans and issue dependencies. We are learning from [Expo Exact](https://github.com/expo/exact) and [Rune](https://github.com/anomalyco/rune), adapting their ideas to this Solid/Zig architecture. Taffy, ThorVG and alternative GPU/text backends are candidates for evaluation; no replacement is selected. The existing implementation can remain if it wins the comparison.
 
-Everyday app typography, text overflow, elliptical corners, outlines and native
-interaction/cursors are described in [the app essentials handoff](docs/tasks/css-app-essentials-2026-11-12.md).
-That historical handoff records the validation limits of its batch. The CSS-file workflow has the separate checks listed above.
+## Current boundaries
+
+- **Windows is the working host.** The reusable core is separated from platform code, but working macOS, Linux and mobile hosts are not provided.
+- **Native elements are toolkit-rendered.** Familiar JSX tags do not imply browser DOM APIs or Windows system widgets. Complete controls, accessibility and IME behavior remain active roadmap work.
+- **CSS is a supported subset.** Full browser cascade/query conformance, CSS Modules, `@font-face`, `@keyframes`, remote assets and full multi-layer image semantics are not available. Parsing a property does not establish native support for every value.
+- **The embedded host has limits.** Browser DOM APIs, Node built-ins, computed dynamic imports and top-level-await application modules need additional host support.
+- **HMR is experimental.** Component state may reset, runtime updates are not transactional, and the audit records reproducible edge-case failures. Restart the app after changing Zig, the renderer/host or Vite configuration.
+- **Performance work is ongoing.** Paint textures and computed styles are cached, but tree/layout updates still rebuild the scene. No cross-toolkit performance or memory advantage is claimed without matched measurements.
+
+## Development and verification
+
+```powershell
+pnpm test                 # JavaScript, adapter, CSS and example checks
+zig build test            # UI core tests
+zig build test-native     # Windows text and native framebuffer checks
+pnpm build:ui --example css
+zig build
+pnpm test:smoke           # Embedded Solid/QuickJS + native application smoke
+```
+
+The [development guide](docs/development.md) includes CSS bundle/HMR checks, hover and frame-scheduling regressions, the two-terminal workflow and dependency notices. Screenshots demonstrate captured output; test coverage and remaining validation limits are documented separately.
+
+Further reading: [native text](docs/native-text.md) · [frame scheduling](docs/native-frame-scheduling.md) · [change discovery](docs/change-discovery.md) · [hover investigation](docs/hover-input-latency.md) · [CSS implementation handoff](docs/tasks/phase-e-broaden-css.md).

@@ -19,7 +19,7 @@ extern "user32" fn InvalidateRect(?*anyopaque, ?*const anyopaque, c_int) c_int;
 extern "user32" fn UpdateWindow(?*anyopaque) c_int;
 extern "user32" fn SendMessageW(?*anyopaque, u32, usize, isize) isize;
 
-const source = @embedFile("ui-bundle.js");
+const source = @embedFile("ui_bundle");
 const window_width = 1280;
 const window_height = 720;
 const background_color = rl.Color.init(51, 51, 51, 255);

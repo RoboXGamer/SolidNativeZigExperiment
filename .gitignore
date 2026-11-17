@@ -1,5 +1,6 @@
 .zig-cache/
 zig-out/
+dist/
 zig-pkg/
 node_modules/
 src/ui-bundle.js

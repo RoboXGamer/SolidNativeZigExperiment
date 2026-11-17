@@ -4,13 +4,14 @@
 #include <windows.h>
 #include <math.h>
 extern void glfwPostEmptyEvent(void);
-typedef void (*RefreshCallback)(void*);
-extern void *glfwGetCurrentContext(void);
-extern RefreshCallback glfwSetWindowRefreshCallback(void*, RefreshCallback);
-static void *refresh_window;
+typedef struct GLFWwindow GLFWwindow;
+typedef void (*RefreshCallback)(GLFWwindow*);
+extern GLFWwindow *glfwGetCurrentContext(void);
+extern RefreshCallback glfwSetWindowRefreshCallback(GLFWwindow*, RefreshCallback);
+static GLFWwindow *refresh_window;
 static RefreshCallback previous_refresh;
 static int refresh_pending;
-static void refresh_callback(void *window) {
+static void refresh_callback(GLFWwindow *window) {
     refresh_pending = 1;
     if (previous_refresh) previous_refresh(window);
 }

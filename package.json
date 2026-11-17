@@ -2,6 +2,8 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "build": "node tools/build.mjs",
+        "test:portable": "node tools/smoke-portable.mjs",
         "dev": "node tools/dev.mjs --app",
         "build:ui": "node tools/build-ui.mjs",
         "dev:ui": "node tools/dev.mjs",

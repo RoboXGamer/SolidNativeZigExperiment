@@ -27,6 +27,9 @@ pub fn build(b: *std.Build) void {
     module.addImport("raylib", raylib.module("raylib"));
     module.addImport("ui_core", ui_core);
     module.addImport("solid_bridge", solid_bridge);
+    module.addAnonymousImport("ui_bundle", .{
+        .root_source_file = b.path(b.option([]const u8, "ui-bundle", "JavaScript bundle to embed") orelse "src/ui-bundle.js"),
+    });
     module.linkLibrary(raylib.artifact("raylib"));
     module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = &.{} });
     module.addCSourceFile(.{ .file = b.path("src/event_wakeup.c"), .flags = &.{} });
@@ -47,6 +50,9 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe.root_module.addImport("draft1", module);
+    if (b.option(bool, "portable", "Build a Windows GUI executable without a console") orelse false) {
+        exe.subsystem = .windows;
+    }
     b.installArtifact(exe);
     const run = b.addRunArtifact(exe);
     run.step.dependOn(b.getInstallStep());

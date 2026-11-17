@@ -1,0 +1,10 @@
+{
+    "scope":  "Real QuickJS-NG C bridge, without Raylib/window or native UI",
+    "baseline":  "1c75169323257fe484ec1bf14218c8c145c11e9f",
+    "compiler":  "zig cc 0.17.0 -O2",
+    "fixture":  "tests/fixtures/hmr-rejection-audit.c",
+    "exitCode":  0,
+    "output":  "AUDIT_VM_RESULT init=1 tick=1",
+    "rejectedPromiseWasReported":  false,
+    "initializationAndTickReportedSuccess":  true
+}

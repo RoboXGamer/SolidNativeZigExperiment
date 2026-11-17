@@ -1,0 +1,88 @@
+{
+  "runtime": "v26.13.0",
+  "scope": "Node module-host/Solid/CSS reproductions; no QuickJS/native-window execution",
+  "results": [
+    {
+      "id": "R01-runtime-failure-retry",
+      "status": "reproduced",
+      "afterFailure": {
+        "value": 2,
+        "calls": 1
+      },
+      "afterIdenticalRetry": {
+        "value": 2,
+        "calls": 1
+      },
+      "defect": "Failed update mutates live state; identical retry reports success without rerunning the failed accept."
+    },
+    {
+      "id": "R02-dispose-failure-loses-valid-update",
+      "status": "reproduced",
+      "observed": 1,
+      "expectedAfterRecovery": 2,
+      "defect": "Definitions advanced but old module stayed cached; valid identical retry is lost."
+    },
+    {
+      "id": "R03-failed-factory-listener-leak",
+      "status": "reproduced",
+      "callbacksFromFailedModule": 1,
+      "defect": "Factory failure removes the module cache entry without releasing its registered listener."
+    },
+    {
+      "id": "R04-reset-aborts-remaining-cleanup",
+      "status": "reproduced",
+      "cleaned": [],
+      "defect": "Reverse reset stops at one throwing disposer; later modules and host maps are not cleaned."
+    },
+    {
+      "id": "R05-async-accept-settlement",
+      "status": "reproduced",
+      "atApplyReturn": [
+        "afterUpdate"
+      ],
+      "afterAsyncCompletion": [
+        "afterUpdate",
+        "accept-complete"
+      ],
+      "defect": "apply/afterUpdate finishes before an async acceptance callback completes."
+    },
+    {
+      "id": "R06-invalidation-outside-apply",
+      "status": "reproduced",
+      "beforeAnotherPublication": 1,
+      "afterAnotherPublication": 2,
+      "defect": "Invalidation takes effect only when another graph is applied."
+    },
+    {
+      "id": "R07-entry-switch-keeps-old-owner",
+      "status": "reproduced",
+      "liveOwnersAfterEntrySwitch": [
+        "a",
+        "b"
+      ],
+      "defect": "Entry identity changes do not retire the previous entry owner."
+    },
+    {
+      "id": "R08-css-import-reorder",
+      "status": "reproduced",
+      "before": "#00f",
+      "hotAfterReorder": "#00f",
+      "freshAfterReorder": "red",
+      "defect": "Hot cascade order differs from a fresh load of the same reordered imports."
+    },
+    {
+      "id": "R09-css-dispose-leak",
+      "status": "reproduced",
+      "beforeDispose": "#00f",
+      "afterDispose": "#00f",
+      "defect": "Generated CSS modules release sheets only on prune; host.dispose/reset does not release them."
+    },
+    {
+      "id": "R10-native-api-external-parity",
+      "status": "reproduced",
+      "publicApiType": "function",
+      "devExternalApiType": "undefined",
+      "defect": "Actual mountApp external table omits findById and other public native exports."
+    }
+  ]
+}

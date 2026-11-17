@@ -1,5 +1,10 @@
 # Solid + Raylib experiment
 
+Implementation roadmaps: [Exact/clock/driver and Windows tracking](docs/plans/exact-tracking.md),
+[HMR reliability audit](docs/audit/hmr-bridge.md), and
+[Rune adaptations](docs/plans/rune-adaptation.md). These are planned work;
+the diagnostic probes record current failures rather than implemented fixes.
+
 This is an early native UI experiment. The Solid Vite plugin compiles JSX for a custom universal renderer in QuickJS-NG. The JavaScript host coalesces changes against the last acknowledged commit and sends node creation/removal plus separate layout, paint, interaction and motion inputs to Zig. Zig retains those nodes, updates the affected stages, draws with Raylib when pixels need updating, and routes input back by node ID.
 
 Windows text uses DirectWrite natural layout and DPI-sized grayscale coverage. Measurement, painting, caret hit testing and horizontal selection share native layouts; the compositor keeps text at device resolution through clipping and opacity layers. See [native text implementation and validation](docs/native-text.md) for supported typography and remaining limits.

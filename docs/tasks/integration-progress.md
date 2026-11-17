@@ -1,5 +1,20 @@
 # Integration checkpoint
 
+## Historical validation output
+
+Raw terminal captures were removed during repository cleanup. The filenames below are historical provenance labels, not links to current files. Their useful results are summarized here and in the batch notes below. These checks were not rerun during cleanup and do not establish the current build status.
+
+- Batch 2 and batch 4 JavaScript suites passed. Batch 3 initially failed, then its rerun passed. Both batch 12 test captures ended with exit code 1; integration alone does not imply those tests passed.
+- Batch 4 through 7 and batch 9 through 11 records report successful JavaScript, native framebuffer, build and desktop smoke validation. Smoke runs completed with 19 scene items. Empty build captures contained no standalone evidence; build success claims below come from the existing checkpoint notes.
+- Final JavaScript and native framebuffer captures ended with passing results. Native coverage included conic colors, subtree opacity, rounded clipping and world transforms.
+- Early integration builds and the first native test attempt failed. A subsequent native run passed. Early smoke attempts failed to spawn the executable or crashed; smoke-integration-5 completed successfully with 19 scene items.
+- Desktop smoke retained the warning: Timer wakeup unavailable; using 60 FPS event polling.
+- Setup recorded QuickJS revision 6a9fe9af5ca0bf7c49ae697edef44864272317d1. Both captured UI bundle builds succeeded. Development output recorded window shutdown; it was not a test result.
+- Broad regression success does not prove exhaustive CSS conformance. Feature limitations and partial tickets documented below remain applicable to these historical checkpoints.
+
+Original captures remain recoverable from Git history before this cleanup. The audit source manifest describes its original base commit and intentionally retains the historical dev-check filenames and hashes.
+
+
 All 12 ORIGINAL batches integrated: 8, 1, 12, 3, 2, 4, 5, 6, 7, 9, 10, 11. This does not establish all 120 issue semantics as verified.
 
 Reconciled view transition lifecycle/type tracking, nested and user/input selectors, attr values, unset, media update queries, logical overflow/writing modes, positioning, transforms and transitions. Both native.js copies match. Fixed native viewport intersection, stray transition syntax, Zig ASCII API compatibility and reflection evaluation quotas.

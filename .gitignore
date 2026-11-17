@@ -6,3 +6,8 @@ src/ui-bundle.js
 src/ui-hmr.js
 src/ui-hmr.tmp
 vendor/quickjs/
+
+# Local command output
+/*.log
+/*.out
+/*.err

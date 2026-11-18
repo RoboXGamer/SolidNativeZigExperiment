@@ -25,13 +25,23 @@ void ui_refresh_stop(void) {
     refresh_window = NULL; previous_refresh = NULL; refresh_pending = 0;
 }
 static HANDLE timer_handle, stop_event, worker;
+static SRWLOCK timer_lock = SRWLOCK_INIT;
+static ULONGLONG deadline_ticks;
+static volatile LONG64 wake_generation;
 static DWORD WINAPI timer_worker(LPVOID unused) {
     (void)unused;
     HANDLE handles[] = { stop_event, timer_handle };
     for (;;) {
         DWORD event = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
         if (event != WAIT_OBJECT_0 + 1) break;
-        glfwPostEmptyEvent();
+        LONG64 observed = InterlockedCompareExchange64(&wake_generation,0,0);
+        AcquireSRWLockExclusive(&timer_lock);
+        // A cancelled/older OS delivery cannot authorize application callbacks.
+        // Also reject an already-signalled timer after a later re-arm.
+        if (deadline_ticks && GetTickCount64() >= deadline_ticks && observed == InterlockedCompareExchange64(&wake_generation,0,0)) {
+            deadline_ticks=0; glfwPostEmptyEvent();
+        }
+        ReleaseSRWLockExclusive(&timer_lock);
     }
     return 0;
 }
@@ -47,15 +57,20 @@ int ui_wake_start(void) {
 }
 void ui_wake_schedule(double seconds) {
     if (!worker) return;
-    if (!isfinite(seconds) || seconds < 0) { CancelWaitableTimer(timer_handle); return; }
+    AcquireSRWLockExclusive(&timer_lock);
+    InterlockedIncrement64(&wake_generation);
+    if (!isfinite(seconds) || seconds < 0) { deadline_ticks=0; CancelWaitableTimer(timer_handle); ReleaseSRWLockExclusive(&timer_lock); return; }
     // Clamp to one day; an earlier OS event will recompute the deadline.
     if (seconds > 86400) seconds = 86400;
     LARGE_INTEGER due;
     due.QuadPart = -(LONGLONG)fmax(1, ceil(seconds * 10000000.0));
+    deadline_ticks=GetTickCount64()+(ULONGLONG)floor(seconds*1000.0);
     SetWaitableTimer(timer_handle, &due, 0, NULL, NULL, FALSE);
+    ReleaseSRWLockExclusive(&timer_lock);
 }
 void ui_wake_stop(void) {
     if (!worker) return;
+    AcquireSRWLockExclusive(&timer_lock);InterlockedIncrement64(&wake_generation);deadline_ticks=0;ReleaseSRWLockExclusive(&timer_lock);
     SetEvent(stop_event);
     WaitForSingleObject(worker, INFINITE);
     CloseHandle(worker); CloseHandle(timer_handle); CloseHandle(stop_event);

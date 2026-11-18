@@ -580,6 +580,7 @@ pub fn run() void {
     }
     while (!rl.windowShouldClose()) {
         _ = scratch.reset(.retain_capacity);
+        runtime.sample() catch {};
         if (frame_smoke) {
             runtime.frameProbe(smoke_frames) catch |err| {
                 std.log.err("Frame probe failed: {}", .{err});
@@ -759,7 +760,7 @@ pub fn run() void {
                 break;
             };
             layout_runs += 1;
-            if (changed.paint) timeline.retarget(&scene, &next, rl.getTime()) catch |err| std.log.err("Transition retarget failed: {}", .{err});
+            if (changed.paint) timeline.retarget(&scene, &next, runtime.seconds()) catch |err| std.log.err("Transition retarget failed: {}", .{err});
             scene.deinit();
             scene = next;
             last_width = rl.getScreenWidth();
@@ -772,14 +773,14 @@ pub fn run() void {
                 }
             }
         } else if (changed.state) {
-            var retarget = PaintRetarget{ .timeline = &timeline, .now = rl.getTime() };
+            var retarget = PaintRetarget{ .timeline = &timeline, .now = runtime.seconds() };
             const result = scene.updateInputs(&tree, scratch.allocator(), .{ .context = &retarget, .style = PaintRetarget.notify }) catch |err| {
                 std.log.err("Could not update retained inputs: {}", .{err});
                 break;
             };
             paint_changed = result.paint;
         }
-        timeline.apply(&scene, rl.getTime()) catch |err| std.log.err("Transition sample failed: {}", .{err});
+        timeline.apply(&scene, runtime.seconds()) catch |err| std.log.err("Transition sample failed: {}", .{err});
         if (layout_changed) scene.applyScrollOffsets(&scroll_offsets);
         if (scrolled and !layout_changed) scene.applyScrollOffsets(&scroll_offsets);
         if (focused) |id| if (scene.find(id) == null) {

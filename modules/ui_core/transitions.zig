@@ -5,6 +5,21 @@ const anim = @import("animation.zig");
 const Tokens = @import("css_syntax.zig").Tokens;
 const styles = @import("style.zig");
 const retained = @import("retained_updates.zig");
+
+test "absolute app observations separate idle, running hitch, retarget and slow commit" {
+    var timeline = Timeline.init(std.testing.allocator);
+    defer timeline.deinit();
+    const before = ui.Style{ .opacity = 1, .transition = "opacity 200ms linear" };
+    const after = ui.Style{ .opacity = 0, .transition = "opacity 200ms linear" };
+    try timeline.retargetPaint(1, before, after, 10);
+    try std.testing.expectApproxEqAbs(@as(f32, 1), timeline.tracks.items[0].sample(10).number, 0.0001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.755), timeline.tracks.items[0].sample(10.049).number, 0.0001);
+    try timeline.retargetPaint(1, after, before, 10.15);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.25), timeline.tracks.items[0].sample(10.15).number, 0.0001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.43375), timeline.tracks.items[0].sample(10.199).number, 0.0001);
+    // Real commit duration does not move a controlled application observation.
+    try std.testing.expectApproxEqAbs(@as(f32, 0.25), timeline.tracks.items[0].sample(10.15).number, 0.0001);
+}
 pub const Value = union(enum) { number: f32, color: [4]u8, matrix: ui.transform.Matrix2D, discrete: []const u8 };
 const Config = struct {
     duration: f32 = 0,

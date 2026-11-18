@@ -7,16 +7,19 @@ pub const Options = struct {
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     optimize_quickjs: bool = true,
+    probes: bool = false,
 };
 
 pub fn addModule(b: *std.Build, options: Options) *std.Build.Module {
     const module = b.addModule("solid_bridge", .{ .root_source_file = options.source, .target = options.target, .optimize = options.optimize });
+    module.addAnonymousImport("host_scheduler", .{ .root_source_file = options.source.dirname().path(b, "../host_runtime/scheduler.zig") });
     module.addIncludePath(options.quickjs_source);
     const flags: []const []const u8 = if (options.target.result.os.tag == .windows)
         &.{ "-D_GNU_SOURCE", "-DWIN32_LEAN_AND_MEAN" }
     else
         &.{"-D_GNU_SOURCE"};
     module.addCSourceFile(.{ .file = options.c_source, .flags = flags });
+    if (options.probes) module.addCMacro("UI_PROBES", "1");
     // Keep the host/Zig code debuggable without running the bytecode interpreter
     // at -O0 on every mouse event. This does not enable fast-math or disable checks.
     const vm_flags: []const []const u8 = if (options.optimize_quickjs) blk: {

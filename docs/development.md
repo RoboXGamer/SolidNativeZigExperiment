@@ -4,7 +4,7 @@ The [project README](../README.md) introduces the native Solid/CSS workflow and 
 
 ## Setup and example selection
 
-Requires Zig 0.17.0, Node.js, pnpm and Git on Windows. Run commands from the repository root:
+Requires Zig 0.17.0, Node.js (`^22.18.0 || >=24.11.0`), pnpm and Git on Windows. Run commands from the repository root:
 
 ```powershell
 node tools/setup.mjs
@@ -40,6 +40,12 @@ Run `pnpm build:ui` before `zig build run`; the bundle is embedded in the execut
 The Solid Vite plugin compiles JSX for a custom universal renderer. The JavaScript host coalesces changes against the last acknowledged commit and sends node creation/removal plus separate layout, paint, interaction and motion inputs to Zig. Zig retains the nodes, updates affected stages and routes input back by node ID.
 
 Application modules import `mountApp` from `@zig-ui/solid`. The repository's Vite aliases resolve that import to the local adapter; it is not an installed, published SDK. `jsconfig.json` points the editor at native JSX/style declarations.
+
+The root pins Solid and its universal renderer at 2.0.0 and the Vite plugin
+at 3.0.0. The explicit signals pin makes Vite deduplicate against the same
+engine as the runtime. The web package satisfies the Vite plugin's peer
+dependency. Native compilation targets `@zig-ui/solid/renderer`.
+See the [upgrade record](plans/solid-2-stable-upgrade.md).
 
 The host uses the pinned Solid client runtime rather than reimplementing its primitives. Signals, effects, memos, deferred/optimistic state, stores/projections, actions, lifecycle hooks, contexts, children, unique IDs, lazy components/modules and control-flow components come from `solid-js`. Native layout and input operate on the resulting universal-renderer nodes. Browser DOM APIs, Node built-ins, computed dynamic import paths and top-level-await application modules require additional host support.
 
@@ -96,9 +102,11 @@ zig build
 pnpm test:smoke
 pnpm test:hover:native
 pnpm test:frames:native
+pnpm test:solid:native
 ```
 
-- `pnpm test` includes the Solid/adapter, CSS, hover/change-discovery and example suites. `pnpm test:refresh` runs the Solid Refresh/universal renderer checks separately in Node's development runtime.
+- `pnpm test` includes the native JSX type check, Solid/adapter, CSS, hover/change-discovery and example suites. `pnpm test:refresh` runs the Solid Refresh/universal renderer checks in Node's development runtime.
+- `pnpm test:solid:native` runs the Solid contract fixture in embedded QuickJS in production and development modes, then restores the CSS example.
 - `zig build test` runs UI core tests. `zig build test-native` needs a working Windows OpenGL context and checks DirectWrite contracts and native framebuffer pixels.
 - CSS checks cover nested imports/URLs, source order, specificity, shorthand/longhand conflicts, layers/importance, inheritance, variables/cycles, font-relative inheritance, viewport changes and the native Vite development graph. The production bundle test clicks the reactive CSS demo button. Native framebuffer checks cover decoded background-image pixels, repetition and rounded clipping.
 - `pnpm test:smoke` runs the embedded Solid/QuickJS application in a hidden native window. Build the selected UI bundle and native executable first.

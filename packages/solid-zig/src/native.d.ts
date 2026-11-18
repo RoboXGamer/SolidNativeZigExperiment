@@ -198,7 +198,6 @@ export interface NativeStyle {
   scrollbarWidth?: "auto" | "thin" | "none";
   scrollbarColor?: "auto" | string;
   textAutospace?: "normal" | "no-autospace";
-  textDecorationStyle?: "solid" | "double" | "dotted" | "dashed" | "wavy";
   mathShift?: "normal" | "compact";
   printColorAdjust?: "economy" | "exact";
   viewTransitionName?: "none" | "match-element" | "auto" | string;
@@ -371,10 +370,16 @@ export interface NativeNode {
   scrollBy?(options: { left?: number; top?: number; behavior?: "auto" | "smooth" } | number, top?: number): void;
 }
 
+export type NativeRef = ((node: NativeNode) => void) | readonly NativeRef[];
+
 export interface NativeProps {
   children?: SolidElement;
+  id?: string;
+  class?: string;
+  className?: string;
+  classList?: Record<string, boolean | undefined>;
   style?: NativeStyle;
-  ref?: ((node: NativeNode) => void) | NativeNode;
+  ref?: NativeRef | NativeNode;
   onClick?: (event: NativeEvent) => void;
   onInput?: (event: NativeInputEvent | NativeChangeEvent) => void;
   onChange?: (event: NativeChangeEvent) => void;

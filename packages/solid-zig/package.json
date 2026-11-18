@@ -12,6 +12,6 @@
     "./jsx-runtime": { "types": "./src/jsx-runtime.d.ts", "default": "./src/jsx-runtime.js" },
     "./jsx-dev-runtime": { "types": "./src/jsx-runtime.d.ts", "default": "./src/jsx-runtime.js" }
   },
-  "peerDependencies": { "solid-js": "2.0.0-rc.21", "@solidjs/universal": "2.0.0-rc.21" },
+  "peerDependencies": { "solid-js": "2.0.0", "@solidjs/universal": "2.0.0" },
   "dependencies": { "cssstyle": "6.2.0" }
 }

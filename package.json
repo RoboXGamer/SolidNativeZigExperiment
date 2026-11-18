@@ -28,7 +28,8 @@
         "setup": "node tools/setup.mjs",
         "test:native": "zig build test-native",
         "test:hmr": "node --conditions=browser --conditions=development tools/audit-hmr.mjs && node tools/test-hmr-rejection.mjs && zig build test-runtime -Ddriver=true",
-        "test:hmr:native": "node tools/test-hmr-native.mjs",
+        "test:hmr:native": "node tools/test-hmr-native.mjs && pnpm run test:hmr:boundaries",
+        "test:hmr:boundaries": "node tools/test-hmr-delivery-native.mjs && node tools/test-hmr-restarts.mjs && node tools/test-hmr-compiler-native.mjs",
         "test:runtime": "zig build test-runtime -Ddriver=true",
         "test:driver": "node tools/test-clock-driver.mjs",
         "test:smoke": "node tools/smoke-native.mjs"

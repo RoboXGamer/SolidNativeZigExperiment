@@ -18,11 +18,12 @@ export function external(id) {
     throw Error(`Unsupported embedded runtime import: ${id}; import solid-js, solid-js/refresh or @zig-ui/solid instead`);
   return null;
 }
-export async function compileGraph({ origin, entry, signal = AbortSignal.timeout(10000), generation = () => 0 }) {
+export async function compileGraph({ origin, entry, signal = AbortSignal.timeout(10000), generation = () => 0, onModule }) {
   const started = generation();
   const graph = {};
   const visiting = new Set();
   let bytes = 0;
+  let retainedGraphBytes = 0;
   async function visit(id) {
     signal?.throwIfAborted();
     id = clean(id, origin);
@@ -73,6 +74,9 @@ export async function compileGraph({ origin, entry, signal = AbortSignal.timeout
     } });
     const result = await transformAsync(source, { filename: id, configFile: false, babelrc: false, sourceType: "module", plugins: [rewrite, commonjs], comments: false });
     graph[id] = result.code;
+    const compiledBytes = Buffer.byteLength(result.code);
+    retainedGraphBytes += Buffer.byteLength(id) + compiledBytes;
+    await onModule?.({ id, sourceBytes: Buffer.byteLength(source), compiledBytes, retainedGraphBytes });
     for (const dependency of dependencies) await visit(dependency);
   }
   await visit(entry);

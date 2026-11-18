@@ -129,3 +129,29 @@ and an edit made while the producer was down. A second session keeps its PID,
 identity and app, and still accepts its own edits. An initially throwing graph
 also keeps the native window alive and recovers after correction: the host
 establishes a valid bootstrap tree/scene before evaluating the dev graph.
+
+### Compiler acceptance follow-up (#375)
+
+`node tools/test-hmr-compiler-native.mjs` pauses the real producer after compiling
+dependency A, changes both source dependencies, and checks hashes of every
+published graph. Only complete old/new pairs may publish; an obsolete attempt
+must be discarded. Native output then converges to the latest pair.
+
+The same fixture runs two measured 12-pair/24-file-write workloads: sequential
+save/present turns and a burst converging to its final value. Both use the same
+Vite process/cache, three-module graph, Debug host and optimized QuickJS, with
+a fresh native VM and one warmup before each workload. The
+[recorded acceptance measurements](audit/hmr-compiler-acceptance.json) include
+module/source work, active/latest-request high water, candidate/payload UTF-8
+bytes, sampled producer heap/RSS, process CPU, native VM storage/roots, wall
+time and receipt latency. UTF-8 content bytes do not include JS object/AST
+overhead; sampled heap/RSS are separate. A single burst convergence sample is
+not twelve per-edit applications or a general latency distribution.
+
+Finally, a fixture Vite plugin enters an unresolved transform promise. The
+actual producer is stopped during that request and exits within its 3-second
+deadline plus the test's 1-second scheduling allowance; rebinding the same port
+proves the listener was released. Measurements are opt-in with
+`DRAFT1_HMR_METRICS=1` (or the owned fixture IPC channel); normal dev operation
+does not sample process memory/CPU per module. The root `pnpm test` gate now
+runs all three delivery/restart/compiler boundary scripts.

@@ -6,6 +6,7 @@ import { configureExample, projectRoot } from './example-entry.mjs';
 import { startNative, stopNative } from './native-process.mjs';
 import { compileGraph } from './hmr-compiler.mjs';
 import { createSession, atomicWrite, compatibility } from './hmr-session.mjs';
+import { createProducerMetrics } from './hmr-producer-metrics.mjs';
 process.chdir(projectRoot);
 const selection = configureExample(process.argv.slice(2));
 if (selection.args.some(arg => arg !== '--app')) throw Error(`Unknown dev arguments: ${selection.args.join(' ')}`);
@@ -17,34 +18,52 @@ const origin = `http://127.0.0.1:${port}`;
 let stopping = false, pending, controller, ws, reconnect, child, polling;
 let sourceGeneration = 0, requested = 0, finished = 0, revision = 0, reload = false, restartRequired = false;
 let lastReceipt = '';
+const testControl = process.env.DRAFT1_HMR_TEST === '1' && !!process.send;
+let metrics = (testControl || process.env.DRAFT1_HMR_METRICS === '1') ? createProducerMetrics() : undefined;
+let compilePause;
+function trace(event) { if (testControl && process.connected) process.send(event, () => {}); }
 async function publish() {
   while (!stopping && finished !== requested) {
     const generation = sourceGeneration, request = requested, full = reload;
     controller = new AbortController();
+    const started = performance.now(); metrics?.begin();
+    let graphBytes = 0;
     const timeout = setTimeout(() => controller.abort(Error('Graph compilation exceeded 10 seconds')), 10000);
     try {
-      const graph = restartRequired ? {} : await compileGraph({ origin, entry: session.entry, signal: controller.signal, generation: () => sourceGeneration });
-      if (generation !== sourceGeneration || request !== requested || stopping) continue;
+      const signal = controller.signal;
+      const graph = restartRequired ? {} : await compileGraph({ origin, entry: session.entry, signal, generation: () => sourceGeneration, onModule: async module => {
+        graphBytes = module.retainedGraphBytes; metrics?.module(module);
+        if (testControl && compilePause?.module === module.id) {
+          compilePause = undefined;
+          signal.throwIfAborted(); trace({ event: 'compile-paused', generation, module: module.id });
+          await new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+        }
+      } });
+      if (generation !== sourceGeneration || request !== requested || stopping) { metrics?.discard(); continue; }
       const packet = { protocol: 1, session: session.session, entry: session.entry, compatibility: session.compatibility, revision: ++revision, type: restartRequired ? 'restart-required' : full ? 'full-reload' : 'update', graph };
       const source = `globalThis.__uiReceive(${JSON.stringify(packet)});\n`;
       if (Buffer.byteLength(source) > 32 * 1024 * 1024) throw Error('Serialized graph exceeds 32 MiB');
+      metrics?.prepared(graphBytes, Buffer.byteLength(source));
       await atomicWrite(session.path, source, controller.signal, retry => console.warn('[native-hmr] rename-retry', JSON.stringify(retry)));
       if (generation !== sourceGeneration || stopping) continue;
       reload = false; finished = request;
       console.log(`[native-hmr] published session=${session.session} revision=${revision} modules=${Object.keys(graph).length} bytes=${Buffer.byteLength(source)} type=${packet.type}`);
+      metrics?.published();
+      if (testControl) trace({ event: 'published', revision, generation, hashes: Object.fromEntries(Object.entries(graph).map(([id, code]) => [id, createHash('sha256').update(code).digest('hex')])) });
     } catch (error) {
-      if (generation !== sourceGeneration || request !== requested) continue;
+      if (generation !== sourceGeneration || request !== requested || stopping) { metrics?.discard(); continue; }
       if (!stopping && ['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) {
         console.warn('[native-hmr] publication-retry: latest revision retained');
         await new Promise(resolve => setTimeout(resolve, 250));
         continue;
       }
-      finished = request; console.error('[native-hmr] compile-failed', error.message);
-    } finally { clearTimeout(timeout); }
+      metrics?.fail(); finished = request; console.error('[native-hmr] compile-failed', error.message);
+    } finally { clearTimeout(timeout); metrics?.end(performance.now() - started); }
   }
 }
 function request(full = false) {
   requested++; reload ||= full;
+  metrics?.request();
   controller?.abort(Error('Superseded source generation'));
   if (online && !pending) pending = publish().finally(() => { pending = undefined; if (!stopping && finished !== requested) request(); });
 }
@@ -102,10 +121,11 @@ async function stop(code = 0) {
   // A restart can still own a not-yet-listening server when stop arrives.
   // Exit this owned producer after close, or at the deadline; do not leave
   // restart-created sockets/watchers keeping an apparently stopped CLI alive.
-  const deadline = setTimeout(() => process.exit(exitCode), 3000);
+  const deadline = setTimeout(() => { console.warn('[native-hmr] shutdown-deadline: terminating owned producer'); process.exit(exitCode); }, 3000);
   clearTimeout(reconnect); clearInterval(polling); controller?.abort(Error('Shutdown')); ws?.close();
   await stopNative(child);
   await Promise.allSettled([pending, server?.close()]);
+  if (metrics) await atomicWrite(join(session.dir, 'producer-metrics.json'), JSON.stringify(metrics.snapshot())).catch(() => {});
   clearTimeout(deadline);
   if (process.connected) process.disconnect();
   process.exit(exitCode);
@@ -114,11 +134,17 @@ process.on('SIGINT', () => void stop()); process.on('SIGTERM', () => void stop()
 // An inherited IPC channel is available only to an owning test process.
 if (process.send) process.on('message', message => {
   if (message === 'test-disconnect') ws?.close();
-  if (process.env.DRAFT1_HMR_TEST !== '1' || !message?.id) return;
+  if (!testControl || !message?.id) return;
   if (message.op === 'stop') { process.send({ id: message.id, result: { stopping: true } }, () => void stop()); return; }
   void (async () => {
     try {
       if (message.op === 'restart-vite') await server.restart();
+      else if (message.op === 'metrics') { process.send({ id: message.id, result: metrics.snapshot() }); return; }
+      else if (message.op === 'reset-metrics') {
+        if (metrics.snapshot().active) throw Error('Producer is busy');
+        metrics = createProducerMetrics(); process.send({ id: message.id, result: metrics.snapshot() }); return;
+      }
+      else if (message.op === 'pause-module') { compilePause = { module: message.module }; process.send({ id: message.id, result: { armed: true } }); return; }
       else if (message.op !== 'describe') throw Error(`Unknown test control: ${message.op}`);
       if (process.connected) process.send({ id: message.id, result: { session: session.session, tokenDigest: createHash('sha256').update(server.config.webSocketToken).digest('hex'), connected: ws?.readyState === 1, online } });
     } catch (error) { if (process.connected) process.send({ id: message.id, error: String(error) }); }

@@ -4,7 +4,7 @@ import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import frameSchema from "./frame-inputs.json" with { type: "json" };
 const frameInputs = frameSchema.phases;
-import { sheetStyle, setStyleSheet, removeStyleSheet, stylesheetMedia, getStyleSheetVersion, invalidateStyleConditions } from './stylesheets.js';
+import { sheetStyle, setStyleSheet, removeStyleSheet, orderStyleSheets, stylesheetMedia, getStyleSheetVersion, invalidateStyleConditions } from './stylesheets.js';
 import { changed, getMutationVersion, work, tracking, observe } from './invalidation.js';
 export { work as discoveryWork, resetWork as resetDiscoveryWork } from './invalidation.js';
 export { setStyleSheet, removeStyleSheet } from './stylesheets.js';
@@ -2294,6 +2294,9 @@ export function mountApp(Component) {
       "solid-refresh": refresh,
       "native-renderer": renderer,
       "native-host": nativeAPI,
+    }, { reset: () => globalThis.uiReset?.(), order: orderStyleSheets,
+      status: value => { globalThis.__hmrStatus = value; },
+      diagnostic: value => console.error(JSON.stringify(value)),
     });
   }
   globalThis.uiSnapshot = () => JSON.stringify(snapshot(root));
@@ -2301,6 +2304,8 @@ export function mountApp(Component) {
   let lastRoot, lastFullVersion = -1;
   let pendingRemoved = [];
   const collectChanges = () => {
+    if (['failed', 'recovering', 'applying'].includes(globalThis.__uiModules?.status.phase))
+      throw Error('HMR generation is not ready for native publication');
     reconcileInteractionTree();
     const revision = fingerprint([
       root.id,
@@ -2479,11 +2484,10 @@ export function mountApp(Component) {
   globalThis.uiDispatchPointer = dispatchPointer;
   globalThis.uiDispatchInput = (id, value) => dispatchInput(id, value);
   globalThis.uiDispatchKey = (id, key) => dispatchKey(id, key);
-  globalThis.uiDispose = () => {
+  globalThis.uiReset = () => {
+    const cleanup = dispose; dispose = undefined;
+    try { cleanup?.(); } finally {
     renderer.forgetTree(root);
-    dispose?.();
-    dispose = undefined;
-    globalThis.__uiModules?.dispose();
     root = renderer.node("root");
     identities.clear();
     selectIdentities.clear();
@@ -2495,6 +2499,11 @@ export function mountApp(Component) {
     committed.clear();
     changedSnapshots.clear();
     pendingCommit = undefined;
+    }
+  };
+  globalThis.uiDispose = () => {
+    try { globalThis.__uiModules?.dispose(); }
+    finally { globalThis.uiReset(); }
   };
   mount(Component);
 }

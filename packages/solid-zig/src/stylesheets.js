@@ -81,6 +81,15 @@ export function removeStyleSheet(id) {
   sheets.delete(id);
   sheetVersion++;
 }
+export function orderStyleSheets(ids) {
+  const before = [...sheets.keys()];
+  const owned = new Set(ids);
+  const ordered = [...before.filter(id => !owned.has(id)), ...ids.filter(id => sheets.has(id))];
+  if (ordered.length === before.length && ordered.every((id, i) => before[i] === id)) return;
+  const entries = ordered.map(id => [id, sheets.get(id)]);
+  sheets.clear(); for (const [id, rules] of entries) sheets.set(id, rules);
+  sheetVersion++;
+}
 export function clearStyleSheets() {
   sheets.clear();
   sheetVersion++;

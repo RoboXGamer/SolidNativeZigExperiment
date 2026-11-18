@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import { createModuleHost } from '../packages/solid-zig/src/module-runtime.js';
+const s = { cleaned: [], mounts: 0, ghosts: 0 };
+const host = createModuleHost({ s });
+const app = `require('s').mounts++; exports.version=1; __meta.hot.accept(next=>{if(next.version===2)throw Error('bad accept')});`;
+host.apply({ app }, 'app');
+assert.throws(() => host.apply({ app: app.replace('version=1', 'version=2') }, 'app'), /bad accept/);
+assert.equal(host.status.phase, 'failed');
+host.apply({ app: app.replace('version=1', 'version=2') }, 'app');
+assert.equal(host.status.phase, 'applied');
+assert.equal(s.mounts, 3, 'identical failed candidate is executed in a clean generation');
+const bad = `__meta.hot.on('vite:beforeUpdate',()=>require('s').ghosts++);setInterval(()=>require('s').ghosts++,1);throw Error('factory failed');`;
+assert.throws(() => host.apply({ bad }, 'bad'), /factory failed/);
+assert.deepEqual(host.resources, { modules: 0, data: 0, listeners: 0 });
+host.apply({ app: `require('s').invalidate=()=>__meta.hot.invalidate();require('s').mounts++;` }, 'app');
+const mounts = s.mounts; s.invalidate(); assert.equal(s.mounts, mounts + 1);
+host.apply({ a: `require('s').cleaned.push('a'); __meta.hot.dispose(()=>require('s').cleaned.push('retired'));`, b: `require('s').cleaned.push('b');` }, 'a');
+host.apply({ a: '', b: `require('s').cleaned.push('b');` }, 'b');
+assert.deepEqual(s.cleaned, ['a', 'retired', 'b']);
+host.apply({ app: `require('dep');__meta.hot.dispose(()=>{require('s').cleaned.push('app');__meta.hot.dispose(()=>{})});`, dep: `__meta.hot.dispose(()=>{throw Error('dispose failed')});__meta.hot.prune(()=>require('s').cleaned.push('pruned'));` }, 'app');
+assert.throws(() => host.dispose(), /cleanup failed/);
+assert.ok(s.cleaned.includes('app')); assert.ok(s.cleaned.includes('pruned'));
+host.dispose();
+host.apply({ app: `exports.v=1;__meta.hot.accept(()=>Promise.resolve());` }, 'app');
+assert.throws(() => host.apply({ app: `exports.v=2;__meta.hot.accept(()=>Promise.resolve());` }, 'app'), /Async accept is unsupported/);
+assert.equal(host.status.phase, 'failed');
+for (let i = 0; i < 200; i++) {
+  host.apply({ app: `__meta.hot.on('event',()=>{});require('s').late=__meta.hot.guard(()=>require('s').ghosts++); // ${i}` }, 'app');
+  assert.equal(host.resources.listeners, 1);
+}
+host.dispose(); s.late(); await new Promise(resolve => setTimeout(resolve, 10));
+assert.equal(s.ghosts, 0); assert.equal(host.resources.listeners, 0);
+console.log('HMR failure/retry, cleanup, invalidation, entry, async policy and 200-cycle resource regressions passed');

@@ -1,12 +1,15 @@
 # Shared clock and native app driver: one implementation PR
 
-Status: planned, with two independently tracked tasks that ship together.
+Status: implemented in one clock/driver branch with separate task commits.
+The runtime contract, frozen v1 limits, commands, validation and measured-stage
+boundaries are documented in [../clock-driver.md](../clock-driver.md).
 Rune-derived acceptance additions are recorded in [rune-adaptation.md](rune-adaptation.md):
 patch-to-frame receipts, explicit motion timing across idle/hitch/retarget cases,
 and measured allocation ownership. They extend #344/#345 within the same two-task PR.
 Local baseline: `1c75169323257fe484ec1bf14218c8c145c11e9f`.
 Exact reference baseline: `65a19452362aa883024456673b723239edb47b71`.
-This document plans implementation; it does not report new runtime validation.
+This document records the original implementation plan; current validation is
+reported in the runtime document linked above.
 
 ## GitHub tracking
 
@@ -20,8 +23,9 @@ Parent: [#343](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/343
 Implement CD-1 (clock/scheduler) first, then CD-2 (driver/input/inspection), in
 one branch and one PR. Keep them as reviewable commits and separate GitHub
 task issues. Close the parent only after both tasks and integrated acceptance
-pass. The collating draft PR publishes plans and diagnostic evidence;
-the shared clock/driver implementation PR remains future work.
+pass. The collating draft PR published plans and diagnostic evidence; the
+implementation branch now delivers CD-1 and CD-2 together. Review measurements
+and qualification boundaries in [../clock-driver.md](../clock-driver.md).
 
 Preserve Solid, the phase-aware acknowledged bridge, retained dirty identities,
 existing layout/text/paint behavior and event waiting. Taffy evaluation, new

@@ -184,11 +184,16 @@ The [implementation index](docs/plans/exact-tracking.md) connects the plans and 
 pnpm test                 # JavaScript, adapter, CSS and example checks
 zig build test            # UI core tests
 zig build test-native     # Windows text and native framebuffer checks
+pnpm test:runtime         # Shared clock, real QuickJS, and driver protocol
+pnpm test:driver          # Native input, controlled time, inspection and capture
 pnpm build:ui --example css
 zig build
 pnpm test:smoke           # Embedded Solid/QuickJS + native application smoke
 ```
 
 The [development guide](docs/development.md) includes CSS bundle/HMR checks, hover and frame-scheduling regressions, the two-terminal workflow and dependency notices. Screenshots demonstrate captured output; test coverage and remaining validation limits are documented separately.
+
+The [clock and driver guide](docs/clock-driver.md) documents controlled time,
+native automation, bounded protocol behavior and measured validation stages.
 
 Further reading: [native text](docs/native-text.md) · [frame scheduling](docs/native-frame-scheduling.md) · [change discovery](docs/change-discovery.md) · [hover investigation](docs/hover-input-latency.md) · [CSS implementation handoff](docs/tasks/phase-e-broaden-css.md).

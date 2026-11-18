@@ -2,7 +2,7 @@
 const std = @import("std");
 const core = @import("root.zig");
 const inputs = @import("frame_inputs.zig");
-const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", placeholder: []const u8 = "", clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, readOnly: bool = false, readWrite: bool = false, popoverOpen: bool = false, intrinsicAspectRatio: ?f32 = null, hovered: bool = false, active: bool = false, focused: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
+const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", placeholder: []const u8 = "", testId: []const u8 = "", role: []const u8 = "", name: []const u8 = "", disabled: bool = false, clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, readOnly: bool = false, readWrite: bool = false, popoverOpen: bool = false, intrinsicAspectRatio: ?f32 = null, hovered: bool = false, active: bool = false, focused: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
 const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, updates: []const inputs.Delta = &.{}, removed: []const u32 = &.{} };
 const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode, revisions: inputs.Revisions = .{}, dirty: inputs.Dirty };
 pub const Tree = struct {
@@ -122,6 +122,9 @@ pub const Tree = struct {
         copy.text = try a.dupe(u8, n.text);
         copy.value = try a.dupe(u8, n.value);
         copy.placeholder = try a.dupe(u8, n.placeholder);
+        copy.testId = try a.dupe(u8, n.testId);
+        copy.role = try a.dupe(u8, n.role);
+        copy.name = try a.dupe(u8, n.name);
         const s_info = @typeInfo(core.Style).@"struct";
         inline for (s_info.field_names, s_info.field_types) |fname, ftype| {
             if (ftype == []const u8) {
@@ -152,6 +155,6 @@ pub const Tree = struct {
                 if (@field(style, name)) |value| @field(style, name) = try allocator.dupe(u8, value);
             }
         }
-        return .{ .id = n.id, .type = try allocator.dupe(u8, n.type), .text = try allocator.dupe(u8, n.text), .value = try allocator.dupe(u8, n.value), .placeholder = try allocator.dupe(u8, n.placeholder), .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .readOnly = n.readOnly, .readWrite = n.readWrite, .popoverOpen = n.popoverOpen, .intrinsicAspectRatio = n.intrinsicAspectRatio, .hovered = n.hovered, .active = n.active, .focused = n.focused, .style = style, .children = children };
+        return .{ .id = n.id, .type = try allocator.dupe(u8, n.type), .text = try allocator.dupe(u8, n.text), .value = try allocator.dupe(u8, n.value), .placeholder = try allocator.dupe(u8, n.placeholder), .testId = try allocator.dupe(u8, n.testId), .role = try allocator.dupe(u8, n.role), .name = try allocator.dupe(u8, n.name), .disabled = n.disabled, .clickable = n.clickable, .focusable = n.focusable, .tabIndex = n.tabIndex, .readOnly = n.readOnly, .readWrite = n.readWrite, .popoverOpen = n.popoverOpen, .intrinsicAspectRatio = n.intrinsicAspectRatio, .hovered = n.hovered, .active = n.active, .focused = n.focused, .style = style, .children = children };
     }
 };

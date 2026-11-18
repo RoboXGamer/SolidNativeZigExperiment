@@ -19,6 +19,10 @@ pub const PaintInputs = struct {
     style: styles.PaintStyle = .{},
 };
 pub const InteractionInputs = struct {
+    testId: []const u8 = "",
+    role: []const u8 = "",
+    name: []const u8 = "",
+    disabled: bool = false,
     clickable: bool = false,
     focusable: bool = false,
     tabIndex: ?i32 = null,

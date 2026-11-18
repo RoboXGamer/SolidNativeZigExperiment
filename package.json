@@ -27,6 +27,8 @@
         "test:select": "node --conditions=browser --conditions=development packages/solid-zig/tests/select-control.mjs",
         "setup": "node tools/setup.mjs",
         "test:native": "zig build test-native",
+        "test:runtime": "zig build test-runtime -Ddriver=true",
+        "test:driver": "node tools/test-clock-driver.mjs",
         "test:smoke": "node tools/smoke-native.mjs"
     },
     "dependencies": {

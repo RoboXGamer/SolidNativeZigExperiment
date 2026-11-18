@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 process.chdir(fileURLToPath(new URL("../", import.meta.url)));
 const hover = process.argv.includes("--hover");
 const frames = process.argv.includes("--frames");
+if(hover||frames){await import('./test-frame-scheduling.mjs');process.exit(0);}
 const r = spawnSync("zig-out/bin/windows.exe", [], {
   encoding: "utf8",
   timeout: 15000,

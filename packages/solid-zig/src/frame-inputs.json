@@ -338,6 +338,10 @@
     },
     "interaction": {
       "node": [
+        "testId",
+        "role",
+        "name",
+        "disabled",
         "clickable",
         "focusable",
         "tabIndex",

@@ -35,7 +35,15 @@ export fn host_timer_add(ms: f64, kind: c_int) u64 {
 export fn host_timer_cancel(id: u64) void {
     if (scheduler.cancel(id)) ui_timer_release(id);
 }
+fn take(now: u64, live: bool) !?scheduling.Record {
+    const id = if (scheduler.next()) |r| r.id else 0;
+    return scheduler.take(now, live) catch |err| {
+        if (id != 0) ui_timer_release(id);
+        return err;
+    };
+}
 extern fn ui_init(source: [*]const u8, len: usize) c_int;
+extern fn ui_init_driver(source: [*]const u8, len: usize) c_int;
 extern fn ui_eval(code: [*:0]const u8, out: [*]u8, capacity: usize) c_int;
 extern fn ui_eval_string(code: [*:0]const u8) ?[*:0]u8;
 extern fn ui_free_string(value: [*:0]u8) void;
@@ -62,6 +70,10 @@ pub const Runtime = struct {
     pub fn seconds(_: *Runtime) f64 {
         return app_clock.seconds(clock.now);
     }
+    pub fn atFrame(_: *Runtime) bool {
+        const index = clock.now * 60 / 1_000_000_000;
+        return clock.now == (index * 1_000_000_000 + 59) / 60;
+    }
     pub fn controlled(_: *Runtime) bool {
         return clock.mode == .controlled;
     }
@@ -70,6 +82,9 @@ pub const Runtime = struct {
     }
     pub fn pending(_: *Runtime) usize {
         return scheduler.len;
+    }
+    pub fn nextDeadline(_: *Runtime) ?f64 {
+        return if (scheduler.next()) |record| app_clock.milliseconds(record.at) else null;
     }
     pub fn due(_: *Runtime) bool {
         return if (scheduler.next()) |r| r.at <= clock.now else false;
@@ -98,7 +113,7 @@ pub const Runtime = struct {
         if (scheduler.next()) |r| at = @min(at, r.at);
         if (motion) at = @min(at, try app_clock.nextFrame(clock.now));
         try clock.reach(@max(clock.now, at));
-        if (try scheduler.take(clock.now, false)) |r| {
+        if (try take(clock.now, false)) |r| {
             if (ui_timer_call(r.id, host_app_now(), @intFromBool(r.repeat == 0), @intFromBool(r.raf)) == 0) return error.JavaScriptCallbackFailed;
             return false;
         }
@@ -107,13 +122,6 @@ pub const Runtime = struct {
     pub fn sample(_: *Runtime) !void {
         if (scheduler.next()) |r| if (r.at <= clock.now) return;
         try clock.sample(ui_real_ns());
-    }
-    pub fn frameProbe(_: *Runtime, probe_step: usize) !void {
-        var command: [80]u8 = undefined;
-        const expression = try std.fmt.bufPrint(command[0 .. command.len - 1], "globalThis.uiFrameProbe({d})", .{probe_step});
-        command[expression.len] = 0;
-        var result: [32]u8 = undefined;
-        if (ui_eval(@ptrCast(expression.ptr), &result, result.len) == 0) return error.JavaScriptEvaluationFailed;
     }
     pub fn pointer(_: *Runtime, hovered: ?u32, active_id: ?u32, focused: ?u32) !void {
         var command: [128]u8 = undefined;
@@ -140,7 +148,7 @@ pub const Runtime = struct {
         ui_watchdog_start();
         defer ui_watchdog_stop();
         if (ui_jobs() == 0) return error.JavaScriptJobFailed;
-        if (clock.mode == .live) if (try scheduler.take(clock.now, true)) |r| {
+        if (clock.mode == .live) if (try take(clock.now, true)) |r| {
             if (ui_timer_call(r.id, host_app_now(), @intFromBool(r.repeat == 0), @intFromBool(r.raf)) == 0) return error.JavaScriptCallbackFailed;
         };
     }
@@ -154,11 +162,17 @@ pub const Runtime = struct {
         return initMode(source, .live);
     }
     pub fn initMode(source: []const u8, mode: app_clock.Mode) !Runtime {
+        return initConfigured(source, mode, false);
+    }
+    pub fn initDriver(source: []const u8, mode: app_clock.Mode) !Runtime {
+        return initConfigured(source, mode, true);
+    }
+    fn initConfigured(source: []const u8, mode: app_clock.Mode, driver: bool) !Runtime {
         if (initialized) return error.RuntimeAlreadyInitialized;
         scheduler = scheduling.Scheduler.init();
         clock = .{ .mode = mode, .origin = ui_real_ns() };
         generation = if (generation == 0) @max(1, ui_real_ns() & app_clock.horizon) else try app_clock.add(generation, 1);
-        const result = ui_init(source.ptr, source.len);
+        const result = if (driver) ui_init_driver(source.ptr, source.len) else ui_init(source.ptr, source.len);
         if (result < 0) return error.RuntimeAlreadyInitialized;
         if (result == 0) {
             ui_destroy();

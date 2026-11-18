@@ -1647,6 +1647,10 @@ function snapshotUncached(node, inherited, inheritedVars, quoteDepth) {
     text: node.type === "select" ? getSelectedLabel(node) :
           node.type === "option" ? getOptionLabel(node) :
           node.type === "q" ? qText : node.text,
+    testId: String(node.props["data-testid"] ?? node.props.testId ?? ""),
+    role: String(node.props.role ?? (isButton ? "button" : isInput ? "textbox" : isSelect ? "combobox" : "")),
+    name: String(node.props["aria-label"] ?? node.props.name ?? ""),
+    disabled: Boolean(node.props.disabled),
     clickable,
     focusable,
     readOnly: isReadOnly(node),

@@ -33,7 +33,7 @@ uint64_t ui_cpu_ns(void) {
 #endif
 }
 static uint64_t watchdog;
-void ui_watchdog_start(void) { watchdog = ui_real_ns() + 2000000000ULL; }
+void ui_watchdog_start(void) { watchdog = ui_real_ns() + 5000000000ULL; }
 void ui_watchdog_stop(void) { watchdog = 0; }
 static int interrupt(JSRuntime *rt, void *opaque) { (void)rt; (void)opaque; return watchdog && ui_real_ns() >= watchdog; }
 #define TIMER_CAPACITY 4096
@@ -135,7 +135,7 @@ int ui_jobs(void) {
     return 1;
 }
 #define jobs ui_jobs
-int ui_init(const char *source, size_t len) {
+static int init_source(const char *source, size_t len) {
     if (runtime) return -1;
     memset(&memory,0,sizeof(memory));log_count=log_dropped=0;
     ui_watchdog_start();
@@ -175,6 +175,25 @@ int ui_init(const char *source, size_t len) {
     if (JS_IsException(value)) { report(); JS_FreeValue(context, value); return 0; }
     JS_FreeValue(context, value);
     int ok=jobs();ui_watchdog_stop();return ok;
+}
+int ui_init(const char *source, size_t len) { return init_source(source,len); }
+int ui_init_driver(const char *source, size_t len) {
+#if UI_PROBES
+    // A driver build may select its app at startup, like the existing dev HMR
+    // loader. No protocol command evaluates source; ordinary builds omit this.
+    const char *path=getenv("SOLID_NATIVE_DRIVER_SOURCE");
+    if(path){
+        FILE *file=fopen(path,"rb");if(!file)return 0;
+        if(fseek(file,0,SEEK_END)!=0){fclose(file);return 0;}
+        long bytes=ftell(file);
+        if(bytes<=0 || bytes>32*1024*1024 || fseek(file,0,SEEK_SET)!=0){fclose(file);return 0;}
+        char *owned=malloc((size_t)bytes);if(!owned){fclose(file);return 0;}
+        size_t read=fread(owned,1,(size_t)bytes,file);fclose(file);
+        if(read!=(size_t)bytes){free(owned);return 0;}
+        int result=init_source(owned,read);free(owned);return result;
+    }
+#endif
+    return init_source(source,len);
 }
 int ui_eval(const char *code, char *out, size_t capacity) {
     ui_watchdog_start();

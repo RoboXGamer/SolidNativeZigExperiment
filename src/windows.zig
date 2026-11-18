@@ -2,6 +2,15 @@ const rl = @import("raylib");
 const std = @import("std");
 const ui = @import("ui_core");
 const bridge = @import("solid_bridge");
+const driver_enabled = @import("host_options").driver;
+const Driver = @import("native_driver.zig").Driver;
+const Input = @import("input.zig").Input;
+var frame_input: Input = .{};
+var preference_override: ?ui.sizing.Context = null;
+var native_accounting: if (driver_enabled) @import("host_accounting").Accounting else void = if (driver_enabled) .{} else {};
+fn hostAllocator() std.mem.Allocator {
+    return if (driver_enabled) native_accounting.allocator() else std.heap.page_allocator;
+}
 extern fn ui_watch_start() c_int;
 extern fn ui_watch_changed() c_int;
 extern fn ui_watch_stop() void;
@@ -371,11 +380,11 @@ fn drawItem(context: *anyopaque, scene: *ui.Scene, item: ui.Item, allocator: std
 }
 
 fn pressed(key: rl.KeyboardKey) bool {
-    return rl.isKeyPressed(key) or rl.isKeyPressedRepeat(key);
+    return frame_input.isKeyPressed(key);
 }
 
 fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *ui.TextEdit, allocator: std.mem.Allocator) !void {
-    if (rl.isKeyPressed(.escape)) {
+    if (frame_input.isKeyPressed(.escape)) {
         try runtime.key(focused orelse 0, "Escape");
     }
     const item = scene.find(focused orelse return) orelse return;
@@ -384,9 +393,9 @@ fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *
             try runtime.key(item.node.id, "ArrowUp");
         } else if (pressed(.down)) {
             try runtime.key(item.node.id, "ArrowDown");
-        } else if (rl.isKeyPressed(.space)) {
+        } else if (frame_input.isKeyPressed(.space)) {
             try runtime.key(item.node.id, "Space");
-        } else if (rl.isKeyPressed(.enter)) {
+        } else if (frame_input.isKeyPressed(.enter)) {
             try runtime.key(item.node.id, "Enter");
         }
         return;
@@ -396,29 +405,29 @@ fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *
     const a = allocator;
     var value = item.node.value;
     editor.clamp(value);
-    const shift = rl.isKeyDown(.left_shift) or rl.isKeyDown(.right_shift);
-    const control = rl.isKeyDown(.left_control) or rl.isKeyDown(.right_control);
+    const shift = frame_input.isKeyDown(.left_shift) or frame_input.isKeyDown(.right_shift);
+    const control = frame_input.isKeyDown(.left_control) or frame_input.isKeyDown(.right_control);
     var changed = false;
     if (pressed(.left)) editor.left(value, shift);
     if (pressed(.right)) editor.right(value, shift);
     if (pressed(.home)) editor.move(0, shift);
     if (pressed(.end)) editor.move(value.len, shift);
-    if (control and rl.isKeyPressed(.a)) {
+    if (control and frame_input.isKeyPressed(.a)) {
         editor.anchor = 0;
         editor.cursor = value.len;
     }
-    if (control and (rl.isKeyPressed(.c) or rl.isKeyPressed(.x))) {
+    if (control and (frame_input.isKeyPressed(.c) or frame_input.isKeyPressed(.x))) {
         const selected = editor.selection();
         if (selected.start != selected.end) {
             rl.setClipboardText(try a.dupeSentinel(u8, value[selected.start..selected.end], 0));
-            if (rl.isKeyPressed(.x) and !is_read_only) {
+            if (frame_input.isKeyPressed(.x) and !is_read_only) {
                 value = try editor.replace(a, value, "");
                 changed = true;
             }
         }
     }
     if (!is_read_only) {
-        if (control and rl.isKeyPressed(.v)) {
+        if (control and frame_input.isKeyPressed(.v)) {
             const pasted = rl.getClipboardText();
             // A single-line input accepts pasted text up to its first line break.
             const end = std.mem.indexOfAny(u8, pasted, "\r\n") orelse pasted.len;
@@ -433,12 +442,10 @@ fn keyboard(runtime: *bridge.Runtime, scene: *ui.Scene, focused: ?u32, editor: *
             value = try editor.delete(a, value);
             changed = true;
         }
-        var codepoint = rl.getCharPressed();
-        while (codepoint > 0) : (codepoint = rl.getCharPressed()) {
-            if (control or codepoint < 32) continue;
-            var bytes: [4]u8 = undefined;
-            const len = std.unicode.utf8Encode(@intCast(codepoint), &bytes) catch continue;
-            value = try editor.replace(a, value, bytes[0..len]);
+        if (!control and frame_input.text_len > 0) {
+            const typed = frame_input.text[0..frame_input.text_len];
+            const end = std.mem.indexOfAny(u8, typed, "\r\n") orelse typed.len;
+            value = try editor.replace(a, value, typed[0..end]);
             changed = true;
         }
     }
@@ -491,19 +498,18 @@ fn getSystemPreferences() ui.sizing.Context {
 }
 
 fn buildScene(tree: *ui.Tree, text_cache: *text_backend.Cache) !ui.Scene {
-    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .ctx = text_cache, .styled_measure_fn = text_backend.measureCached, .styled_position_fn = text_backend.positionStyled, .styled_caret_fn = text_backend.caretStyled }, getSystemPreferences());
+    return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .ctx = text_cache, .styled_measure_fn = text_backend.measureCached, .styled_position_fn = text_backend.positionStyled, .styled_caret_fn = text_backend.caretStyled }, preference_override orelse getSystemPreferences());
 }
 
 pub fn run() void {
+    defer if (driver_enabled) std.debug.assert(native_accounting.stats.live_count == 0);
     const smoke = getenv("SOLID_NATIVE_SMOKE") != null;
-    const hover_smoke = smoke and getenv("SOLID_NATIVE_HOVER_SMOKE") != null;
-    const frame_smoke = smoke and getenv("SOLID_NATIVE_FRAME_SMOKE") != null;
-    var runtime = bridge.Runtime.init(source) catch |err| {
+    var runtime = (if (driver_enabled) bridge.Runtime.initDriver(source, if (getenv("SOLID_NATIVE_CONTROLLED") != null) .controlled else .live) else bridge.Runtime.init(source)) catch |err| {
         std.log.err("Could not initialize Solid UI: {}", .{err});
         return;
     };
     defer runtime.deinit();
-    rl.setConfigFlags(.{ .window_resizable = true, .window_highdpi = true, .vsync_hint = true, .window_hidden = smoke });
+    rl.setConfigFlags(.{ .window_resizable = true, .window_highdpi = true, .vsync_hint = true, .window_hidden = smoke or (driver_enabled and getenv("SOLID_NATIVE_DRIVER_HIDDEN") != null) });
     text_backend.initializeDpi();
     rl.initWindow(window_width, window_height, "Solid + Zig experiment");
     defer rl.closeWindow();
@@ -513,19 +519,19 @@ pub fn run() void {
     defer ui_refresh_stop();
     if (ui_cursor_start() == 0) std.log.warn("Persistent cursor ownership unavailable", .{});
     defer ui_cursor_shutdown();
-    var renderer = @import("renderer.zig").Renderer.init(std.heap.page_allocator) catch |err| {
+    var renderer = @import("renderer.zig").Renderer.init(hostAllocator()) catch |err| {
         std.log.err("Renderer initialization failed: {}", .{err});
         return;
     };
     defer renderer.deinit();
-    var text_cache = text_backend.Cache.init(std.heap.page_allocator);
+    var text_cache = text_backend.Cache.init(hostAllocator());
     defer text_cache.deinit();
     _ = text_cache.setScale(rl.getWindowScaleDPI().x);
     const watching = ui_watch_start() != 0;
     defer if (watching) ui_watch_stop();
     if (watching and !runtime.reload()) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
     rl.setExitKey(.null);
-    const event_waiting = (!smoke or frame_smoke) and ui_wake_start() != 0;
+    const event_waiting = !smoke and ui_wake_start() != 0;
     defer if (event_waiting) ui_wake_stop();
     if (event_waiting) {
         rl.enableEventWaiting();
@@ -534,9 +540,9 @@ pub fn run() void {
         rl.disableEventWaiting();
         rl.setTargetFPS(60);
     }
-    var timeline = ui.transitions.Timeline.init(std.heap.page_allocator);
+    var timeline = ui.transitions.Timeline.init(hostAllocator());
     defer timeline.deinit();
-    var tree = ui.Tree.init(std.heap.page_allocator);
+    var tree = ui.Tree.init(hostAllocator());
     defer tree.deinit();
     runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| {
         std.log.err("Viewport update failed: {}", .{err});
@@ -551,61 +557,55 @@ pub fn run() void {
         return;
     };
     defer scene.deinit();
-    var scroll_offsets = std.AutoHashMap(u32, ui.ScrollOffset).init(std.heap.page_allocator);
+    var scroll_offsets = std.AutoHashMap(u32, ui.ScrollOffset).init(hostAllocator());
     defer scroll_offsets.deinit();
     var focused: ?u32 = null;
     var editing: ?u32 = null;
     var editor = ui.TextEdit{};
     var last_width = rl.getScreenWidth();
     var last_height = rl.getScreenHeight();
-    var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var scratch = std.heap.ArenaAllocator.init(hostAllocator());
     defer scratch.deinit();
+    var driver: if (driver_enabled) Driver else void = if (driver_enabled) .{} else {};
+    if (driver_enabled) driver.start(hostAllocator());
+    defer if (driver_enabled) driver.stop();
+    var submitted: u64 = 0;
+    _ = &submitted;
+    var pressed_target: ?u32 = null;
     var smoke_frames: usize = 0;
     var last_hovered: ?u32 = null;
     var last_active: ?u32 = null;
     var last_focused: ?u32 = null;
     var painted = false;
+    var last_motion_time = runtime.now();
     var layout_runs: usize = 1;
+    var scene_revision: usize = 1;
     var paint_frames: usize = 0;
-    var probe_button: ?u32 = null;
-    if (hover_smoke or frame_smoke) {
-        for (scene.items.items) |item| if (std.mem.eql(u8, item.node.type, "button")) {
-            probe_button = item.node.id;
-            break;
-        };
-        if (probe_button == null) {
-            std.log.err("Hover regression needs the CSS example", .{});
-            return;
-        }
-    }
     while (!rl.windowShouldClose()) {
-        _ = scratch.reset(.retain_capacity);
+        _ = scratch.reset(.{ .retain_with_limit = 1024 * 1024 });
         runtime.sample() catch {};
-        if (frame_smoke) {
-            runtime.frameProbe(smoke_frames) catch |err| {
-                std.log.err("Frame probe failed: {}", .{err});
-                return;
-            };
-            if (smoke_frames == 127) {
-                _ = InvalidateRect(rl.getWindowHandle(), null, 0);
-                _ = UpdateWindow(rl.getWindowHandle());
-                _ = SendMessageW(rl.getWindowHandle(), 0x000f, 0, 0);
-            }
-            if (smoke_frames == 128) rl.setWindowSize(window_width + 40, window_height + 20);
+        if (driver_enabled) {
+            driver.begin(&runtime, &scene, tree.revisions.state, scene_revision);
+            driver.step(&runtime, timeline.active());
+            driver.releaseClick();
+            preference_override = driver.preferences;
+            if (driver.request != null) rl.disableEventWaiting();
         }
+        frame_input = if (driver_enabled) (if (driver.synthetic) driver.input else Input.native()) else Input.native();
+
         const dpi_changed = text_cache.setScale(rl.getWindowScaleDPI().x);
         const fonts_changed = text_backend.fontsChanged();
         if (fonts_changed) text_cache.invalidateFonts();
-        const resized = dpi_changed or fonts_changed or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight();
+        const resized = (if (driver_enabled) driver.preferences_changed else false) or dpi_changed or fonts_changed or last_width != rl.getScreenWidth() or last_height != rl.getScreenHeight();
         if (resized) runtime.viewport(rl.getScreenWidth(), rl.getScreenHeight()) catch |err| std.log.err("Viewport update failed: {}", .{err});
+        if (driver_enabled) driver.preferences_changed = false;
         const previous_focus = focused;
         const previous_editor = editor;
-        if (frame_smoke and smoke_frames == 129) focused = probe_button;
         runtime.tick() catch |err| std.log.err("Async UI job failed: {}", .{err});
-        const wheel = rl.getMouseWheelMove();
+        const wheel = frame_input.wheel_y;
         var scrolled = false;
-        if (wheel != 0) {
-            const mouse = rl.getMousePosition();
+        if (wheel != 0 or frame_input.wheel_x != 0) {
+            const mouse = frame_input.pointer;
             var allow_scroll = true;
             if (scene.pointerTarget(mouse.x, mouse.y)) |hit_id| {
                 if (scene.find(hit_id)) |hit_item| {
@@ -615,19 +615,21 @@ pub fn run() void {
                 }
             }
             if (allow_scroll) {
-                scrolled = scene.chainWheel(mouse.x, mouse.y, 0, -wheel * 40, &scroll_offsets);
+                scrolled = scene.chainWheel(mouse.x, mouse.y, frame_input.wheel_x, wheel, &scroll_offsets);
             }
         }
         if (watching and ui_watch_changed() != 0) {
             if (runtime.reload()) {
+                if (driver_enabled) driver.graph += 1;
                 std.log.info("Solid Refresh update applied", .{});
             } else {
                 std.log.warn("Solid Refresh update failed", .{});
             }
         }
-        if (rl.isMouseButtonPressed(.left)) {
-            const mouse = rl.getMousePosition();
+        if (frame_input.press) {
+            const mouse = frame_input.pointer;
             focused = scene.hitTest(mouse.x, mouse.y);
+            pressed_target = focused;
             if (focused) |id| {
                 if (scene.find(id)) |item| {
                     if (std.mem.eql(u8, item.node.type, "input")) {
@@ -646,15 +648,12 @@ pub fn run() void {
                         editor.move(idx, false);
                     }
                 }
-                runtime.click(id) catch |err| std.log.err("Click failed: {}", .{err});
-            } else {
-                runtime.click(0) catch {};
             }
-        } else if (rl.isMouseButtonDown(.left)) {
+        } else if (frame_input.down) {
             if (focused) |id| {
                 if (scene.find(id)) |item| {
                     if (std.mem.eql(u8, item.node.type, "input")) {
-                        const mouse = rl.getMousePosition();
+                        const mouse = frame_input.pointer;
                         const content = item.node.contentBox(item.bounds);
                         const local = scene.localPoint(item, mouse.x, mouse.y) orelse ui.transform.Point{ .x = mouse.x, .y = mouse.y };
                         const input_text = item.node.textContext(scene.text);
@@ -668,7 +667,15 @@ pub fn run() void {
                 }
             }
         }
-        if (rl.isKeyPressed(.tab)) {
+        if (frame_input.release) {
+            const hit = scene.hitTest(frame_input.pointer.x, frame_input.pointer.y);
+            if (hit == pressed_target) runtime.click(hit orelse 0) catch |err| {
+                if (driver_enabled) driver.failure = @errorName(err);
+            };
+            pressed_target = null;
+        }
+        if (!frame_input.down and !frame_input.release) pressed_target = null;
+        if (frame_input.isKeyPressed(.tab)) {
             const ids = scene.getFocusOrder(scratch.allocator()) catch &.{};
             if (ids.len > 0) {
                 var index: ?usize = null;
@@ -676,18 +683,18 @@ pub fn run() void {
                     index = i;
                     break;
                 };
-                const reverse = rl.isKeyDown(.left_shift) or rl.isKeyDown(.right_shift);
+                const reverse = frame_input.isKeyDown(.left_shift) or frame_input.isKeyDown(.right_shift);
                 focused = ids[if (index) |i| (if (reverse) (i + ids.len - 1) % ids.len else (i + 1) % ids.len) else (if (reverse) ids.len - 1 else 0)];
             } else focused = null;
         }
-        if (rl.isKeyPressed(.enter)) if (focused) |id| {
+        if (frame_input.isKeyPressed(.enter)) if (focused) |id| {
             if (scene.find(id)) |item| {
                 if (!std.mem.eql(u8, item.node.type, "select")) {
                     runtime.click(id) catch {};
                 }
             }
         };
-        if (rl.isKeyPressed(.space)) if (focused) |id| {
+        if (frame_input.isKeyPressed(.space)) if (focused) |id| {
             if (scene.find(id)) |item| {
                 if (std.mem.eql(u8, item.node.type, "button")) {
                     runtime.click(id) catch {};
@@ -701,45 +708,17 @@ pub fn run() void {
                 editor.move(item.node.value.len, false);
             };
         }
-        keyboard(&runtime, &scene, focused, &editor, scratch.allocator()) catch |err| std.log.err("Text input failed: {}", .{err});
+        keyboard(&runtime, &scene, focused, &editor, scratch.allocator()) catch |err| {
+            if (driver_enabled) driver.failure = @errorName(err);
+            std.log.err("Text input failed: {}", .{err});
+        };
         // Apply the complete interaction path before snapshot/layout/paint. In
         // event-wait mode there may be no next mouse event to finish this frame.
-        var pointer = rl.getMousePosition();
-        if (frame_smoke) {
-            pointer = .{ .x = -10, .y = -10 };
-            if (smoke_frames > 0 and smoke_frames <= 120) {
-                for (scene.items.items) |item| if (std.mem.eql(u8, item.node.type, "text") and std.mem.startsWith(u8, item.node.text, "Edit examples/")) {
-                    pointer = .{ .x = item.bounds.x + 3 + @as(f32, @floatFromInt(smoke_frames % 20)), .y = item.bounds.y + 5 };
-                    break;
-                };
-            } else if (smoke_frames >= 121) {
-                const button = scene.find(probe_button.?).?;
-                pointer = .{ .x = button.bounds.x + 6, .y = button.bounds.y + button.bounds.height / 2 };
-                if (smoke_frames >= 122) for (scene.items.items) |item| {
-                    if (item.parent_id == probe_button and std.mem.eql(u8, item.node.type, "text")) {
-                        pointer = .{ .x = item.bounds.x + item.bounds.width / 2, .y = item.bounds.y + item.bounds.height / 2 };
-                        break;
-                    }
-                };
-            }
-        }
-        if (hover_smoke) {
-            // Drive the real frame pipeline without moving the user's OS cursor.
-            pointer = .{ .x = -10, .y = -10 };
-            if (smoke_frames > 0) {
-                const button = scene.find(probe_button.?).?;
-                pointer = .{ .x = button.bounds.x + 6, .y = button.bounds.y + button.bounds.height / 2 };
-                if (smoke_frames == 2) for (scene.items.items) |item| {
-                    if (item.parent_id == probe_button and std.mem.eql(u8, item.node.type, "text")) {
-                        pointer = .{ .x = item.bounds.x + item.bounds.width / 2, .y = item.bounds.y + item.bounds.height / 2 };
-                        break;
-                    }
-                };
-            }
-        }
-        const pointer_inside = hover_smoke or frame_smoke or rl.isCursorOnScreen();
+        const pointer = frame_input.pointer;
+
+        const pointer_inside = frame_input.inside;
         const hovered_id = if (pointer_inside) scene.pointerTarget(pointer.x, pointer.y) else null;
-        const active_id = if (rl.isMouseButtonDown(.left)) hovered_id else null;
+        const active_id = if (frame_input.down) hovered_id else null;
         if (hovered_id != last_hovered or active_id != last_active or focused != last_focused) {
             runtime.pointer(hovered_id, active_id, focused) catch |err| std.log.err("Pointer state failed: {}", .{err});
             last_hovered = hovered_id;
@@ -750,9 +729,11 @@ pub fn run() void {
             std.log.err("Could not update UI scene: {}", .{err});
             break;
         };
-        const animating = timeline.active();
+        const sample_motion = if (driver_enabled and runtime.controlled()) driver.sample_motion else true;
+        const animating = timeline.active() and runtime.now() != last_motion_time and (sample_motion or changed.state);
         const layout_changed = changed.layout or resized or (animating and timeline.needsLayout());
         const scene_changed = changed.state or animating or resized;
+        if (scene_changed) scene_revision += 1;
         var paint_changed = false;
         if (layout_changed) {
             var next = buildScene(&tree, &text_cache) catch |err| {
@@ -780,7 +761,10 @@ pub fn run() void {
             };
             paint_changed = result.paint;
         }
-        timeline.apply(&scene, runtime.seconds()) catch |err| std.log.err("Transition sample failed: {}", .{err});
+        if (sample_motion or changed.state or resized) {
+            timeline.apply(&scene, runtime.seconds()) catch |err| std.log.err("Transition sample failed: {}", .{err});
+            last_motion_time = runtime.now();
+        } else timeline.paint_changed = false;
         if (layout_changed) scene.applyScrollOffsets(&scroll_offsets);
         if (scrolled and !layout_changed) scene.applyScrollOffsets(&scroll_offsets);
         if (focused) |id| if (scene.find(id) == null) {
@@ -790,14 +774,7 @@ pub fn run() void {
         const cursor_target = if (!pointer_inside) null else if (scene_changed or scrolled) scene.pointerTarget(pointer.x, pointer.y) else hovered_id;
         const reconcile_pointer = cursor_target != hovered_id;
         const hovered = if (cursor_target) |id| scene.find(id) else null;
-        if (hover_smoke and smoke_frames > 0) {
-            const button = scene.find(probe_button.?).?;
-            if (!button.node.hovered or !std.mem.eql(u8, button.node.style.backgroundColor, "#4685b3")) {
-                std.log.err("Hover was not synchronized in the input frame", .{});
-                return;
-            }
-            if (smoke_frames == 2) std.log.info("Native hover frame regression passed: immediate entry and text ancestry", .{});
-        }
+
         const cursor = if (hovered) |h| h.node.style.cursor else "auto";
         var pointer_control = false;
         var ancestor = hovered;
@@ -810,59 +787,45 @@ pub fn run() void {
         }
         if (pointer_inside) ui_cursor_update(cursor.ptr, cursor.len, if (hovered) |h| (if (std.mem.eql(u8, h.node.type, "input") or (std.mem.eql(u8, h.node.type, "text") and !pointer_control)) 1 else 0) else 0, if (pointer_control) 1 else 0);
         const refresh = ui_refresh_changed() != 0;
-        const needs_paint = !painted or paint_changed or layout_changed or timeline.paint_changed or scrolled or previous_focus != focused or !std.meta.eql(previous_editor, editor) or refresh or (smoke and smoke_frames == 2 and getenv("SOLID_NATIVE_SCREENSHOT") != null);
+        const needs_paint = (if (driver_enabled) driver.wantsCapture() else false) or !painted or paint_changed or layout_changed or timeline.paint_changed or scrolled or previous_focus != focused or !std.meta.eql(previous_editor, editor) or refresh or (smoke and smoke_frames == 2 and getenv("SOLID_NATIVE_SCREENSHOT") != null);
         if (needs_paint) {
             rl.beginDrawing();
             rl.clearBackground(background_color);
             var draw_context = DrawContext{ .focused = focused, .editor = &editor, .scroll_offsets = &scroll_offsets, .text_cache = &text_cache };
             renderer.render(&scene, &draw_context, drawItem, scratch.allocator()) catch |err| std.log.err("Could not render UI: {}", .{err});
+            if (driver_enabled) driver.capture(scratch.allocator()) catch |err| {
+                driver.failure = @errorName(err);
+            };
             painted = true;
             paint_frames += 1;
         }
-        if (frame_smoke) {
-            const expected: struct { paints: usize, layouts: usize } = switch (smoke_frames) {
-                0...120 => .{ .paints = 1, .layouts = 1 },
-                121...123 => .{ .paints = 2, .layouts = 1 },
-                124 => .{ .paints = 3, .layouts = 2 },
-                125...126 => .{ .paints = 4, .layouts = 2 },
-                127 => .{ .paints = 5, .layouts = 2 },
-                128 => .{ .paints = 6, .layouts = 3 },
-                else => .{ .paints = 7, .layouts = 3 },
-            };
-            if (paint_frames != expected.paints or layout_runs != expected.layouts) {
-                std.log.err("Frame probe step {d}: {d} paints/{d} layouts, expected {d}/{d}", .{ smoke_frames, paint_frames, layout_runs, expected.paints, expected.layouts });
-                return;
-            }
-        }
+
         if (event_waiting) {
             const timeout = runtime.nextTimeout();
-            ui_wake_schedule(if (frame_smoke or reconcile_pointer) 0 else if (timeline.active()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
+            ui_wake_schedule(if (reconcile_pointer) 0 else if (timeline.active() and !runtime.controlled()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
         }
         if (needs_paint) {
             rl.endDrawing();
+            submitted += 1;
+            // WM_PAINT delivered while swapping the frame is already covered
+            // by that submission when the surface dimensions still match.
+            if (last_width == rl.getScreenWidth() and last_height == rl.getScreenHeight()) _ = ui_refresh_changed();
         } else {
             // Raylib normally processes events in EndDrawing. Wait/process them
             // explicitly without drawing or swapping an unchanged framebuffer.
             if (!event_waiting) rl.waitTime(1.0 / 60.0);
             rl.pollInputEvents();
         }
+        if (driver_enabled) {
+            if (driver.again(&runtime, reconcile_pointer)) continue;
+            driver.native_stats = native_accounting.stats;
+            driver.reply(&runtime, &tree, &scene, scene_revision, layout_runs, paint_frames, submitted, scratch.allocator()) catch |err| driver.transportError(@errorName(err));
+            if (driver.close) break;
+            if (event_waiting) rl.enableEventWaiting();
+        }
         if (smoke) {
             smoke_frames += 1;
-            if (smoke_frames >= (if (frame_smoke) @as(usize, 130) else 3)) {
-                if (frame_smoke) {
-                    if (!event_waiting) {
-                        std.log.err("Frame probe did not exercise event waiting", .{});
-                        return;
-                    }
-                    std.log.info("Native frame scheduling passed: 120 unchanged moves, cursor-only update, paint hover, layout, timer, OS exposure, resize and focus; {d} paints/{d} layouts across {d} iterations", .{ paint_frames, layout_runs, smoke_frames });
-                }
-                if (hover_smoke) {
-                    if (paint_frames != 2 or layout_runs != 1) {
-                        std.log.err("Hover invalidation regression: {d} paints, {d} layouts", .{ paint_frames, layout_runs });
-                        return;
-                    }
-                    std.log.info("Native hover invalidation passed: 2 paints, 1 layout, text entry skipped paint", .{});
-                }
+            if (smoke_frames >= 3) {
                 if (getEnvSlice("SOLID_NATIVE_SCREENSHOT")) |path| {
                     const screenshot = scratch.allocator().dupeSentinel(u8, path, 0) catch return;
                     rl.takeScreenshot(screenshot);

@@ -151,7 +151,7 @@ if (process.send) process.on('message', message => {
   })();
 });
 try {
-  server = await createServer({ mode: 'native-hmr', configFile, cacheDir: join(session.dir, 'vite'), plugins: [{ name: 'native-session-lifecycle', configureServer: bindServer }], server: { host: '127.0.0.1', port, strictPort: true } });
+  server = await createServer({ mode: 'native-hmr', configFile, cacheDir: join(session.dir, 'vite'), plugins: [{ name: 'native-session-lifecycle', configureServer: bindServer }], server: { host: '127.0.0.1', port, strictPort: true, watch: { ignored: ['**/.zig-cache/**', '**/zig-out/**'] } } });
   await server.listen();
   // The listening hook performs fingerprint validation before starting work.
   while (!online && !stopping) await new Promise(resolve => setTimeout(resolve, 10));

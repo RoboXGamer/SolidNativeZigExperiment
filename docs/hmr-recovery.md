@@ -155,3 +155,11 @@ proves the listener was released. Measurements are opt-in with
 `DRAFT1_HMR_METRICS=1` (or the owned fixture IPC channel); normal dev operation
 does not sample process memory/CPU per module. The root `pnpm test` gate now
 runs all three delivery/restart/compiler boundary scripts.
+
+Integrated follow-up validation completed November 19, 2026: `pnpm test` and
+`zig build test test-native --summary all` pass. Vite's source watcher excludes
+all generated `.zig-cache` and `zig-out` directories, including previous HMR
+sessions and standalone-module caches. The compiler harness verifies generated
+cache churn cannot trigger a publication; fresh CLI startup and all restart
+cases are exercised by the full gate. The recorded JSON above is refreshed
+from that integrated run.

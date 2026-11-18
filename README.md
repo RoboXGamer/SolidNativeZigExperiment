@@ -4,7 +4,7 @@
 
 The goal is a small, approachable native UI toolkit: compose components, manage state with Solid, import a `.css` file, and let the native runtime handle layout, text, drawing and input. Application code stays in familiar JSX and CSS; the engine underneath is Zig.
 
-**Status:** experimental, with a working Windows host and runnable examples. The project uses Solid **2.0.0-rc.21**. There is no published SDK yet; CSS support is a subset and HMR needs substantial hardening. Other platform hosts are future work.
+**Status:** experimental, with a working Windows host and runnable examples on Solid **2.0.0**. CSS support is a subset and HMR needs substantial hardening. SDK packaging and other platform hosts are future work.
 
 ![Tic-tac-toe setup screen rendered by the native Windows application](docs/images/tictactoe-native.png)
 
@@ -80,7 +80,7 @@ After setup, run `pnpm dev --example counter`. There is no per-example Zig code 
 
 ## Run it on Windows
 
-Requires **Zig 0.17.0**, **Node.js**, **pnpm** and **Git**. Run these commands from the repository root:
+Requires **Zig 0.17.0**, **Node.js** (`^22.18.0 || >=24.11.0`), **pnpm** and **Git**. Run these commands from the repository root:
 
 ```powershell
 node tools/setup.mjs

@@ -1,6 +1,6 @@
 # Solid → Zig adapter
 
-Solid 2.0.0-rc.21's universal renderer targets a retained host tree. The adapter
+Solid 2.0.0's universal renderer targets a retained host tree. The adapter
 normalizes style objects, batches changed nodes, acknowledges native commits,
 and dispatches input by stable node ID. Solid's own client runtime supplies its
 reactivity, stores, lifecycle actions, contexts, lazy modules and control flow.

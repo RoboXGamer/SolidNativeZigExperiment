@@ -1,6 +1,6 @@
 # Portable Windows build
 
-Install Zig 0.17.0, Node.js, pnpm and Git on the build machine, then run:
+Install Zig 0.17.0, Node.js (`^22.18.0 || >=24.11.0`), pnpm and Git on the build machine, then run:
 
 ```powershell
 pnpm install --frozen-lockfile

@@ -1,0 +1,11 @@
+{
+  "extends": "../../jsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "strict": true,
+    "skipLibCheck": false,
+    "types": [],
+    "lib": ["ESNext"]
+  },
+  "include": ["./native.tsx"]
+}

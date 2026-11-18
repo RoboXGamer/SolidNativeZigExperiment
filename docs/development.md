@@ -45,7 +45,19 @@ The root pins Solid and its universal renderer at 2.0.0 and the Vite plugin
 at 3.0.0. The explicit signals pin makes Vite deduplicate against the same
 engine as the runtime. The web package satisfies the Vite plugin's peer
 dependency. Native compilation targets `@zig-ui/solid/renderer`.
-See the [upgrade record](plans/solid-2-stable-upgrade.md).
+
+The Solid 2 stable upgrade landed in commit `79cb103` (#382). Its recorded
+validation on Windows x64 (Node 26.13.0, pnpm 12.15.0, Zig 0.17.0) covered a
+clean frozen install with strict peers, one signals engine per bundle, native
+compiler loading, native JSX types, the JavaScript/example suites, embedded
+QuickJS contracts in production and development, and native framebuffer,
+hover and frame-scheduling probes. The ten HMR audit reproductions matched
+the RC21 baseline; the upgrade did not fix those known failures. These are
+historical results, not checks rerun for later documentation edits.
+
+A native async example remains follow-up work: demonstrate first-load fallback,
+retained results, pending feedback, rejection and retry before simplifying the
+manual loading/request-token logic in `states`.
 
 The host uses the pinned Solid client runtime rather than reimplementing its primitives. Signals, effects, memos, deferred/optimistic state, stores/projections, actions, lifecycle hooks, contexts, children, unique IDs, lazy components/modules and control-flow components come from `solid-js`. Native layout and input operate on the resulting universal-renderer nodes. Browser DOM APIs, Node built-ins, computed dynamic import paths and top-level-await application modules require additional host support.
 

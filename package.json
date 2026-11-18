@@ -8,7 +8,7 @@
         "build:ui": "node tools/build-ui.mjs",
         "dev:ui": "node tools/dev.mjs",
         "dev:app": "node tools/run-example.mjs",
-        "test": "pnpm run test:types && pnpm run test:solid && pnpm run test:features && pnpm run test:bridge && pnpm run test:refresh && pnpm run test:tree && pnpm run test:select && pnpm run test:packages && pnpm run test:css && pnpm run test:hover && pnpm run test:examples",
+        "test": "pnpm run test:types && pnpm run test:solid && pnpm run test:features && pnpm run test:bridge && pnpm run test:refresh && pnpm run test:tree && pnpm run test:select && pnpm run test:packages && pnpm run test:css && pnpm run test:hover && pnpm run test:examples && pnpm run test:hmr && pnpm run test:hmr:native",
         "test:types": "tsc -p tests/types/tsconfig.json",
         "test:solid": "node --conditions=browser --conditions=development tests/solid-stable.mjs",
         "test:solid:native": "node tools/test-solid-stable-native.mjs",
@@ -27,6 +27,8 @@
         "test:select": "node --conditions=browser --conditions=development packages/solid-zig/tests/select-control.mjs",
         "setup": "node tools/setup.mjs",
         "test:native": "zig build test-native",
+        "test:hmr": "node --conditions=browser --conditions=development tools/audit-hmr.mjs && node tools/test-hmr-rejection.mjs && zig build test-runtime -Ddriver=true",
+        "test:hmr:native": "node tools/test-hmr-native.mjs",
         "test:runtime": "zig build test-runtime -Ddriver=true",
         "test:driver": "node tools/test-clock-driver.mjs",
         "test:smoke": "node tools/smoke-native.mjs"

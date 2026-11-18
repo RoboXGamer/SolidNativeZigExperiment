@@ -4,7 +4,7 @@
 
 The goal is a small, approachable native UI toolkit: compose components, manage state with Solid, import a `.css` file, and let the native runtime handle layout, text, drawing and input. Application code stays in familiar JSX and CSS; the engine underneath is Zig.
 
-**Status:** experimental, with a working Windows host and runnable examples on Solid **2.0.0**. CSS support is a subset and HMR needs substantial hardening. SDK packaging and other platform hosts are future work.
+**Status:** experimental, with a working Windows host and runnable examples on Solid **2.0.0**. CSS support is a subset. HMR has session delivery, failure recovery and native regression gates; SDK packaging and other platform hosts are future work.
 
 ![Tic-tac-toe setup screen rendered by the native Windows application](docs/images/tictactoe-native.png)
 
@@ -121,7 +121,7 @@ Omitting `--example` selects `css`. Run one example at a time: the examples shar
 - **Native layout and painting.** Block, flex and grid layout, positioning, scrolling, text editing, rounded corners, gradients, shadows, clipping, transforms, opacity and runtime transitions have implementations and targeted tests. Support varies by property and value.
 - **Windows text.** DirectWrite shares shaped layouts between measurement, painting, caret hit testing and horizontal selection. Glyph coverage is rendered at device resolution.
 - **Work scheduled by changes.** The bridge separates layout, paint, interaction and motion inputs. The host waits for events while idle and can process unchanged input without drawing or swapping buffers. Timers and transitions schedule further work.
-- **An existing development loop.** Vite builds JSX and styles and delivers updates to QuickJS. Basic updates work, but failed updates, cleanup and recovery have known defects tracked in the [HMR audit](docs/audit/hmr-bridge.md).
+- **A tested development loop.** Vite builds JSX and styles and delivers versioned session updates to QuickJS. Cleanup, failure recovery, CSS ownership and native publication have [regression gates and explicit limits](docs/hmr-recovery.md).
 
 These are working implementation areas, not a claim of complete browser compatibility or production readiness. The [development guide](docs/development.md) describes the supported CSS subset, host restrictions and checks.
 
@@ -175,7 +175,7 @@ The [implementation index](docs/plans/exact-tracking.md) connects the plans and 
 - **Native elements are toolkit-rendered.** Familiar JSX tags do not imply browser DOM APIs or Windows system widgets. Complete controls, accessibility and IME behavior remain active roadmap work.
 - **CSS is a supported subset.** Full browser cascade/query conformance, CSS Modules, `@font-face`, `@keyframes`, remote assets and full multi-layer image semantics are not available. Parsing a property does not establish native support for every value.
 - **The embedded host has limits.** Browser DOM APIs, Node built-ins, computed dynamic imports and top-level-await application modules need additional host support.
-- **HMR is experimental.** Component state may reset, runtime updates are not transactional, and the audit records reproducible edge-case failures. Restart the app after changing Zig, the renderer/host or Vite configuration.
+- **HMR is experimental.** Component state may reset and arbitrary JavaScript effects cannot be rolled back. Failed graphs remount on correction; asynchronous lifecycle hooks and embedded runtime/config changes require an explicit restart. See the [recovery policy](docs/hmr-recovery.md).
 - **Performance work is ongoing.** Paint textures and computed styles are cached, but tree/layout updates still rebuild the scene. No cross-toolkit performance or memory advantage is claimed without matched measurements.
 
 ## Development and verification

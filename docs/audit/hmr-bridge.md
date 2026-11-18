@@ -1,5 +1,9 @@
 # HMR and bridge reliability audit
 
+Historical audit: runtime fixes and corrected regression commands are now
+documented in [HMR recovery and delivery](../hmr-recovery.md). The observations
+below describe the original baseline, not the current implementation.
+
 Baseline: `1c75169323257fe484ec1bf14218c8c145c11e9f` on local `master`.
 Node `v26.13.0`, pnpm `12.15.0`, Zig `0.17.0`,
 Solid `2.0.0-rc.21`, Vite `8.3.7`.

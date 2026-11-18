@@ -9,8 +9,8 @@ export function external(id) {
   id = id.split("?")[0];
   if (id === "/packages/solid-zig/src/native.js") return "native-host";
   if (id === "/packages/solid-zig/src/renderer.js") return "native-renderer";
-  if (/^\/node_modules\/\.vite\/deps\/solid-js_refresh\.js(?:\?|$)/.test(id)) return "solid-refresh";
-  if (/^\/node_modules\/\.vite\/deps\/solid-js\.js(?:\?|$)/.test(id)) return "solid-js";
+  if (/\/(?:\.vite|vite)\/deps\/solid-js_refresh\.js$/.test(id)) return "solid-refresh";
+  if (/\/(?:\.vite|vite)\/deps\/solid-js\.js$/.test(id)) return "solid-js";
   // Unoptimized package paths must share the embedded Solid runtime too.
   if (/\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?solid-js\/dist\/solid(?:\.dev)?\.js$/.test(id)) return "solid-js";
   if (/\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?solid-js\/dist\/refresh(?:\.dev)?\.js$/.test(id)) return "solid-refresh";
@@ -80,4 +80,3 @@ export async function compileGraph({ origin, entry, signal = AbortSignal.timeout
   if (generation() !== started) throw Error('Source generation changed during graph compilation');
   return graph;
 }
-

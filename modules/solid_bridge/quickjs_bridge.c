@@ -354,7 +354,7 @@ static int reload_source(void) {
     if (JS_IsException(result)) {
         report(); JS_FreeValue(context, result);
         ui_watchdog_start();
-        const char *recover="globalThis.__uiModules?.fail('HMR evaluation failed');if(globalThis.__hmrDelivery)globalThis.__hmrDelivery.phase='failed';";
+        const char *recover="if(['prepared','applying','recovering'].includes(globalThis.__uiModules?.status.phase)){globalThis.__uiModules.fail('HMR evaluation failed');if(globalThis.__hmrDelivery)globalThis.__hmrDelivery.phase='failed';}";
         result=JS_Eval(context,recover,strlen(recover),"hmr-recovery",JS_EVAL_TYPE_GLOBAL);
         if(JS_IsException(result))report();JS_FreeValue(context,result);
         delivery_receipt(); return 0;

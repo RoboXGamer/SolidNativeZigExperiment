@@ -14,7 +14,7 @@ pnpm dev --example counter
 
 `tools/setup.mjs` fetches the pinned QuickJS-NG revision. `pnpm dev` starts Vite and the native HMR adapter, builds the development bootstrap and launches the Zig application. Closing the app stops Vite; Ctrl+C stops the owned native process tree.
 
-Choose `counter`, `css`, `states` or `tictactoe` with `--example`. Omitting it selects `css`. Examples share generated bundles and the native executable; stop one before starting another. The [examples guide](../examples/README.md) describes entry discovery and adding an example.
+Choose `counter`, `css`, `states` or `tictactoe` with `--example`. Omitting it selects `css`. Each dev session owns its mailbox, bootstrap and Vite cache; use different ports for simultaneous producers. The [examples guide](../examples/README.md) describes entry discovery and adding an example.
 
 The two-terminal workflow uses the same example in both terminals:
 
@@ -23,7 +23,7 @@ The two-terminal workflow uses the same example in both terminals:
 pnpm dev:ui --example counter
 
 # Terminal 2
-pnpm dev:app --example counter
+pnpm dev:app --session <absolute-session.json-path-printed-by-terminal-1>
 ```
 
 For a production bundle and native launch:
@@ -65,13 +65,13 @@ The host uses the pinned Solid client runtime rather than reimplementing its pri
 
 Windows text uses DirectWrite natural layout and DPI-sized grayscale coverage. Measurement, painting, caret hit testing and horizontal selection share native layouts. The compositor keeps text at device resolution through clipping and opacity layers. See [native text implementation and validation](native-text.md).
 
-## HMR behavior and known failures
+## HMR behavior and recovery
 
 The adapter compiles the application dependency graph through Vite and listens to Vite's HMR WebSocket. Its QuickJS module host implements imports, re-exports, literal dynamic imports, module caching, hot data, dispose/prune callbacks and dependency acceptance. Ordinary helper changes propagate to importers; Solid Refresh handles component boundaries.
 
 Component-local state may reset when a component is replaced. An invalidated boundary remounts the application. Compile errors leave the last patch file intact; runtime failures during updates are not transactional. Changes to Zig, the renderer/host implementation or Vite configuration require an app restart.
 
-The [HMR audit](audit/hmr-bridge.md) records reproducible failures in cleanup, failed-update recovery, async acceptance, invalidation, entry ownership, CSS order/lifetime and native API parity. Existing happy-path support does not establish reliability across those cases. The audit probes record broken behavior; they are not implemented fixes. [Tracker #364](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/364) links the follow-up work.
+The [recovery guide](hmr-recovery.md) documents implemented fixes, session receipts, synchronous lifecycle policy, restart boundaries and regression evidence for [tracker #364](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues/364). The original audit is historical evidence. The audit command now runs corrected invariants, and the root gate includes real QuickJS and isolated live native edits.
 
 ## CSS authoring and supported scope
 
@@ -81,7 +81,7 @@ Use `<div>` for layout containers. It defaults to `display: block`; choose `disp
 
 The Vite plugin uses Lightning CSS for parsing and local `@import` bundling, PostCSS for normalized declarations and pinned cssstyle definitions for shorthand expansion. The runtime resolves author styles by importance, layer, specificity and source order, with inline styles participating in the cascade. It resolves custom properties and inheritance before producing the native snapshot. Unchanged computed styles are cached.
 
-CSS-only edits have a state-preserving update path, and removed imports have a stylesheet-pruning path. Known order/lifetime failures in those paths are tracked in the HMR audit; arbitrary edit sequences are not guaranteed to match a fresh launch.
+CSS-only edits preserve state. Stylesheet order follows the live import graph; disposal and graph retirement release owned stylesheets. Hot/fresh ordering and ownership have dedicated regressions.
 
 The selector subset covers ASCII type, universal, class and ID selectors, compounds, comma lists, descendant/child/sibling combinators, and `:root`, `:hover`, `:focus`, `:active`, `:disabled`, `:enabled`, `:checked`, `:empty`. `:root` matches the retained native root. Unsupported selectors and at-rules fail the build with a diagnostic. CSS Modules are intentionally rejected.
 

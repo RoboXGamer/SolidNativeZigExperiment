@@ -10,6 +10,7 @@ try {
   assert.deepEqual(Object.keys(graph).sort(), ['/app.js', '/dep.js', '/lazy.js']);
   assert.equal(clean('/dep.js?t=42&raw=1', origin), '/dep.js?raw=1');
   assert.equal(external('/node_modules/.pnpm/solid-js@2/node_modules/solid-js/dist/solid.dev.js'), 'solid-js');
+  assert.equal(external('/.zig-cache/hmr/session/vite/deps/solid-js.js?v=1'), 'solid-js');
   assert.throws(() => external('/packages/solid-zig/src/invalidation.js'), /Unsupported embedded/);
   assert.throws(() => external('/node_modules/solid-js/store/dist/store.js'), /Unsupported embedded/);
   sources['/app.js'] = 'await Promise.resolve();';

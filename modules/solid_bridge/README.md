@@ -12,7 +12,7 @@ MIT-licensed dependency; retain its license when distributing compiled code.
 The current C implementation permits one live Runtime per process. Creating a
 second returns `RuntimeAlreadyInitialized`; it does not replace the first one.
 The host must call `tick`, use `nextTimeout` to schedule a wakeup, retrieve
-`changes`, apply them to its native tree and call `acknowledge` on success.
+`changes`, apply them to its native tree and scene, then call `acknowledge` on success.
 Every returned change string must be released using `freeChanges`.
 
 The JavaScript adapter lives separately in `packages/solid-zig`. Application
@@ -22,7 +22,8 @@ animation-frame scheduling are provided by the host bootstrap.
 
 The Windows sample's timer worker only posts GLFW events; QuickJS always runs
 on the UI thread. The development file watcher belongs to the sample backend,
-not this library. The current `reload` helper consumes the sample's HMR patch
-file and is a development convenience rather than a general module-file API.
+not this library. The `reload` helper consumes the session envelope selected by
+`DRAFT1_HMR_PATH`; it returns 0 for failure, 1 for application and 2 for unchanged
+delivery. See [delivery and recovery](../../docs/hmr-recovery.md).
 
 No publishing or package-registry release has been performed.

@@ -18,16 +18,17 @@ async function waitFor(read, label, timeout = 20000) {
   }
   throw Error(`Timed out: ${label} ${last || ''}\n` + sessions.map(s => s.output + s.nativeOutput).join('\n'));
 }
-function app(text) { return `import {mountApp, findById} from '@zig-ui/solid';import './style.css';import {value} from './dep.js';globalThis.coldStarts=(globalThis.coldStarts||0)+1;if(globalThis.coldStarts>1)throw Error('duplicate cold initialization');mountApp(()=> <label testId="result">${text}:{value}</label>);if(import.meta.hot)import.meta.hot.dispose(()=>{globalThis.coldStarts--});`; }
+function app(text) { return `import {mountApp, findById} from '@zig-ui/solid';import {createSignal} from 'solid-js';import './style.css';import {value} from './dep.js';globalThis.coldStarts=(globalThis.coldStarts||0)+1;if(globalThis.coldStarts>1)throw Error('duplicate cold initialization');mountApp(()=>{const[n,set]=createSignal(0,{ownedWrite:true});return <div><label testId="result">${text}:{value}:{n()}</label><button testId="inc" onClick={()=>set(n()+1)}>increment</button><button testId="lazy" onClick={()=>import('./lazy.js').then(m=>m.apply())}>lazy</button></div>});if(import.meta.hot)import.meta.hot.dispose(()=>{globalThis.coldStarts--});`; }
 async function start(index) {
   console.log('Starting isolated HMR session', index);
   const dir = join(root, String(index)); await mkdir(dir);
   await writeFile(join(dir, 'app.jsx'), app('initial'));
   await writeFile(join(dir, 'dep.js'), 'export const value=1;');
+  await writeFile(join(dir, 'lazy.js'), `export function apply(){console.log('HMR lazy import executed')}`);
   await writeFile(join(dir, 'style.css'), 'label {color:red;}');
   const entry = '/' + join(dir, 'app.jsx').slice(resolve('.').length + 1).replaceAll('\\', '/');
   const s = { dir, entry, output: '', nativeOutput: '' }; sessions.push(s);
-  s.producer = spawn(process.execPath, ['tools/dev.mjs'], { env: { ...process.env, DRAFT1_ENTRY: entry, DRAFT1_VITE_PORT: String(19000 + index + process.pid % 15000) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  s.producer = spawn(process.execPath, ['tools/dev.mjs'], { env: { ...process.env, DRAFT1_ENTRY: entry, DRAFT1_VITE_PORT: String(19000 + index + process.pid % 15000) }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
   s.producer.stdout.on('data', c => s.output += c); s.producer.stderr.on('data', c => s.output += c);
   const manifest = await waitFor(() => s.output.match(/; session (.+session\.json)/)?.[1]?.trim(), 'manifest');
   s.manifest = JSON.parse(await readFile(manifest, 'utf8'));
@@ -65,10 +66,34 @@ try {
   await receipt(a, previous + 1, 'failed');
   assert.equal(a.native.exitCode, null);
   await edit(a, 'dep.js', 'export const value=4;', 'initial:4');
+  let before = JSON.parse(await readFile(a.manifest.status, 'utf8')).revision;
+  const interruptedAt = performance.now();
+  await writeFile(join(a.dir, 'dep.js'), 'while(true){};export const value=40;');
+  await receipt(a, before + 1, 'failed');
+  assert.ok(performance.now() - interruptedAt < 12000, 'HMR loop interrupt is bounded');
+  await edit(a, 'dep.js', 'export const value=41;', 'initial:41');
+  before = JSON.parse(await readFile(a.manifest.status, 'utf8')).revision;
+  await writeFile(join(a.dir, 'dep.js'), `Promise.reject(Error('expected HMR rejection'));export const value=42;`);
+  await receipt(a, before + 1, 'failed');
+  await edit(a, 'dep.js', 'export const value=43;', 'initial:43');
   await unlink(join(a.dir, 'dep.js'));
   await delay(300);
   await edit(a, 'dep.js', 'export const value=5;', 'initial:5');
+  await a.driver.command('click', { target: { testId: 'inc' } });
+  await waitFor(async () => (await text(a)).includes('initial:5:1'), 'signal increment');
   await edit(a, 'style.css', 'label {color:blue;}', 'initial:5');
+  assert.match(await text(a), /initial:5:1/, 'CSS update preserves component state');
+  await a.driver.command('click', { target: { testId: 'lazy' } });
+  assert.ok((await a.driver.command('logs')).logs.lines.includes('HMR lazy import executed'));
+  before = JSON.parse(await readFile(a.manifest.status, 'utf8')).revision;
+  a.producer.send('test-disconnect');
+  await receipt(a, before + 1);
+  assert.match(await text(a), /initial:5/);
+  const ownGraph = await readFile(b.manifest.path, 'utf8');
+  await writeFile(b.manifest.path, await readFile(a.manifest.path, 'utf8'));
+  await delay(700);
+  assert.match(await text(b), /initial:1/, 'foreign session leaves last-good app intact');
+  await writeFile(b.manifest.path, ownGraph);
   const baseline = (await a.driver.command('metrics')).quickjs;
   for (let i = 6; i < 26; i++) await edit(a, 'dep.js', `export const value=${i};`, `initial:${i}`);
   await Promise.all(Array.from({ length: 20 }, (_, i) => writeFile(join(a.dir, 'dep.js'), `export const value=${30 + i};`)));
@@ -80,7 +105,7 @@ try {
   await a.driver.command('close'); a.driver.disconnect(); a.driver = null;
   await waitFor(() => a.native.exitCode === 0, 'normal native close');
   measurements.sort((x, y) => x - y);
-  console.log(JSON.stringify({ scenarios: 'two sessions; exactly-once bootstrap; dependency edit; factory failure/correction; delete/recreate; CSS; 20 edits; burst/latest; normal close', edits: measurements.length, p50Ms: measurements[Math.floor(measurements.length * .5)], p95Ms: measurements[Math.floor(measurements.length * .95)], quickjsBefore: baseline, quickjsAfter: metrics.quickjs }, null, 2));
+  console.log(JSON.stringify({ scenarios: 'two sessions; exactly-once bootstrap; dependency edit; factory failure/correction; interrupted factory/correction; unhandled rejection/correction; delete/recreate; CSS state preservation; lazy import; WebSocket reconnect; foreign-session rejection; scene failure recovery; 20 edits; burst/latest; normal close', edits: measurements.length, p50Ms: measurements[Math.floor(measurements.length * .5)], p95Ms: measurements[Math.floor(measurements.length * .95)], quickjsBefore: baseline, quickjsAfter: metrics.quickjs }, null, 2));
 } finally {
   for (const s of sessions) {
     s.driver?.disconnect(); await stopNative(s.native); await stopNative(s.producer);

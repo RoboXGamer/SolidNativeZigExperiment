@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+const exe = '.zig-cache/hmr-rejection.exe';
+const result = spawnSync('zig', ['cc', '-O2', '-D_GNU_SOURCE', '-DWIN32_LEAN_AND_MEAN', '-Ivendor/quickjs', 'tests/fixtures/hmr-rejection-audit.c', 'modules/solid_bridge/quickjs_bridge.c', ...['cutils', 'dtoa', 'libregexp', 'libunicode', 'quickjs'].map(file => `vendor/quickjs/${file}.c`), '-o', exe], { encoding: 'utf8', timeout: 120000 });
+assert.equal(result.status, 0, result.stdout + result.stderr);
+const run = spawnSync(exe, [], { encoding: 'utf8', timeout: 10000 });
+assert.equal(run.status, 0, run.stdout + run.stderr);
+assert.match(run.stderr, /unhandled rejection: Error: AUDIT_UNHANDLED_REJECTION/);
+assert.match(run.stdout, /boot=1 rejected=0 tracked=1 handled=1 released=1/);
+console.log('Standalone QuickJS C rejection fixture passed');

@@ -47,7 +47,7 @@ server.watcher.on('all', (event, file) => {
   const path = file.replaceAll('\\', '/');
   if (/\/(?:\.zig-cache|zig-out|node_modules)\//.test(path) || /\/src\/ui-(?:bundle|hmr)/.test(path)) return;
   sourceGeneration++; controller?.abort(Error('Source changed'));
-  if (/\/(?:packages\/solid-zig\/src|modules|src)\//.test(path) || /\/(?:vite\.config\.mjs|pnpm-lock\.yaml|package\.json)$/.test(path)) {
+  if ((/\/(?:packages\/solid-zig\/src|modules|src)\//.test(path) && /\.(?:[cm]?[jt]sx?|json|zig|c|cpp|h)$/.test(path)) || /\/(?:vite\.config\.mjs|pnpm-lock\.yaml|package\.json)$/.test(path)) {
     restartRequired = true;
     console.error('[native-hmr] restart-required: embedded runtime changed; restart pnpm dev');
     request();
@@ -80,6 +80,10 @@ async function stop(code = 0) {
   clearTimeout(deadline); process.exitCode = typeof code === 'number' ? code : 0;
 }
 process.on('SIGINT', () => void stop()); process.on('SIGTERM', () => void stop());
+// An inherited IPC channel is available only to an owning test process.
+if (process.send) process.on('message', message => {
+  if (message === 'test-disconnect') ws?.close();
+});
 try {
   connect(); request(); await pending;
   polling = setInterval(async () => {

@@ -103,3 +103,15 @@ Executed Windows evidence during implementation:
 
 This is bounded regression evidence. Physical input/monitor scanout, exhaustive
 filesystem failure injection and an hours-long soak are not established here.
+
+### Delivery acceptance follow-up (#371)
+
+`node tools/test-hmr-delivery-native.mjs` passes against a real driver build.
+The driver fixture suppresses directory notifications, leaving the real 500 ms
+rescan fallback active. A Windows `FileStream` lock then denies native reads;
+after release, the latest graph reaches the presented receipt without another
+source edit. A second sharing lock denies rename through all eight publication
+attempts. The producer retains/retries that latest edit and applies it after
+release, again without another edit. Truncated delivery and duplicate replay
+leave the last-good frame and acknowledged revision intact. Fault controls are
+compiled only into driver builds; locks touch session-owned files only.

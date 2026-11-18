@@ -336,7 +336,7 @@ static int reload_source(void) {
     const char *path=getenv("DRAFT1_HMR_PATH");
     if(!path)return 0;
     FILE *file = fopen(path, "rb");
-    if (!file) return 0;
+    if (!file) { fprintf(stderr,"[native-hmr] read-retry: delivery temporarily unavailable\n"); return 0; }
     if (fseek(file, 0, SEEK_END) != 0) { fclose(file); return 0; }
     long size = ftell(file);
     if (size <= 0 || size > 32 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {

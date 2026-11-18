@@ -7,13 +7,14 @@ export async function compatibility() {
     hash.update(await readFile(file));
   return hash.digest('hex');
 }
-export async function atomicWrite(file, value, signal) {
+export async function atomicWrite(file, value, signal, onRetry = () => {}) {
   const temp = file + '.tmp';
   await writeFile(temp, value);
   for (let attempt = 0; ; attempt++) {
     signal?.throwIfAborted();
     try { await rename(temp, file); return; } catch (error) {
       if (attempt === 7 || !['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) throw error;
+      onRetry({ attempt: attempt + 1, code: error.code });
       await new Promise(resolve => setTimeout(resolve, 20 * (attempt + 1)));
     }
   }

@@ -43,7 +43,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path(b.option([]const u8, "ui-bundle", "JavaScript bundle to embed") orelse "src/ui-bundle.js"),
     });
     module.linkLibrary(raylib.artifact("raylib"));
-    module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = &.{} });
+    module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = if (driver_enabled) &.{"-DUI_DRIVER=1"} else &.{} });
     module.addCSourceFile(.{ .file = b.path("src/event_wakeup.c"), .flags = &.{} });
     module.addCSourceFile(.{ .file = b.path("src/text_backend.cpp"), .flags = &.{ "-std=c++17", "-fno-exceptions" } });
     module.link_libcpp = true;

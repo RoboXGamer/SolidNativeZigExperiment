@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #ifdef _WIN32
 #include <windows.h>
 extern void glfwPostEmptyEvent(void);
@@ -11,6 +12,12 @@ static DWORD WINAPI watch_main(LPVOID unused) {
     OVERLAPPED op = {0};
     op.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (!op.hEvent) return 0;
+#ifdef UI_DRIVER
+    if (getenv("SOLID_NATIVE_TEST_MISSED_NOTIFICATIONS")) {
+        fprintf(stderr,"[native-hmr] test: notifications suppressed; rescan fallback active\n");
+        goto fallback;
+    }
+#endif
     while (!InterlockedCompareExchange(&watch_stopping, 0, 0)) {
         ResetEvent(op.hEvent);
         if (!ReadDirectoryChangesW(watch_dir, buffer, sizeof(buffer), FALSE,
@@ -44,6 +51,9 @@ static DWORD WINAPI watch_main(LPVOID unused) {
         }
     }
     // If the notification API fails, retain a bounded rescan wakeup fallback.
+#ifdef UI_DRIVER
+fallback:
+#endif
     while (!InterlockedCompareExchange(&watch_stopping, 0, 0) && WaitForSingleObject(watch_stop_event, 500) == WAIT_TIMEOUT) {
         InterlockedExchange(&watch_changed, 1); glfwPostEmptyEvent();
     }
@@ -70,7 +80,13 @@ int ui_watch_start(void) {
     if (!watch_thread) { CloseHandle(watch_stop_event); CloseHandle(watch_dir); watch_dir = INVALID_HANDLE_VALUE; return 0; }
     return 1;
 }
-int ui_watch_changed(void) { return (int)InterlockedExchange(&watch_changed, 0); }
+int ui_watch_changed(void) {
+#ifdef UI_DRIVER
+    const char *gate=getenv("SOLID_NATIVE_TEST_WATCH_GATE");
+    if(gate && GetFileAttributesA(gate)!=INVALID_FILE_ATTRIBUTES)return 0;
+#endif
+    return (int)InterlockedExchange(&watch_changed, 0);
+}
 void ui_watch_stop(void) {
     if (!watch_thread) return;
     InterlockedExchange(&watch_stopping, 1);

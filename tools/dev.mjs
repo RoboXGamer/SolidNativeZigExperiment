@@ -27,12 +27,17 @@ async function publish() {
       const packet = { protocol: 1, session: session.session, entry: session.entry, compatibility: session.compatibility, revision: ++revision, type: restartRequired ? 'restart-required' : full ? 'full-reload' : 'update', graph };
       const source = `globalThis.__uiReceive(${JSON.stringify(packet)});\n`;
       if (Buffer.byteLength(source) > 32 * 1024 * 1024) throw Error('Serialized graph exceeds 32 MiB');
-      await atomicWrite(session.path, source, controller.signal);
+      await atomicWrite(session.path, source, controller.signal, retry => console.warn('[native-hmr] rename-retry', JSON.stringify(retry)));
       if (generation !== sourceGeneration || stopping) continue;
       reload = false; finished = request;
       console.log(`[native-hmr] published session=${session.session} revision=${revision} modules=${Object.keys(graph).length} bytes=${Buffer.byteLength(source)} type=${packet.type}`);
     } catch (error) {
       if (generation !== sourceGeneration || request !== requested) continue;
+      if (!stopping && ['EPERM', 'EBUSY', 'EACCES'].includes(error.code)) {
+        console.warn('[native-hmr] publication-retry: latest revision retained');
+        await new Promise(resolve => setTimeout(resolve, 250));
+        continue;
+      }
       finished = request; console.error('[native-hmr] compile-failed', error.message);
     } finally { clearTimeout(timeout); }
   }

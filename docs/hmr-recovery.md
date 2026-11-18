@@ -115,3 +115,17 @@ attempts. The producer retains/retries that latest edit and applies it after
 release, again without another edit. Truncated delivery and duplicate replay
 leave the last-good frame and acknowledged revision intact. Fault controls are
 compiled only into driver builds; locks touch session-owned files only.
+
+### Restart acceptance follow-up (#374)
+
+`node tools/test-hmr-restarts.mjs` passes actual Vite server replacement and
+WebSocket token rotation while saving, then another edit through the replacement
+watcher. The adapter binds each new server by lifecycle epoch and refreshes its
+connection/token. Runtime fingerprints cover native/bridge/renderer sources and
+the selected configuration, excluding generated caches. A fixture config edit
+causes a real config-triggered Vite restart and an explicit restart-required
+receipt. Graceful producer shutdown and native restart then load the new config
+and an edit made while the producer was down. A second session keeps its PID,
+identity and app, and still accepts its own edits. An initially throwing graph
+also keeps the native window alive and recovers after correction: the host
+establishes a valid bootstrap tree/scene before evaluating the dev graph.

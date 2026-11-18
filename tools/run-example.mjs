@@ -11,9 +11,9 @@ const session = JSON.parse(await readFile(args[index + 1], 'utf8')); args.splice
 const selection = configureExample(args);
 if (selection.args.length)
   throw Error(`Unknown run argument: ${selection.args.join(" ")}`);
-if (session.compatibility !== await compatibility()) throw Error('Runtime changed; restart dev:ui to create a compatible session');
+if (session.compatibility !== await compatibility(session.configFile)) throw Error('Runtime changed; restart dev:ui to create a compatible session');
 if (args.some(a => a.startsWith('--example')) && session.entry !== selection.entry) throw Error('Session example mismatch');
-await build({ mode: "native-hmr", build: { outDir: join(session.dir, 'bootstrap'), lib: { entry: join(projectRoot, 'tools/hmr-bootstrap.js'), name: 'NativeBootstrap', formats: ['iife'], fileName: () => 'ui-bundle.js' } } });
+await build({ mode: "native-hmr", configFile: session.configFile, build: { outDir: join(session.dir, 'bootstrap'), lib: { entry: join(projectRoot, 'tools/hmr-bootstrap.js'), name: 'NativeBootstrap', formats: ['iife'], fileName: () => 'ui-bundle.js' } } });
 const child = startNative(session);
 child.on("error", (error) => {
   console.error(error);

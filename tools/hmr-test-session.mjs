@@ -39,7 +39,7 @@ export class HmrFixture {
   async startProducer(extraEnv = {}) {
     this.output = ''; this.events = [];
     this.producer = spawn(process.execPath, ['tools/dev.mjs'], {
-      windowsHide: true, env: { ...process.env, DRAFT1_ENTRY: this.entry, DRAFT1_VITE_PORT: String(this.port), DRAFT1_HMR_TEST: '1', ...extraEnv },
+      windowsHide: true, env: { ...process.env, DRAFT1_ENTRY: this.entry, DRAFT1_VITE_PORT: String(this.port), DRAFT1_HMR_TEST: '1', ...(this.options.configFile ? { DRAFT1_VITE_CONFIG: this.options.configFile } : {}), ...extraEnv },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     });
     this.producer.stdout.on('data', c => { this.output += c; });
@@ -53,11 +53,12 @@ export class HmrFixture {
   async buildBootstrap() {
     await build({ mode: 'native-hmr', logLevel: 'silent', ...(this.options.configFile ? { configFile: this.options.configFile } : {}), build: { outDir: join(this.manifest.dir, 'bootstrap'), lib: { entry: resolve('tools/hmr-bootstrap.js'), name: 'NativeBootstrap', formats: ['iife'], fileName: () => 'ui-bundle.js' } } });
   }
-  async startHost(env = {}) {
+  async startHost(env = {}, beforeConnect) {
     const pipe = `hmr-boundary-${process.pid}-${randomBytes(5).toString('hex')}`, token = randomBytes(24).toString('hex');
     this.nativeOutput = '';
     this.native = spawn('zig-out/bin/windows.exe', [], { windowsHide: true, env: { ...process.env, ...nativeEnv(this.manifest), SOLID_NATIVE_PIPE: pipe, SOLID_NATIVE_TOKEN: token, SOLID_NATIVE_DRIVER_HIDDEN: '1', SOLID_NATIVE_DRIVER_SOURCE: this.manifest.bundle, ...env }, stdio: ['ignore', 'ignore', 'pipe'] });
     this.native.stderr.on('data', c => { this.nativeOutput += c; });
+    await beforeConnect?.();
     this.driver = await Driver.connect({ pipe, token });
     await this.receipt(); return this;
   }

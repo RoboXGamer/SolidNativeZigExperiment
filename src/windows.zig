@@ -534,7 +534,6 @@ pub fn run() void {
     _ = text_cache.setScale(rl.getWindowScaleDPI().x);
     const watching = ui_watch_start() != 0;
     defer if (watching) ui_watch_stop();
-    if (watching and runtime.reload() == 0) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
     rl.setExitKey(.null);
     const event_waiting = !smoke and ui_wake_start() != 0;
     defer if (event_waiting) ui_wake_stop();
@@ -563,6 +562,9 @@ pub fn run() void {
     };
     runtime.acknowledge() catch return;
     runtime.deliveryStage("scene-ready");
+    // Establish an independently owned bootstrap frame before evaluating any
+    // development graph, so an initially bad graph leaves a correctable window.
+    if (watching and runtime.reload() == 0) std.log.warn("Development graph unavailable or failed; waiting for correction", .{});
     defer scene.deinit();
     var scroll_offsets = std.AutoHashMap(u32, ui.ScrollOffset).init(hostAllocator());
     defer scroll_offsets.deinit();

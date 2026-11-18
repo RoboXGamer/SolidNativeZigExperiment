@@ -1,10 +1,18 @@
-import { mkdir, writeFile, rename, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, rename, readFile, readdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
-export async function compatibility() {
+export async function compatibility(configFile = resolve('vite.config.mjs')) {
   const hash = createHash('sha256');
-  for (const file of ['package.json', 'pnpm-lock.yaml', 'vite.config.mjs', 'packages/solid-zig/src/native.js', 'packages/solid-zig/src/renderer.js', 'packages/solid-zig/src/module-runtime.js', 'modules/solid_bridge/quickjs_bridge.c'])
-    hash.update(await readFile(file));
+  const files = ['package.json', 'pnpm-lock.yaml', 'build.zig', 'build.zig.zon', configFile];
+  async function scan(dir) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const file = join(dir, entry.name);
+      if (entry.isDirectory() && !entry.name.startsWith('.') && !['fixtures', 'tests', 'node_modules', 'zig-out'].includes(entry.name)) await scan(file);
+      else if (entry.isFile() && /\.(?:js|json|zig|c|cpp|h)$/.test(entry.name) && !/^ui-(?:bundle|hmr)/.test(entry.name)) files.push(file);
+    }
+  }
+  for (const dir of ['packages/solid-zig/src', 'modules', 'src']) await scan(dir);
+  for (const file of [...new Set(files)].sort()) { hash.update(file); hash.update(await readFile(file)); }
   return hash.digest('hex');
 }
 export async function atomicWrite(file, value, signal, onRetry = () => {}) {
@@ -19,10 +27,10 @@ export async function atomicWrite(file, value, signal, onRetry = () => {}) {
     }
   }
 }
-export async function createSession(entry, port) {
+export async function createSession(entry, port, configFile = resolve('vite.config.mjs')) {
   const session = randomUUID(), dir = resolve('.zig-cache/hmr', session);
   await mkdir(dir, { recursive: true });
-  const manifest = { protocol: 1, session, entry, port, compatibility: await compatibility(), dir, path: join(dir, 'graph.js'), status: join(dir, 'status.json'), bundle: join(dir, 'bootstrap', 'ui-bundle.js') };
+  const manifest = { protocol: 1, session, entry, port, configFile, compatibility: await compatibility(configFile), dir, path: join(dir, 'graph.js'), status: join(dir, 'status.json'), bundle: join(dir, 'bootstrap', 'ui-bundle.js') };
   await writeFile(join(dir, 'session.json'), JSON.stringify(manifest));
   return manifest;
 }

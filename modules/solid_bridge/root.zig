@@ -49,6 +49,8 @@ extern fn ui_eval_string(code: [*:0]const u8) ?[*:0]u8;
 extern fn ui_free_string(value: [*:0]u8) void;
 extern fn ui_destroy() void;
 extern fn ui_reload() c_int;
+extern fn ui_unhandled_count() c_int;
+extern fn ui_delivery_stage(phase: [*:0]const u8) void;
 extern fn ui_tick() c_int;
 extern fn ui_next_timeout() f64;
 extern fn ui_input(id: u32, text: [*:0]const u8) c_int;
@@ -142,7 +144,7 @@ pub const Runtime = struct {
     }
     pub fn acknowledge(_: *Runtime) !void {
         var ignored: [32]u8 = undefined;
-        if (ui_eval("uiCommit()", &ignored, ignored.len) == 0) return error.JavaScriptEvaluationFailed;
+        if (ui_eval("uiCommit(globalThis.__uiCollectedBatch)", &ignored, ignored.len) == 0) return error.JavaScriptEvaluationFailed;
     }
     pub fn tick(_: *Runtime) !void {
         ui_watchdog_start();
@@ -187,7 +189,7 @@ pub const Runtime = struct {
         scheduler = scheduling.Scheduler.init();
     }
     pub fn changes(_: *Runtime) ![:0]u8 {
-        const result = ui_eval_string("uiFrameChanges()") orelse return error.JavaScriptEvaluationFailed;
+        const result = ui_eval_string("(()=>{const value=uiFrameChanges();globalThis.__uiCollectedBatch=globalThis.__uiBatch;return value})()") orelse return error.JavaScriptEvaluationFailed;
         return std.mem.span(result);
     }
     pub fn freeChanges(_: *Runtime, value: [:0]u8) void {
@@ -207,8 +209,11 @@ pub const Runtime = struct {
         var result: [32]u8 = undefined;
         if (ui_eval(@ptrCast(expression.ptr), &result, result.len) == 0) return error.JavaScriptEvaluationFailed;
     }
-    pub fn reload(_: *Runtime) bool {
-        return ui_reload() != 0;
+    pub fn reload(_: *Runtime) c_int {
+        return ui_reload();
+    }
+    pub fn deliveryStage(_: *Runtime, phase: [*:0]const u8) void {
+        ui_delivery_stage(phase);
     }
 };
 
@@ -216,6 +221,16 @@ fn expectJS(code: [*:0]const u8, expected: []const u8) !void {
     const result = ui_eval_string(code) orelse return error.JavaScriptEvaluationFailed;
     defer ui_free_string(result);
     try std.testing.expectEqualStrings(expected, std.mem.span(result));
+}
+test "promise rejection diagnostics and handled-later roots" {
+    var rt = try Runtime.initMode("globalThis.p=null;", .controlled);
+    defer rt.deinit();
+    var ignored: [32]u8 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), ui_eval("p=Promise.reject(Error('expected rejection'));", &ignored, ignored.len));
+    try std.testing.expectEqual(@as(c_int, 1), ui_unhandled_count());
+    try expectJS("p.catch(()=>{});'handled'", "handled");
+    try std.testing.expectEqual(@as(c_int, 0), ui_unhandled_count());
+    try expectJS("Promise.reject(Error('same-turn')).catch(()=>{});'ok'", "ok");
 }
 fn advanceTest(runtime: *Runtime, ms: f64) !void {
     const at = try runtime.target(ms);

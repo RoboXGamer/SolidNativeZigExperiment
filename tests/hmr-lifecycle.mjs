@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createModuleHost } from '../packages/solid-zig/src/module-runtime.js';
 const s = { cleaned: [], mounts: 0, ghosts: 0 };
-const host = createModuleHost({ s });
+let host = createModuleHost({ s });
 const app = `require('s').mounts++; exports.version=1; __meta.hot.accept(next=>{if(next.version===2)throw Error('bad accept')});`;
 host.apply({ app }, 'app');
 assert.throws(() => host.apply({ app: app.replace('version=1', 'version=2') }, 'app'), /bad accept/);
@@ -24,6 +24,9 @@ host.dispose();
 host.apply({ app: `exports.v=1;__meta.hot.accept(()=>Promise.resolve());` }, 'app');
 assert.throws(() => host.apply({ app: `exports.v=2;__meta.hot.accept(()=>Promise.resolve());` }, 'app'), /Async accept is unsupported/);
 assert.equal(host.status.phase, 'failed');
+assert.equal(host.status.recovery, 'runtime-restart-required');
+assert.throws(() => host.apply({ app: '' }, 'app'), /Runtime restart required/);
+host.dispose(); host = createModuleHost({ s });
 for (let i = 0; i < 200; i++) {
   host.apply({ app: `__meta.hot.on('event',()=>{});require('s').late=__meta.hot.guard(()=>require('s').ghosts++); // ${i}` }, 'app');
   assert.equal(host.resources.listeners, 1);

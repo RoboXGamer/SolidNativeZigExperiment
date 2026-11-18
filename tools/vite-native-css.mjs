@@ -49,7 +49,7 @@ export default function nativeCss() {
         }
       }
       if (modules.length)
-        ctx.server.ws.send({ type: "full-reload", path: "*" });
+        ctx.server.ws.send({ type: "custom", event: "native:css" });
       return modules.length ? modules : undefined;
     },
     closeBundle() { dependencies.clear(); },

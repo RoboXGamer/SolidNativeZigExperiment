@@ -372,3 +372,24 @@ test "retained phase updates remain retryable after every allocation failure" {
     }
     try std.testing.expect(success);
 }
+
+test "last scene owns strings after tree retirement and failed replacement" {
+    var tree = ui.Tree.init(a);
+    defer tree.deinit();
+    _ = try tree.applyChanges(initial);
+    var scene = try ui.Scene.fromTreeWithText(&tree, 300, 200, .{ .measure_fn = measure });
+    defer scene.deinit();
+    const previous = try a.dupe(u8, scene.find(1).?.node.style.color);
+    defer a.free(previous);
+    _ = try tree.applyChanges(
+        \\{"root":1,"updates":[{"id":1,"paint":{"style":{"color":"replacement"}}}]}
+    );
+    var failing = std.testing.FailingAllocator.init(a, .{ .fail_index = 0 });
+    const saved_allocator = tree.allocator;
+    tree.allocator = failing.allocator();
+    try std.testing.expectError(error.OutOfMemory, ui.Scene.fromTreeWithText(&tree, 300, 200, .{ .measure_fn = measure }));
+    tree.allocator = saved_allocator;
+    try std.testing.expectEqualStrings(previous, scene.find(1).?.node.style.color);
+    _ = try scene.updateInputs(&tree, a, null);
+    try std.testing.expectEqualStrings("replacement", scene.find(1).?.node.style.color);
+}

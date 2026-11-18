@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { nativeEnv } from './hmr-session.mjs';
 
-export function startNative() {
-  return spawn("zig", ["build", "run"], {
+export function startNative(session) {
+  if (!session) throw Error('A native HMR session is required; start pnpm dev or pass --session');
+  return spawn("zig", ["build", "run", `-Dui-bundle=${session.bundle}`], {
     stdio: "inherit",
     cwd: fileURLToPath(new URL("../", import.meta.url)),
-    env: { ...process.env, DRAFT1_HMR: "1" },
+    env: { ...process.env, ...nativeEnv(session) },
   });
 }
 

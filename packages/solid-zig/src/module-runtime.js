@@ -28,13 +28,15 @@ export function createModuleHost(externals, options = {}) {
   installTimers();
   const definitions = new Map(), modules = new Map(), data = new Map(), listeners = new Map();
   let entry, applying = false, resetting = false, invalidated = false, revision = 0, lastGood;
-  let status = { phase: 'idle', revision: 0 };
+  let status = { phase: 'idle', revision: 0 }, restartRequired = false;
   const errors = [];
   function state(phase, detail = {}) { status = { phase, revision, ...detail }; options.status?.(status); }
   function sync(callback, args, id, phase) {
     try {
-      const result = callback(...args);
+      const record = modules.get(id);
+      const result = record ? owned(record, () => callback(...args)) : callback(...args);
       if (result && typeof result.then === 'function') {
+        restartRequired = true;
         Promise.resolve(result).catch(error => options.diagnostic?.({ id, phase, revision, error: String(error) }));
         throw Error(`Async ${phase} is unsupported; use hot.guard/signal and synchronous cancellation`);
       }
@@ -130,6 +132,7 @@ export function createModuleHost(externals, options = {}) {
     if (errors.length) { const failures = errors.splice(0); throw new AggregateError(failures, 'HMR cleanup failed: ' + failures.map(e => e.message).join('; ')); }
   }
   const host = {
+    fail(reason) { applying = false; resetting = false; reset(); state('failed', { error: String(reason), recovery: 'clean-remount-on-next-graph' }); },
     get status() { return status; },
     get resources() { return { modules: modules.size, data: data.size, listeners: [...listeners.values()].reduce((n, set) => n + set.size, 0) }; },
     dispose() {
@@ -137,6 +140,7 @@ export function createModuleHost(externals, options = {}) {
       state('disposed'); checkCleanup();
     },
     apply(next, nextEntry = entry, operation = {}) {
+      if (restartRequired) throw Error('Runtime restart required after unsupported asynchronous lifecycle hook');
       if (applying || resetting) throw Error('Recursive HMR apply is unsupported');
       const recovering = status.phase === 'failed';
       applying = true; revision++; state('prepared', { reason: operation.reason });
@@ -203,11 +207,15 @@ export function createModuleHost(externals, options = {}) {
           sheets.push(...record.sheets);
         }
         order(entry); options.order?.(sheets);
+        for (const [id, record] of modules) if (!seen.has(id)) {
+          cleanup(record, true); modules.delete(id); data.delete(id);
+        }
+        checkCleanup();
         emit('vite:afterUpdate', { changed: [...changed] });
         lastGood = { graph: { ...next }, entry }; state('applied'); return status;
       } catch (error) {
         reset(); errors.splice(0).forEach(e => options.diagnostic?.({ phase: 'cleanup', revision, error: String(e) }));
-        state('failed', { error: String(error), recovery: 'clean-remount-on-next-graph' }); throw error;
+        state('failed', { error: String(error), recovery: restartRequired ? 'runtime-restart-required' : 'clean-remount-on-next-graph' }); throw error;
       } finally { applying = false; }
     },
   };

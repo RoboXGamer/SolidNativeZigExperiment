@@ -11,6 +11,27 @@
 #endif
 static JSRuntime *runtime;
 static JSContext *context;
+typedef struct { JSValue promise, reason; int active, reported; } Rejection;
+static Rejection rejections[64];
+static int rejection_overflow;
+static void rejection_tracker(JSContext *ctx, JSValueConst promise, JSValueConst reason, bool handled, void *opaque) {
+    (void)opaque;
+    for(size_t i=0;i<64;i++)if(rejections[i].active && JS_VALUE_GET_PTR(rejections[i].promise)==JS_VALUE_GET_PTR(promise)) {
+        if(handled){JS_FreeValue(ctx,rejections[i].promise);JS_FreeValue(ctx,rejections[i].reason);memset(&rejections[i],0,sizeof(Rejection));}
+        return;
+    }
+    if(handled)return;
+    for(size_t i=0;i<64;i++)if(!rejections[i].active){rejections[i]=(Rejection){JS_DupValue(ctx,promise),JS_DupValue(ctx,reason),1,0};return;}
+    rejection_overflow=1;
+}
+int ui_unhandled_count(void) {
+    int count=rejection_overflow;for(size_t i=0;i<64;i++)count+=rejections[i].active;return count;
+}
+static JSValue clear_rejections(JSContext *ctx, JSValueConst self, int argc, JSValueConst *argv) {
+    (void)self;(void)argc;(void)argv;
+    for(size_t i=0;i<64;i++)if(rejections[i].active){JS_FreeValue(ctx,rejections[i].promise);JS_FreeValue(ctx,rejections[i].reason);}
+    memset(rejections,0,sizeof(rejections));rejection_overflow=0;return JS_UNDEFINED;
+}
 extern double host_app_now(void);
 extern int host_controlled(void);
 extern uint64_t host_timer_add(double ms, int kind);
@@ -132,7 +153,19 @@ int ui_jobs(void) {
     while ((result = JS_ExecutePendingJob(runtime, &job_context)) > 0 && ++count < 1024) {}
     if (result < 0) { report(); return 0; }
     if (JS_IsJobPending(runtime)) { fprintf(stderr, "QuickJS: job budget exhausted\n"); return 0; }
-    return 1;
+    for(size_t i=0;i<64;i++)if(rejections[i].active && !rejections[i].reported) {
+        rejections[i].reported=1;
+        const char *reason=JS_ToCString(context,rejections[i].reason);
+        fprintf(stderr,"QuickJS: unhandled rejection: %s\n",reason?reason:"unknown");record_log(reason?reason:"unhandled rejection");
+        if(reason)JS_FreeCString(context,reason);
+        JSValue stack=JS_IsObject(rejections[i].reason)?JS_GetPropertyStr(context,rejections[i].reason,"stack"):JS_UNDEFINED;const char *trace=JS_ToCString(context,stack);
+        if(trace){fprintf(stderr,"%s\n",trace);JS_FreeCString(context,trace);}JS_FreeValue(context,stack);
+        const char *failed="globalThis.__uiModules?.fail('Unhandled promise rejection');if(globalThis.__hmrDelivery)globalThis.__hmrDelivery.phase='failed';";
+        JSValue value=JS_Eval(context,failed,strlen(failed),"promise-rejection",JS_EVAL_TYPE_GLOBAL);
+        if(JS_IsException(value))report();JS_FreeValue(context,value);
+    }
+    if(rejection_overflow)fprintf(stderr,"QuickJS: rejection tracking capacity exceeded\n");
+    return ui_unhandled_count()==0;
 }
 #define jobs ui_jobs
 static int init_source(const char *source, size_t len) {
@@ -147,9 +180,15 @@ static int init_source(const char *source, size_t len) {
     if (!runtime) return 0;
     JS_SetMaxStackSize(runtime, 8 * 1024 * 1024);
     JS_SetInterruptHandler(runtime, interrupt, NULL);
+    JS_SetHostPromiseRejectionTracker(runtime,rejection_tracker,NULL);
     context = JS_NewContext(runtime);
     if (!context) return 0;
     JSValue global = JS_GetGlobalObject(context);
+    JS_SetPropertyStr(context,global,"__nativeClearRejections",JS_NewCFunction(context,clear_rejections,"__nativeClearRejections",0));
+    const char *session = getenv("DRAFT1_HMR_SESSION"), *entry = getenv("DRAFT1_HMR_ENTRY"), *compat = getenv("DRAFT1_HMR_COMPATIBILITY");
+    if(session) JS_SetPropertyStr(context, global, "__hmrSession", JS_NewString(context, session));
+    if(entry) JS_SetPropertyStr(context, global, "__hmrEntry", JS_NewString(context, entry));
+    if(compat) JS_SetPropertyStr(context, global, "__hmrCompatibility", JS_NewString(context, compat));
     JS_SetPropertyStr(context, global, "__nativeNow", JS_NewCFunction(context, host_now, "__nativeNow", 0));
     JS_SetPropertyStr(context, global, "__nativeLog", JS_NewCFunction(context, host_log, "__nativeLog", 1));
     JS_SetPropertyStr(context, global, "setTimeout", JS_NewCFunctionMagic(context, host_schedule, "setTimeout", 1, JS_CFUNC_generic_magic, 0));
@@ -249,15 +288,54 @@ void ui_destroy(void) {
         jobs();
     }
     if (context) for (size_t i=0; i<TIMER_CAPACITY; ++i) ui_timer_release(callbacks[i].id);
+    if(context)for(size_t i=0;i<64;i++)if(rejections[i].active){JS_FreeValue(context,rejections[i].promise);JS_FreeValue(context,rejections[i].reason);}
+    memset(rejections,0,sizeof(rejections));rejection_overflow=0;
     if (context) JS_FreeContext(context);
     if (runtime) JS_FreeRuntime(runtime);
     context = NULL; runtime = NULL;
     ui_watchdog_stop();
 }
 
-int ui_reload(void) {
+static char last_receipt[8192];
+static void delivery_receipt(void) {
+    const char *path=getenv("DRAFT1_HMR_STATUS"); if(!path)return;
+    const char *expression="JSON.stringify(globalThis.__hmrDelivery||{phase:'waiting'})";
+    JSValue value=JS_Eval(context,expression,strlen(expression),"hmr-receipt",JS_EVAL_TYPE_GLOBAL);
+    if(JS_IsException(value)){report();JS_FreeValue(context,value);return;}
+    const char *text=JS_ToCString(context,value);
+    if(text){
+        if(strcmp(last_receipt,text)) {
+            char temp[32768];snprintf(temp,sizeof(temp),"%s.tmp",path);
+            FILE *file=fopen(temp,"wb");if(file){fputs(text,file);fclose(file);
+#ifdef _WIN32
+                int ok=MoveFileExA(temp,path,MOVEFILE_REPLACE_EXISTING)!=0;
+#else
+                int ok=rename(temp,path)==0;
+#endif
+                if(ok)snprintf(last_receipt,sizeof(last_receipt),"%s",text);
+            }
+        }
+        JS_FreeCString(context,text);
+    }
+    JS_FreeValue(context,value);
+}
+void ui_delivery_stage(const char *phase) {
+    if(!getenv("DRAFT1_HMR_STATUS"))return;
+    JSValue global=JS_GetGlobalObject(context), receipt=JS_GetPropertyStr(context,global,"__hmrDelivery");
+    if(JS_IsObject(receipt)) {
+        JSValue current=JS_GetPropertyStr(context,receipt,"phase");const char *name=JS_ToCString(context,current);
+        if(name && strcmp(name,"failed") && strcmp(name,"restart-required") &&
+            !(strcmp(name,"presented")==0 && strcmp(phase,"scene-failed")!=0) &&
+            !(strcmp(name,"scene-ready")==0 && strcmp(phase,"tree-accepted")==0)) JS_SetPropertyStr(context,receipt,"phase",JS_NewString(context,phase));
+        if(name)JS_FreeCString(context,name);JS_FreeValue(context,current);
+    }
+    JS_FreeValue(context,receipt);JS_FreeValue(context,global);delivery_receipt();
+}
+static int reload_source(void) {
     ui_watchdog_start();
-    FILE *file = fopen("src/ui-hmr.js", "rb");
+    const char *path=getenv("DRAFT1_HMR_PATH");
+    if(!path)return 0;
+    FILE *file = fopen(path, "rb");
     if (!file) return 0;
     if (fseek(file, 0, SEEK_END) != 0) { fclose(file); return 0; }
     long size = ftell(file);
@@ -273,7 +351,16 @@ int ui_reload(void) {
     source[size] = '\0';
     JSValue result = JS_Eval(context, source, (size_t)size, "vite-hmr", JS_EVAL_TYPE_GLOBAL);
     free(source);
-    if (JS_IsException(result)) { report(); JS_FreeValue(context, result); return 0; }
+    if (JS_IsException(result)) {
+        report(); JS_FreeValue(context, result);
+        ui_watchdog_start();
+        const char *recover="globalThis.__uiModules?.fail('HMR evaluation failed');if(globalThis.__hmrDelivery)globalThis.__hmrDelivery.phase='failed';";
+        result=JS_Eval(context,recover,strlen(recover),"hmr-recovery",JS_EVAL_TYPE_GLOBAL);
+        if(JS_IsException(result))report();JS_FreeValue(context,result);
+        delivery_receipt(); return 0;
+    }
+    int duplicate=JS_IsBool(result) && !JS_ToBool(context,result);
     JS_FreeValue(context, result);
-    return jobs();
+    int ok=jobs();delivery_receipt();return ok?(duplicate?2:1):0;
 }
+int ui_reload(void) { int result=reload_source();ui_watchdog_stop();return result; }

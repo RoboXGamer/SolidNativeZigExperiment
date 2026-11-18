@@ -3,6 +3,7 @@ zig-out/
 dist/
 zig-pkg/
 node_modules/
+tests/.hmr-*/
 src/ui-bundle.js
 src/ui-hmr.js
 src/ui-hmr.tmp

@@ -3,7 +3,7 @@ const std = @import("std");
 const core = @import("root.zig");
 const inputs = @import("frame_inputs.zig");
 const FlatNode = struct { id: u32, type: []const u8, text: []const u8 = "", value: []const u8 = "", placeholder: []const u8 = "", testId: []const u8 = "", role: []const u8 = "", name: []const u8 = "", disabled: bool = false, clickable: bool = false, focusable: bool = false, tabIndex: ?i32 = null, readOnly: bool = false, readWrite: bool = false, popoverOpen: bool = false, intrinsicAspectRatio: ?f32 = null, hovered: bool = false, active: bool = false, focused: bool = false, style: core.Style = .{}, children: []const u32 = &.{} };
-const Patch = struct { root: u32, nodes: []const FlatNode = &.{}, updates: []const inputs.Delta = &.{}, removed: []const u32 = &.{} };
+const Patch = struct { root: u32, replace: bool = false, nodes: []const FlatNode = &.{}, updates: []const inputs.Delta = &.{}, removed: []const u32 = &.{} };
 const Entry = struct { arena: std.heap.ArenaAllocator, node: FlatNode, revisions: inputs.Revisions = .{}, dirty: inputs.Dirty };
 pub const Tree = struct {
     allocator: std.mem.Allocator,
@@ -26,7 +26,22 @@ pub const Tree = struct {
     pub fn applyChanges(self: *Tree, json: []const u8) !inputs.Changes {
         const parsed = try std.json.parseFromSlice(Patch, self.allocator, json, .{ .ignore_unknown_fields = true });
         defer parsed.deinit();
-        const patch = parsed.value;
+        return self.applyPatch(parsed.value);
+    }
+    fn applyPatch(self: *Tree, patch: Patch) !inputs.Changes {
+        if (patch.replace) {
+            var next = Tree.init(self.allocator);
+            errdefer next.deinit();
+            var full = patch;
+            full.replace = false;
+            var effects = try next.applyPatch(full);
+            effects.geometry();
+            next.revisions = self.revisions;
+            next.revisions.advance(effects);
+            self.deinit();
+            self.* = next;
+            return effects;
+        }
         if (patch.root == self.root and patch.nodes.len == 0 and patch.updates.len == 0 and patch.removed.len == 0) {
             self.dirty.clearRetainingCapacity();
             return .{};

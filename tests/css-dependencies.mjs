@@ -36,7 +36,8 @@ const compactNode = (node) => ({
     typeof child === "object" ? compactNode(child) : child,
   ),
 });
-const compactPatch = (patch) => ({
+// Receipt identity is tested separately; geometry fixtures compare phase data.
+const compactPatch = ({ batch, replace, ...patch }) => ({
   ...patch,
   nodes: patch.nodes.map(compactNode),
   updates: patch.updates.map((update) =>

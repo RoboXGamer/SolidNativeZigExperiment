@@ -59,6 +59,8 @@ let dispose;
 let committed = new Map();
 let pendingCommit;
 let hostVersion = 0;
+let batchSequence = 0;
+let bridgeReset = true;
 
 function mount(Component) {
   const nextRoot = renderer.node("root");
@@ -2286,6 +2288,7 @@ export function dispatchPointer(hoveredId, activeId = 0, focusedId = 0) {
     if (typeof node.props.onHover === "function") node.props.onHover(value);
 }
 export function mountApp(Component) {
+  globalThis.__uiBatch = ++batchSequence;
   globalThis.__uiRenderer = renderer;
   globalThis.__uiSolid = solid;
   if (typeof __NATIVE_HMR__ !== "undefined" && __NATIVE_HMR__) {
@@ -2384,7 +2387,7 @@ export function mountApp(Component) {
     pendingCommit = current;
     pendingRevision = lastRevision = revision;
     lastMap = current;
-    lastPatch = { root: root.id, nodes, removed };
+    lastPatch = { root: root.id, nodes, removed, replace: bridgeReset };
     return lastPatch;
   };
   // Preserve phase granularity across the bridge. Existing nodes send only
@@ -2464,18 +2467,23 @@ export function mountApp(Component) {
     }
     framePatch = patch;
     framePacket = JSON.stringify({
+      batch: ++batchSequence,
+      replace: patch.replace || false,
       root: patch.root,
       nodes,
       updates,
       removed: patch.removed,
     });
+    globalThis.__uiBatch = batchSequence;
     return framePacket;
   };
-  globalThis.uiCommit = () => {
+  globalThis.uiCommit = (batch = globalThis.__uiBatch) => {
+    if (batch !== globalThis.__uiBatch) throw Error('Stale native batch acknowledgement');
     if (pendingCommit) {
       for (const [id, record] of pendingCommit) committed.set(id, record);
       for (const id of pendingRemoved) committed.delete(id);
       committedRevision = pendingRevision;
+      bridgeReset = false;
     }
     pendingCommit = undefined;
     pendingRemoved = [];
@@ -2497,6 +2505,7 @@ export function mountApp(Component) {
     hoverPath.clear();
     activePath.clear();
     committed.clear();
+    bridgeReset = true;
     changedSnapshots.clear();
     pendingCommit = undefined;
     }
@@ -2506,6 +2515,35 @@ export function mountApp(Component) {
     finally { globalThis.uiReset(); }
   };
   mount(Component);
+}
+
+// Dev bundles contain only the canonical runtime. Application modules execute
+// once, from a validated session envelope, rather than during bootstrap too.
+export function initializeDevHost() {
+  mountApp(() => null);
+  let applied = 0;
+  globalThis.__uiReceive = packet => {
+    if (packet.protocol !== 1 || packet.session !== globalThis.__hmrSession || packet.entry !== globalThis.__hmrEntry || packet.compatibility !== globalThis.__hmrCompatibility)
+      throw Error('HMR session/entry/runtime mismatch; restart the matching native host');
+    if (!Number.isSafeInteger(packet.revision) || packet.revision < 1) throw Error('Invalid HMR revision');
+    if (packet.type === 'restart-required') {
+      globalThis.__hmrDelivery = { session: packet.session, revision: packet.revision, phase: 'restart-required' };
+      return false;
+    }
+    if (packet.revision <= applied) return false;
+    globalThis.__nativeClearRejections?.();
+    globalThis.__hmrDelivery = { session: packet.session, revision: packet.revision, phase: 'read' };
+    try {
+      globalThis.__uiModules.apply(packet.graph, packet.entry, { type: packet.type });
+      applied = packet.revision;
+      globalThis.__hmrDelivery.phase = 'vm-applied';
+      return true;
+    } catch (error) {
+      globalThis.__hmrDelivery.phase = 'failed';
+      globalThis.__hmrDelivery.error = String(error);
+      throw error;
+    }
+  };
 }
 
 export {

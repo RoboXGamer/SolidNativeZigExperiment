@@ -456,7 +456,7 @@ fn synchronize(runtime: *bridge.Runtime, tree: *ui.Tree) !ui.frame_inputs.Change
     const json = try runtime.changes();
     defer runtime.freeChanges(json);
     const changed = try tree.applyChanges(json);
-    try runtime.acknowledge();
+    runtime.deliveryStage("tree-accepted");
     return changed;
 }
 
@@ -497,7 +497,12 @@ fn getSystemPreferences() ui.sizing.Context {
     return ctx;
 }
 
+var scene_build_attempts: usize = 0;
 fn buildScene(tree: *ui.Tree, text_cache: *text_backend.Cache) !ui.Scene {
+    if (driver_enabled) {
+        scene_build_attempts += 1;
+        if (scene_build_attempts == 2 and getenv("SOLID_NATIVE_TEST_SCENE_FAILURE") != null) return error.InjectedSceneFailure;
+    }
     return ui.Scene.fromTreeWithContext(tree, @floatFromInt(rl.getScreenWidth()), @floatFromInt(rl.getScreenHeight()), .{ .ctx = text_cache, .styled_measure_fn = text_backend.measureCached, .styled_position_fn = text_backend.positionStyled, .styled_caret_fn = text_backend.caretStyled }, preference_override orelse getSystemPreferences());
 }
 
@@ -529,7 +534,7 @@ pub fn run() void {
     _ = text_cache.setScale(rl.getWindowScaleDPI().x);
     const watching = ui_watch_start() != 0;
     defer if (watching) ui_watch_stop();
-    if (watching and !runtime.reload()) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
+    if (watching and runtime.reload() == 0) std.log.warn("Start dev:ui before dev:app to load development modules", .{});
     rl.setExitKey(.null);
     const event_waiting = !smoke and ui_wake_start() != 0;
     defer if (event_waiting) ui_wake_stop();
@@ -556,6 +561,8 @@ pub fn run() void {
         std.log.err("Could not build UI scene: {}", .{err});
         return;
     };
+    runtime.acknowledge() catch return;
+    runtime.deliveryStage("scene-ready");
     defer scene.deinit();
     var scroll_offsets = std.AutoHashMap(u32, ui.ScrollOffset).init(hostAllocator());
     defer scroll_offsets.deinit();
@@ -581,6 +588,7 @@ pub fn run() void {
     var layout_runs: usize = 1;
     var scene_revision: usize = 1;
     var paint_frames: usize = 0;
+    var scene_recovery = false;
     while (!rl.windowShouldClose()) {
         _ = scratch.reset(.{ .retain_with_limit = 1024 * 1024 });
         runtime.sample() catch {};
@@ -619,11 +627,11 @@ pub fn run() void {
             }
         }
         if (watching and ui_watch_changed() != 0) {
-            if (runtime.reload()) {
+            const delivery = runtime.reload();
+            if (delivery == 1) {
                 if (driver_enabled) driver.graph += 1;
-                std.log.info("Solid Refresh update applied", .{});
-            } else {
-                std.log.warn("Solid Refresh update failed", .{});
+            } else if (delivery == 0) {
+                std.log.warn("HMR delivery failed; waiting for correction", .{});
             }
         }
         if (frame_input.press) {
@@ -726,6 +734,7 @@ pub fn run() void {
             last_focused = focused;
         }
         const changed = synchronize(&runtime, &tree) catch |err| {
+            runtime.deliveryStage("tree-failed");
             if (driver_enabled and driver.request != null) {
                 driver.failure = @errorName(err);
                 driver.target_time = null;
@@ -733,17 +742,29 @@ pub fn run() void {
                 driver.flush();
             }
             std.log.err("Could not update UI scene: {}", .{err});
+            if (watching) {
+                rl.waitTime(0.016);
+                rl.pollInputEvents();
+                continue;
+            }
             break;
         };
         const sample_motion = if (driver_enabled and runtime.controlled()) driver.sample_motion else true;
         const animating = timeline.active() and runtime.now() != last_motion_time and (sample_motion or changed.state);
-        const layout_changed = changed.layout or resized or (animating and timeline.needsLayout());
-        const scene_changed = changed.state or animating or resized;
+        const layout_changed = scene_recovery or changed.layout or resized or (animating and timeline.needsLayout());
+        const scene_changed = scene_recovery or changed.state or animating or resized;
         if (scene_changed or scrolled) scene_revision += 1;
         var paint_changed = false;
         if (layout_changed) {
             var next = buildScene(&tree, &text_cache) catch |err| {
                 std.log.err("Could not update UI scene: {}", .{err});
+                scene_recovery = true;
+                runtime.deliveryStage("scene-failed");
+                if (watching) {
+                    rl.waitTime(0.016);
+                    rl.pollInputEvents();
+                    continue;
+                }
                 break;
             };
             layout_runs += 1;
@@ -763,10 +784,24 @@ pub fn run() void {
             var retarget = PaintRetarget{ .timeline = &timeline, .now = runtime.seconds() };
             const result = scene.updateInputs(&tree, scratch.allocator(), .{ .context = &retarget, .style = PaintRetarget.notify }) catch |err| {
                 std.log.err("Could not update retained inputs: {}", .{err});
+                scene_recovery = true;
+                runtime.deliveryStage("scene-failed");
+                if (watching) {
+                    rl.waitTime(0.016);
+                    rl.pollInputEvents();
+                    continue;
+                }
                 break;
             };
             paint_changed = result.paint;
         }
+        scene_recovery = false;
+        runtime.acknowledge() catch |err| {
+            std.log.err("Native batch acknowledgement failed: {}", .{err});
+            scene_recovery = true;
+        };
+        runtime.deliveryStage("scene-ready");
+        if (!scene_changed and painted) runtime.deliveryStage("presented");
         if (sample_motion or changed.state or resized) {
             timeline.apply(&scene, runtime.seconds()) catch |err| std.log.err("Transition sample failed: {}", .{err});
             last_motion_time = runtime.now();
@@ -813,6 +848,7 @@ pub fn run() void {
         if (needs_paint) {
             rl.endDrawing();
             submitted += 1;
+            runtime.deliveryStage("presented");
             // WM_PAINT delivered while swapping the frame is already covered
             // by that submission when the surface dimensions still match.
             if (last_width == rl.getScreenWidth() and last_height == rl.getScreenHeight()) _ = ui_refresh_changed();

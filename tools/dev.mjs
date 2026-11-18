@@ -1,129 +1,97 @@
-import { createServer, build } from "vite";
-import { transformAsync } from "@babel/core";
-import commonjs from "@babel/plugin-transform-modules-commonjs";
-import { writeFile, rename } from "node:fs/promises";
-import { startNative, stopNative } from "./native-process.mjs";
-import { fileURLToPath } from "node:url";
-import { configureExample } from './example-entry.mjs';
-process.chdir(fileURLToPath(new URL("../", import.meta.url)));
+import { createServer, build } from 'vite';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { configureExample, projectRoot } from './example-entry.mjs';
+import { startNative, stopNative } from './native-process.mjs';
+import { compileGraph } from './hmr-compiler.mjs';
+import { createSession, atomicWrite } from './hmr-session.mjs';
+process.chdir(projectRoot);
 const selection = configureExample(process.argv.slice(2));
 if (selection.args.some(arg => arg !== '--app')) throw Error(`Unknown dev arguments: ${selection.args.join(' ')}`);
 const port = Number(process.env.DRAFT1_VITE_PORT || 5173);
-const server = await createServer({ mode: "native-hmr", server: { host: "127.0.0.1", port, strictPort: true } });
+const session = await createSession(selection.entry, port);
+const server = await createServer({ mode: 'native-hmr', cacheDir: join(session.dir, 'vite'), server: { host: '127.0.0.1', port, strictPort: true } });
 await server.listen();
 const origin = `http://127.0.0.1:${port}`;
-const entry = selection.entry;
-console.log(`[example] running ${entry}`);
-const clean = id => {
-  const url = new URL(id, origin);
-  url.searchParams.delete("t"); url.searchParams.delete("v");
-  return url.pathname + url.search;
-};
-function external(id) {
-  id = id.split("?")[0];
-  if (id === "/packages/solid-zig/src/native.js") return "native-host";
-  if (id === "/packages/solid-zig/src/renderer.js") return "native-renderer";
-  if (/^\/node_modules\/\.vite\/deps\/solid-js_refresh\.js(?:\?|$)/.test(id)) return "solid-refresh";
-  if (/^\/node_modules\/\.vite\/deps\/solid-js\.js(?:\?|$)/.test(id)) return "solid-js";
-  // Unoptimized package paths must share the embedded Solid runtime too.
-  if (/\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?solid-js\/dist\/solid(?:\.dev)?\.js$/.test(id)) return "solid-js";
-  if (/\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?solid-js\/dist\/refresh(?:\.dev)?\.js$/.test(id)) return "solid-refresh";
-  return null;
-}
-async function compileGraph() {
-  const graph = {};
-  const visiting = new Set();
-  async function visit(id) {
-    id = clean(id);
-    if (visiting.has(id)) return;
-    visiting.add(id);
-    const response = await fetch(`${origin}${id}`);
-    if (!response.ok) throw Error(`Vite transform failed: ${id} (${response.status})`);
-    const source = await response.text();
-    const dependencies = new Set();
-    const rewrite = () => ({ visitor: {
-      ImportDeclaration(path) {
-        const value = path.node.source.value;
-        if (value === "/@vite/client") { path.remove(); return; }
-        const dependency = clean(new URL(value, origin + id).href);
-        path.node.source.value = external(dependency) || dependency;
-        if (!external(dependency)) dependencies.add(dependency);
-      },
-      ExportNamedDeclaration(path) {
-        if (path.node.source) {
-          const dependency = clean(new URL(path.node.source.value, origin + id).href);
-          path.node.source.value = external(dependency) || dependency;
-          if (!external(dependency)) dependencies.add(dependency);
-        }
-      },
-      ExportAllDeclaration(path) {
-        const dependency = clean(new URL(path.node.source.value, origin + id).href);
-        path.node.source.value = external(dependency) || dependency;
-        if (!external(dependency)) dependencies.add(dependency);
-      },
-      ExpressionStatement(path) {
-        const e = path.node.expression;
-        if (e.type === "AssignmentExpression" && e.right.type === "CallExpression" && e.right.callee.name === "__vite__createHotContext") path.remove();
-      },
-      MetaProperty(path) {
-        if (path.node.meta.name === "import") path.replaceWith({ type: "Identifier", name: "__meta" });
-      },
-      ImportExpression(path) {
-        if (path.node.source.type !== "StringLiteral") throw path.buildCodeFrameError("Native dynamic imports must use a literal module path");
-        const dependency = clean(new URL(path.node.source.value, origin + id).href);
-        const target = external(dependency) || dependency;
-        if (!external(dependency)) dependencies.add(dependency);
-        path.replaceWith({ type: "CallExpression", callee: { type: "MemberExpression", object: { type: "Identifier", name: "__meta" }, property: { type: "Identifier", name: "import" }, computed: false }, arguments: [{ type: "StringLiteral", value: target }] });
-      },
-    } });
-    const result = await transformAsync(source, { filename: id, configFile: false, babelrc: false, sourceType: "module", plugins: [rewrite, commonjs], comments: false });
-    graph[id] = result.code;
-    await Promise.all([...dependencies].map(visit));
-  }
-  await visit(entry);
-  return graph;
-}
+let stopping = false, pending, controller, ws, reconnect, child, polling;
+let sourceGeneration = 0, requested = 0, finished = 0, revision = 0, reload = false, restartRequired = false;
+let lastReceipt = '';
 async function publish() {
-  const graph = await compileGraph();
-  await writeFile("src/ui-hmr.tmp", `globalThis.__uiModules.apply(${JSON.stringify(graph)}, ${JSON.stringify(entry)});\n`, "utf8");
-  await rename("src/ui-hmr.tmp", "src/ui-hmr.js");
-  console.log(`[native-hmr] published ${Object.keys(graph).length} application modules`);
+  while (!stopping && finished !== requested) {
+    const generation = sourceGeneration, request = requested, full = reload;
+    controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(Error('Graph compilation exceeded 10 seconds')), 10000);
+    try {
+      const graph = restartRequired ? {} : await compileGraph({ origin, entry: session.entry, signal: controller.signal, generation: () => sourceGeneration });
+      if (generation !== sourceGeneration || request !== requested || stopping) continue;
+      const packet = { protocol: 1, session: session.session, entry: session.entry, compatibility: session.compatibility, revision: ++revision, type: restartRequired ? 'restart-required' : full ? 'full-reload' : 'update', graph };
+      const source = `globalThis.__uiReceive(${JSON.stringify(packet)});\n`;
+      if (Buffer.byteLength(source) > 32 * 1024 * 1024) throw Error('Serialized graph exceeds 32 MiB');
+      await atomicWrite(session.path, source, controller.signal);
+      if (generation !== sourceGeneration || stopping) continue;
+      reload = false; finished = request;
+      console.log(`[native-hmr] published session=${session.session} revision=${revision} modules=${Object.keys(graph).length} bytes=${Buffer.byteLength(source)} type=${packet.type}`);
+    } catch (error) {
+      if (generation !== sourceGeneration || request !== requested) continue;
+      finished = request; console.error('[native-hmr] compile-failed', error.message);
+    } finally { clearTimeout(timeout); }
+  }
 }
-let pending = Promise.resolve();
-let child;
-let stopping = false;
-const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${encodeURIComponent(server.config.webSocketToken)}`, "vite-hmr");
-await new Promise((resolve, reject) => {
-  ws.addEventListener("open", resolve, { once: true });
-  ws.addEventListener("error", reject, { once: true });
+function request(full = false) {
+  requested++; reload ||= full;
+  controller?.abort(Error('Superseded source generation'));
+  if (!pending) pending = publish().finally(() => { pending = undefined; if (!stopping && finished !== requested) request(); });
+}
+server.watcher.on('all', (event, file) => {
+  if (!['add', 'change', 'unlink'].includes(event)) return;
+  const path = file.replaceAll('\\', '/');
+  if (/\/(?:\.zig-cache|zig-out|node_modules)\//.test(path) || /\/src\/ui-(?:bundle|hmr)/.test(path)) return;
+  sourceGeneration++; controller?.abort(Error('Source changed'));
+  if (/\/(?:packages\/solid-zig\/src|modules|src)\//.test(path) || /\/(?:vite\.config\.mjs|pnpm-lock\.yaml|package\.json)$/.test(path)) {
+    restartRequired = true;
+    console.error('[native-hmr] restart-required: embedded runtime changed; restart pnpm dev');
+    request();
+  } else request(); // also covers deletion and recreation without an HMR message
 });
-ws.addEventListener("message", event => {
+let retry = 100;
+function connect() {
   if (stopping) return;
-  let message;
-  try { message = JSON.parse(event.data); } catch { return; }
-  if (message.type === "update" || message.type === "full-reload") pending = pending.then(publish).catch(error => console.error("[native-hmr]", error.message));
-  if (message.type === "error") console.error("[vite]", message.err?.message);
-});
-ws.addEventListener("error", () => console.error("[native-hmr] websocket error"));
+  ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${encodeURIComponent(server.config.webSocketToken)}`, 'vite-hmr');
+  ws.addEventListener('open', () => { retry = 100; console.log('[native-hmr] connected; resynchronizing'); request(true); });
+  ws.addEventListener('message', event => {
+    if (stopping) return;
+    let message; try { message = JSON.parse(event.data); } catch { return; }
+    if (message.type === 'update' || message.type === 'full-reload' || message.event === 'native:css') request(message.type === 'full-reload');
+    if (message.type === 'error') console.error('[vite]', message.err?.message);
+  });
+  ws.addEventListener('error', () => console.error('[native-hmr] disconnected'));
+  ws.addEventListener('close', () => {
+    if (stopping) return;
+    reload = true; reconnect = setTimeout(connect, retry); retry = Math.min(3000, retry * 2);
+  });
+}
 async function stop(code = 0) {
-  if (stopping) return;
-  stopping = true;
+  if (stopping) return; stopping = true;
+  clearTimeout(reconnect); clearInterval(polling); controller?.abort(Error('Shutdown')); ws?.close();
   await stopNative(child);
-  ws.close();
-  await pending.catch(() => {});
-  await server.close();
-  process.exitCode = typeof code === "number" ? code : 0;
+  // Vite plugin shutdown is bounded even if an owned transform never settles.
+  const deadline = setTimeout(() => process.exit(typeof code === 'number' ? code : 0), 3000); deadline.unref();
+  await Promise.allSettled([pending, server.close()]);
+  clearTimeout(deadline); process.exitCode = typeof code === 'number' ? code : 0;
 }
-process.on("SIGINT", stop);
-process.on("SIGTERM", stop);
+process.on('SIGINT', () => void stop()); process.on('SIGTERM', () => void stop());
 try {
-  await (pending = pending.then(publish));
-  if (process.argv.includes("--app")) {
-    await build({ mode: "native-hmr" });
+  connect(); request(); await pending;
+  polling = setInterval(async () => {
+    try { const receipt = await readFile(session.status, 'utf8'); if (receipt !== lastReceipt) { lastReceipt = receipt; console.log('[native-hmr] receipt', receipt); } } catch {}
+  }, 250);
+  console.log(`[example] ${session.entry}; session ${join(session.dir, 'session.json')}`);
+  if (selection.args.includes('--app')) {
+    await build({ mode: 'native-hmr', build: { outDir: join(session.dir, 'bootstrap'), lib: { entry: join(projectRoot, 'tools/hmr-bootstrap.js'), name: 'NativeBootstrap', formats: ['iife'], fileName: () => 'ui-bundle.js' } } });
     if (!stopping) {
-      child = startNative();
-      child.on("error", error => { console.error(error); void stop(1); });
-      child.on("exit", code => void stop(code ?? 1));
+      child = startNative(session);
+      child.on('error', error => { console.error(error); void stop(1); });
+      child.on('exit', code => void stop(code ?? 1));
     }
-  } else console.log("[native-hmr] connected; run pnpm dev:app in another terminal");
+  } else console.log(`[native-hmr] run pnpm dev:app --session ${join(session.dir, 'session.json')}`);
 } catch (error) { console.error(error); await stop(1); }

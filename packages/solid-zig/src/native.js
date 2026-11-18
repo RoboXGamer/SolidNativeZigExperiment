@@ -1,4 +1,5 @@
 import * as solid from "solid-js";
+import * as nativeAPI from "./native.js";
 import * as refresh from "solid-js/refresh";
 import * as renderer from "./renderer.js";
 import frameSchema from "./frame-inputs.json" with { type: "json" };
@@ -2292,7 +2293,7 @@ export function mountApp(Component) {
       "solid-js": solid,
       "solid-refresh": refresh,
       "native-renderer": renderer,
-      "native-host": { mountApp, setStyleSheet, removeStyleSheet },
+      "native-host": nativeAPI,
     });
   }
   globalThis.uiSnapshot = () => JSON.stringify(snapshot(root));

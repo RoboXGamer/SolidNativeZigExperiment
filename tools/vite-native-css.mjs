@@ -27,16 +27,18 @@ export default function nativeCss() {
         "base64url",
       ).toString();
       const watched = new Set();
+      dependencies.delete(id);
       const rules = await compileCss(file, root, (path) => {
         watched.add(path.replaceAll("\\", "/"));
         this.addWatchFile(path);
       });
       dependencies.set(id, watched);
-      return `import { setStyleSheet, removeStyleSheet } from '@zig-ui/solid';\nsetStyleSheet(${JSON.stringify(file)}, ${JSON.stringify(rules)});\nif(import.meta.hot){import.meta.hot.accept();import.meta.hot.prune(()=>removeStyleSheet(${JSON.stringify(file)}));}`;
+      return `import { setStyleSheet, removeStyleSheet } from '@zig-ui/solid';\nsetStyleSheet(${JSON.stringify(file)}, ${JSON.stringify(rules)});\nif(import.meta.hot){import.meta.hot.styleSheet(${JSON.stringify(file)});import.meta.hot.accept();import.meta.hot.dispose(()=>removeStyleSheet(${JSON.stringify(file)}));}`;
     },
     handleHotUpdate(ctx) {
       const modules = [];
-      for (const [id, files] of dependencies)
+      for (const [id, files] of dependencies) {
+        if (!ctx.server.environments.client.moduleGraph.getModuleById(id)) { dependencies.delete(id); continue; }
         if (files.has(ctx.file.replaceAll("\\", "/"))) {
           const mod =
             ctx.server.environments.client.moduleGraph.getModuleById(id);
@@ -45,9 +47,11 @@ export default function nativeCss() {
             modules.push(mod);
           }
         }
+      }
       if (modules.length)
         ctx.server.ws.send({ type: "full-reload", path: "*" });
       return modules.length ? modules : undefined;
     },
+    closeBundle() { dependencies.clear(); },
   };
 }

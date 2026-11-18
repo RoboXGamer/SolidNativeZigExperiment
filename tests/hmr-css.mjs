@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import * as native from '../packages/solid-zig/src/native.js';
+import * as renderer from '../packages/solid-zig/src/renderer.js';
+import { orderStyleSheets } from '../packages/solid-zig/src/stylesheets.js';
+import { createModuleHost } from '../packages/solid-zig/src/module-runtime.js';
+const node = renderer.node('label'); node.props.class = 'hmr-order';
+const rules = color => [{ selector: '.hmr-order', declarations: [{ property: 'color', value: color, important: false, leaves: ['color'] }] }];
+const css = id => `require('native').setStyleSheet('${id}',require('rules').${id});__meta.hot.styleSheet('${id}');__meta.hot.accept();__meta.hot.dispose(()=>require('native').removeStyleSheet('${id}'));`;
+const graph = { app: `require('a');require('b');`, a: css('a'), b: css('b') };
+const make = () => createModuleHost({ native, rules: { a: rules('red'), b: rules('blue') } }, { order: orderStyleSheets });
+const read = () => native.snapshot(node).style.color;
+const host = make(); host.apply(graph, 'app'); assert.equal(read(), 'blue');
+const reverse = { ...graph, app: `require('b');require('a');` };
+host.apply(reverse, 'app'); const hot = read(); assert.equal(hot, 'red');
+host.dispose(); assert.notEqual(read(), hot);
+const fresh = make(); fresh.apply(reverse, 'app'); assert.equal(read(), hot); fresh.dispose();
+console.log('CSS hot/fresh import order and stylesheet disposal passed');

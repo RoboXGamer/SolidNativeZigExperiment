@@ -1,5 +1,9 @@
 # Phase-aware bridge and native frame scheduling
 
+The shared app clock and build-gated native driver are documented in
+[clock-driver.md](clock-driver.md). Frame regression scenarios now run through
+that driver; the native loop no longer contains scenario step branches.
+
 The host no longer equates an input event with a frame, or a bridge patch with layout. Solid's reactive graph stays in JavaScript. Its resulting node changes retain their identity and phase information across the native bridge.
 
 ## Shared input contract

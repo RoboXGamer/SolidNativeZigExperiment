@@ -1,0 +1,290 @@
+{
+  "date": "2026-11-18",
+  "baseline": "7c250c5f76ca80e826e91ea90510823103c6ce5f",
+  "debugDriverSource": "11dcac0f3bc1d847ccb893d01f3d106a2f518a64",
+  "releaseDriverSource": "edfe1e44de040d4296045ae226836eaa7c8f30b7",
+  "runtimeReleaseSource": "11dcac0f3bc1d847ccb893d01f3d106a2f518a64",
+  "conditions": {
+    "os": "Windows x64",
+    "zig": "0.17.0",
+    "solid": "2.0.0",
+    "quickjsC": "-O2",
+    "appClock": "controlled",
+    "epochMs": 1700000000000,
+    "viewport": {
+      "width": 1280,
+      "height": 720,
+      "scale": 1.25
+    },
+    "samplesPerApp": 50,
+    "concurrency": 1,
+    "latencyUnit": "ms",
+    "idleWaitMs": 1200,
+    "affinity": "unpinned",
+    "fixtureWindow": "hidden",
+    "visibleProductionGate": "passed: no endpoint; normal launch/close",
+    "notes": "Snapshot allocation counters precede latency/idle samples. Native requested bytes exclude C/OS/GPU allocations that bypass the tracked allocator. Zero CPU deltas mean below Windows accounting granularity; host turns include command servicing. Release driver predates the final scroll-cursor and fatal-job follow-ups, which passed the Debug driver tests. Timer benchmark is a matched isolated stage, not a whole-app baseline."
+  },
+  "timerWorkload": {
+    "scheduleCancelPairs": 200000,
+    "scheduleDispatchCycles": 10000
+  },
+  "timerBenchmark": [
+    {
+      "stage": "previous-js-map",
+      "wallNs": 468769500,
+      "cpuNs": 468750000,
+      "allocations": 3370177,
+      "frees": 3370113,
+      "liveCount": 1135,
+      "liveBytes": 105132,
+      "highCount": 1161,
+      "highBytes": 106774,
+      "schedulerStructBytes": 180288
+    },
+    {
+      "stage": "zig-scheduler",
+      "wallNs": 107511400,
+      "cpuNs": 109375000,
+      "allocations": 770097,
+      "frees": 770091,
+      "liveCount": 1049,
+      "liveBytes": 97842,
+      "highCount": 1059,
+      "highBytes": 99727,
+      "schedulerStructBytes": 180288
+    }
+  ],
+  "driverDebug": [
+    {
+      "example": "css",
+      "optimize": "Debug",
+      "p50": 1.181300000000192,
+      "p95": 1.404500000000553,
+      "p99": 1.669899999997142,
+      "failures": 0,
+      "scheduler": {
+        "active": 0,
+        "highWater": 0,
+        "capacity": 4096,
+        "bytes": 180288,
+        "fired": 0
+      },
+      "quickjs": {
+        "allocations": 1647477,
+        "frees": 1518922,
+        "live_count": 128555,
+        "live_bytes": 12401367,
+        "high_count": 129319,
+        "high_bytes": 16444090,
+        "roots": 0
+      },
+      "native": {
+        "allocations": 2170,
+        "frees": 1971,
+        "live_count": 199,
+        "live_bytes": 1740524,
+        "high_count": 372,
+        "high_bytes": 2884366
+      },
+      "driverStorageBytes": 1120392,
+      "idle": {
+        "wallNs": 1210275100,
+        "cpuNs": 0,
+        "hostTurns": 2
+      }
+    },
+    {
+      "example": "tictactoe",
+      "optimize": "Debug",
+      "p50": 3.723999999998341,
+      "p95": 4.20430000000124,
+      "p99": 4.6098000000019965,
+      "failures": 0,
+      "scheduler": {
+        "active": 0,
+        "highWater": 1,
+        "capacity": 4096,
+        "bytes": 180288,
+        "fired": 1
+      },
+      "quickjs": {
+        "allocations": 6187811,
+        "frees": 6042161,
+        "live_count": 145650,
+        "live_bytes": 14602753,
+        "high_count": 146696,
+        "high_bytes": 16723223,
+        "roots": 0
+      },
+      "native": {
+        "allocations": 1808,
+        "frees": 1458,
+        "live_count": 350,
+        "live_bytes": 4883544,
+        "high_count": 613,
+        "high_bytes": 8013080
+      },
+      "driverStorageBytes": 1120392,
+      "idle": {
+        "wallNs": 1213095200,
+        "cpuNs": 0,
+        "hostTurns": 2
+      }
+    },
+    {
+      "example": "fixture",
+      "optimize": "Debug",
+      "p50": 0.3415000000022701,
+      "p95": 0.8343999999997322,
+      "p99": 0.9413000000058673,
+      "failures": 0,
+      "scheduler": {
+        "active": 0,
+        "highWater": 3,
+        "capacity": 4096,
+        "bytes": 180288,
+        "fired": 6
+      },
+      "quickjs": {
+        "allocations": 1437254,
+        "frees": 1311703,
+        "live_count": 125551,
+        "live_bytes": 12178256,
+        "high_count": 126409,
+        "high_bytes": 16353921,
+        "roots": 0
+      },
+      "native": {
+        "allocations": 3224,
+        "frees": 3035,
+        "live_count": 189,
+        "live_bytes": 1684650,
+        "high_count": 345,
+        "high_bytes": 2798310
+      },
+      "driverStorageBytes": 1120392,
+      "idle": {
+        "wallNs": 1207930000,
+        "cpuNs": 0,
+        "hostTurns": 2
+      }
+    }
+  ],
+  "driverRelease": [
+    {
+      "example": "css",
+      "optimize": "ReleaseSafe",
+      "p50": 0.4222000000299886,
+      "p95": 0.6484000000054948,
+      "p99": 0.7902999999932945,
+      "failures": 0,
+      "scheduler": {
+        "active": 0,
+        "highWater": 0,
+        "capacity": 4096,
+        "bytes": 180288,
+        "fired": 0
+      },
+      "quickjs": {
+        "allocations": 1647477,
+        "frees": 1518922,
+        "live_count": 128555,
+        "live_bytes": 12401367,
+        "high_count": 129319,
+        "high_bytes": 16444090,
+        "roots": 0
+      },
+      "native": {
+        "allocations": 2170,
+        "frees": 1971,
+        "live_count": 199,
+        "live_bytes": 1740524,
+        "high_count": 372,
+        "high_bytes": 2884366
+      },
+      "driverStorageBytes": 1120392,
+      "idle": {
+        "wallNs": 1206066000,
+        "cpuNs": 0,
+        "hostTurns": 2
+      }
+    },
+    {
+      "example": "tictactoe",
+      "optimize": "ReleaseSafe",
+      "p50": 0.6797999999835156,
+      "p95": 1.2468999999691732,
+      "p99": 1.4208000000216998,
+      "failures": 0,
+      "scheduler": {
+        "active": 0,
+        "highWater": 1,
+        "capacity": 4096,
+        "bytes": 180288,
+        "fired": 1
+      },
+      "quickjs": {
+        "allocations": 6187811,
+        "frees": 6042161,
+        "live_count": 145650,
+        "live_bytes": 14602753,
+        "high_count": 146696,
+        "high_bytes": 16723223,
+        "roots": 0
+      },
+      "native": {
+        "allocations": 1808,
+        "frees": 1458,
+        "live_count": 350,
+        "live_bytes": 4883544,
+        "high_count": 613,
+        "high_bytes": 8013080
+      },
+      "driverStorageBytes": 1120392,
+      "idle": {
+        "wallNs": 1209043000,
+        "cpuNs": 0,
+        "hostTurns": 2
+      }
+    },
+    {
+      "example": "fixture",
+      "optimize": "ReleaseSafe",
+      "p50": 0.26980000000912696,
+      "p95": 0.741600000008475,
+      "p99": 0.8359000000054948,
+      "failures": 0,
+      "scheduler": {
+        "active": 0,
+        "highWater": 3,
+        "capacity": 4096,
+        "bytes": 180288,
+        "fired": 6
+      },
+      "quickjs": {
+        "allocations": 1425789,
+        "frees": 1300498,
+        "live_count": 125291,
+        "live_bytes": 12121700,
+        "high_count": 126149,
+        "high_bytes": 16348205,
+        "roots": 0
+      },
+      "native": {
+        "allocations": 3079,
+        "frees": 2904,
+        "live_count": 175,
+        "live_bytes": 1610486,
+        "high_count": 319,
+        "high_bytes": 2653190
+      },
+      "driverStorageBytes": 1120392,
+      "idle": {
+        "wallNs": 1201428100,
+        "cpuNs": 0,
+        "hostTurns": 2
+      }
+    }
+  ]
+}

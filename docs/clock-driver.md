@@ -202,8 +202,8 @@ uses real monotonic time and Windows process CPU time, independently of app time
 
 | Stage | Real wall ns | Process CPU ns | VM allocations | VM frees | VM live bytes | VM high-water bytes | VM high-water count |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Previous JS Map timers | 1713083800 | 1671875000 | 3370177 | 3370113 | 105132 | 106774 | 1161 |
-| Zig scheduler | 408884200 | 421875000 | 770097 | 770091 | 97842 | 99727 | 1059 |
+| Previous JS Map timers | 468769500 | 468750000 | 3370177 | 3370113 | 105132 | 106774 | 1161 |
+| Zig scheduler | 107511400 | 109375000 | 770097 | 770091 | 97842 | 99727 | 1059 |
 
 Allocation/free counts cover the measured stage; live/high-water figures include
 VM startup. Both runtimes release all measured bytes at disposal. The scheduler
@@ -228,3 +228,10 @@ settlement, physical presentation qualification and renderer rewrites remain
 outside v1. HMR keeps the existing accepted-update boundary; there is no rollback
 of arbitrary effects, clock rewind, animation seek or serialization of private
 component state.
+
+The checked-in [measurement snapshot](clock-driver-measurements.json) pins the
+measured source commits and contains complete Debug/ReleaseSafe command,
+allocation and idle counters. Release driver samples precede the final cursor/
+fatal-job follow-ups; those follow-ups passed the Debug native driver suite.
+The ordinary ReleaseSafe gate also passed a normal visible launch and close
+with no endpoint despite supplying driver environment variables.

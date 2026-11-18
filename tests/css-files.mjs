@@ -29,8 +29,6 @@ try {
     '@import "./nested/base.css"; .card { margin: 1px 2px; width: 200px !important; --gap: 12px; padding: var(--gap); } #target { width: 300px; color: blue; } .card { margin-left: 7px; }',
   );
   const rules = await compileCss(file, dir);
-  assert.equal(rules.length, 4);
-  assert.match(JSON.stringify(rules), /data:image\/png;base64/);
   setStyleSheet("test", rules);
   const parent = node("div");
   parent.props = { id: "target", class: "card", style: { width: 400 } };
@@ -38,6 +36,7 @@ try {
   child.parent = parent;
   parent.children = [child];
   let result = snapshot(parent);
+  assert.match(result.style.backgroundImage, /data:image\/png;base64/);
   assert.equal(result.style.widthCss, "200px");
   assert.equal(result.style.marginLeftCss, "7px");
   assert.equal(result.style.paddingTopCss, "12px");

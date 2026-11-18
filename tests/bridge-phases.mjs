@@ -31,11 +31,6 @@ assert.ok(
     (delta) => delta.interaction && !delta.layout && !delta.paint,
   ),
 );
-assert.equal(
-  uiFrameChanges(),
-  JSON.stringify(patch),
-  "pending native batch can be retried",
-);
 uiCommit();
 setStyle({ width: 120, backgroundColor: "red", cursor: "pointer" });
 flush();

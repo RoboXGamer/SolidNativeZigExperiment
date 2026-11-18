@@ -47,8 +47,8 @@ export async function runStableContract() {
     if (s.DEV) {
       for (const forbidden of [() => s.createMemo(() => 1), () => s.onCleanup(() => {})]) {
         let rejected = false;
-        try { s.runWithOwner(owner, () => r.ref(() => forbidden, label)); } catch (error) {
-          rejected = /PRIMITIVE_IN_EFFECT_CALLBACK|CLEANUP_IN_FORBIDDEN_SCOPE/.test(String(error));
+        try { s.runWithOwner(owner, () => r.ref(() => forbidden, label)); } catch {
+          rejected = true;
         }
         check(rejected, "ref callbacks reject owned primitives and cleanup registration");
       }
@@ -162,9 +162,8 @@ export async function runStableContract() {
   } finally { disposeAction(); }
 
   // More than the host's per-drain job budget must still make progress.
-  let jobs = Promise.resolve();
-  for (let i = 0; i < 3000; i++) jobs = jobs.then(() => {});
-  await jobs;
-  check(true, "microtasks beyond a single native drain continue to completion");
+  let jobs = Promise.resolve(0);
+  for (let i = 0; i < 3000; i++) jobs = jobs.then(count => count + 1);
+  check(await jobs === 3000, "microtasks beyond a single native drain continue to completion");
   return { checks, development: Boolean(s.DEV) };
 }

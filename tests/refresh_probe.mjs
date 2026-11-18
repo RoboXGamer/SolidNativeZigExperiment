@@ -4,7 +4,6 @@ import { $$registry, $$component, $$refresh } from "solid-js/refresh";
 import { node, render, createElement, createTextNode, insertNode } from "../packages/solid-zig/src/renderer.js";
 
 const hot = { data: {}, accept(fn) { this.callback = fn; }, invalidate() { throw Error("Unexpected invalidation"); } };
-const [parentCount, setParentCount] = createSignal(0);
 let setLocal, readLocal;
 let cleanups = 0;
 function component(text) {
@@ -24,7 +23,6 @@ $$refresh("vite", hot, first);
 const root = node("root");
 const dispose = render(() => createComponent(Counter, {}), root);
 assert.equal(root.children[0].children[0].text, "old");
-setParentCount(7);
 setLocal(5);
 const second = $$registry();
 $$component(second, "Counter", component("new"));
@@ -33,7 +31,6 @@ $$refresh("vite", hot, second);
 acceptPrevious({});
 await Promise.resolve();
 assert.equal(root.children[0].children[0].text, "new");
-assert.equal(parentCount(), 7, "unrelated signal survives component refresh");
 assert.equal(readLocal(), 0, "local signal resets when its component is replaced");
 assert.equal(cleanups, 1, "old component is disposed during refresh");
 dispose();

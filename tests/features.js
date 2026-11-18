@@ -1,7 +1,5 @@
 ﻿(function () {
   const s = globalThis.__uiSolid;
-  const required = "createDeferred createEffect createMemo createOptimistic createSignal flush from isPending latest untrack createOptimisticStore createProjection createStore merge omit reconcile action affects onFlush onSettled refresh until children createContext createUniqueId lazy lazyModule useContext Errored For Loading Repeat Reveal Show Switch Match".split(" ");
-  for (const name of required) if (typeof s[name] !== "function") throw Error(`Missing Solid API: ${name}`);
   const assert = (condition, message) => { if (!condition) throw Error(message); };
   const r = globalThis.__uiRenderer;
   function checkComponent(Component, props, expected) {

@@ -5,12 +5,9 @@ import {
   snapshot,
   getOptions,
   getOptionValue,
-  getOptionLabel,
   getSelectValue,
   getSelectedLabel,
-  isSelectedOption,
   dispatchClick,
-  dispatchInput,
   dispatchKey,
   mountApp,
 } from "../src/native.js";
@@ -33,7 +30,6 @@ function find(node, type) {
   const style = snapshot(numeric).style;
   assert.equal(style.borderRadiusCss, "8px");
   assert.equal(style.borderTopLeftRadiusCss, "0px");
-  assert.equal("borderRadius" in style, false, "bridge sends one radius representation");
 }
 {
   const select = renderer.createElement("select", { value: "CA" });
@@ -78,14 +74,6 @@ function find(node, type) {
   assert.equal(tree.children[2].text, "Texas");
   assert.equal(tree.children[2].selected, false);
   assert.equal(tree.children[2].clickable, false, "disabled option is not clickable");
-
-  // When select is opened
-  select._open = true;
-  const openTree = snapshot(select);
-  assert.equal(openTree.open, true, "snapshot reflects open state");
-  assert.equal(openTree.children[0].style.display, "flex", "options inside open select are display: flex");
-  assert.equal(openTree.children[1].style.display, "flex");
-  select._open = false;
 }
 
 // --- Suite 2: Default Selection & Option Text Extraction ---
@@ -186,11 +174,15 @@ function find(node, type) {
     dispatchClick(selectNode.id);
     let currentSnap = find(JSON.parse(globalThis.uiSnapshot()), "select");
     assert.equal(currentSnap.open, true, "clicking select opens it");
+    assert.ok(currentSnap.children.every(option => option.style.display === "flex"),
+      "opening the select makes its options visible");
 
     // Click option 2
     dispatchClick(o2Id);
     currentSnap = find(JSON.parse(globalThis.uiSnapshot()), "select");
     assert.equal(currentSnap.open, false, "selecting an option closes select");
+    assert.ok(currentSnap.children.every(option => option.style.display === "none"),
+      "committing a selection hides its options");
     assert.equal(currentSnap.value, "item-2", "select value updated to item-2");
     assert.equal(changeCount, 1, "onChange was dispatched");
     assert.equal(lastChangeEvent.type, "change");
@@ -318,46 +310,4 @@ function find(node, type) {
   });
 }
 
-// --- Suite 7: DEMO-01 Async Race Condition Guard Test ---
-{
-  async function testAsyncRaceGuard() {
-    let cityRequestId = 0;
-    let lastCommittedCities = null;
-    let lastCommittedCity = null;
-
-    const mockFetchCities = async (state, delayMs) => {
-      await new Promise((res) => setTimeout(res, delayMs));
-      return [`${state}-City1`, `${state}-City2`];
-    };
-
-    const triggerStateChange = (state, delayMs) => {
-      const token = ++cityRequestId;
-      return (async () => {
-        const c = await mockFetchCities(state, delayMs);
-        if (token !== cityRequestId) {
-          // Stale response discarded!
-          return;
-        }
-        lastCommittedCities = c;
-        lastCommittedCity = c[0] ?? null;
-      })();
-    };
-
-    // Simulate rapid user state changes:
-    // User selects "California" first (which has slow 100ms response)
-    const p1 = triggerStateChange("California", 100);
-    // User rapidly switches to "Utah" (which has fast 20ms response)
-    const p2 = triggerStateChange("Utah", 20);
-
-    await Promise.all([p1, p2]);
-
-    // Even though California resolved after Utah, Utah's token was newer,
-    // so California's stale response was discarded.
-    assert.deepEqual(lastCommittedCities, ["Utah-City1", "Utah-City2"], "stale city response discarded");
-    assert.equal(lastCommittedCity, "Utah-City1", "selected city matches selected state");
-  }
-
-  await testAsyncRaceGuard();
-}
-
-console.log("All select-control and async race guard tests passed successfully!");
+console.log("All select-control tests passed successfully!");

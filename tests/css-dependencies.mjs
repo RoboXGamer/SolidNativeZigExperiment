@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createSignal, flush } from "solid-js";
 import * as renderer from "../packages/solid-zig/src/renderer.js";
-import { mountApp, findById } from "../packages/solid-zig/src/native.js";
+import { mountApp } from "../packages/solid-zig/src/native.js";
 import { compileCss } from "../tools/css-compiler.mjs";
 import {
   setStyleSheet,
@@ -65,18 +65,12 @@ function capture(name, layout, paint, check = () => {}) {
   assert.equal(hasLayout, layout, `${name}: layout phase`);
   assert.equal(hasPaint, paint, `${name}: paint phase`);
   uiCommit();
-  const clear = (node) => {
-    for (const key of Object.keys(node))
-      if (key.startsWith("_css") || key.startsWith("_snapshot"))
-        delete node[key];
-    node.children.forEach(clear);
-  };
-  clear(findById(incremental.id));
+  renderer.markTreeChanged();
   const cold = JSON.parse(uiSnapshot());
   assert.deepEqual(
     incremental,
     cold,
-    `${name}: cached computed CSS differs from a cold recomputation`,
+    `${name}: incremental output differs from full invalidation`,
   );
   records.push({
     name,

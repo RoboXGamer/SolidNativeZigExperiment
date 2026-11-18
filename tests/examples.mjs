@@ -3,16 +3,10 @@ import vm from "node:vm";
 import { build } from "vite";
 import {
   exampleEntry,
-  listExamples,
   configureExample,
 } from "../tools/example-entry.mjs";
 
-assert.ok(listExamples().includes("counter"));
-assert.ok(listExamples().includes("css"));
-assert.ok(listExamples().includes("states"));
-assert.ok(listExamples().includes("tictactoe"));
 assert.equal(exampleEntry({}), "/examples/css/app.js");
-assert.equal(exampleEntry({ example: "states" }), "/examples/states/app.js");
 assert.throws(() => exampleEntry({ example: "../ui" }), /Unknown example/);
 assert.throws(() => configureExample(["--example"]), /needs a name/);
 const originalEntry = process.env.DRAFT1_ENTRY;

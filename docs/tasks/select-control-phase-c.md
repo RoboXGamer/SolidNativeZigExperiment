@@ -4,6 +4,12 @@ Branch: `feat/select-control`
 Date: 2026-11-11  
 Status: **Implemented and verified**
 
+Coverage correction (2026-11-18): this is a historical milestone record. The
+mock-only DEMO-01 suite was removed because it copied the request-token algorithm
+without exercising the demo. The current select-control suite covers six adapter
+scenarios; it does not establish race protection in `examples/states/States.jsx`.
+The historical output below predates this correction.
+
 ## 1. Scope of Work
 
 This milestone delivers Phase C of the compatibility roadmap, addressing defects **SELECT-01** (absent native `<select>` and `<option>` control) and **DEMO-01** (async race condition in state/city demo):

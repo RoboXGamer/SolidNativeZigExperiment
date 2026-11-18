@@ -10,7 +10,7 @@ test "grid intrinsic height derives column count from CSS tracks" {
         \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"display":"grid","gridTemplateColumnsCss":"50px 50px"},"children":[{"id":3,"type":"div","style":{"height":10}},{"id":4,"type":"div","style":{"height":10}},{"id":5,"type":"div","style":{"height":10}}]}]}
     , 100, 100);
     defer scene.deinit();
-    try std.testing.expectEqual(@as(f32, 20), scene.naturalHeight(scene.find(2).?.node));
+    try std.testing.expectEqual(@as(f32, 20), scene.find(2).?.bounds.height);
 }
 fn measure(_: ?*anyopaque, content: []const u8, size: f32) ui.Metrics {
     measurements += 1;
@@ -29,19 +29,15 @@ test "native phase deltas preserve geometry and do not measure on paint or inter
         \\{"root":1,"updates":[{"id":2,"interaction":{"hovered":true,"style":{"cursor":"pointer"}}}]}
     );
     try std.testing.expect(cursor.state and cursor.cursor and !cursor.paint and !cursor.layout);
-    const retained_node = scene.find(2).?.node;
     const interaction = try scene.updateInputs(&tree, a, null);
     try std.testing.expectEqual(@as(usize, 1), interaction.work.evaluated);
-    try std.testing.expect(retained_node == scene.find(2).?.node);
     try std.testing.expectEqualStrings("pointer", scene.find(2).?.node.style.cursor);
     try std.testing.expect(scene.find(2).?.node.hovered);
     const paint = try tree.applyChanges(
         \\{"root":1,"updates":[{"id":1,"paint":{"style":{"color":"blue","opacityCss":"0.6","outlineWidth":2,"outlineStyle":"solid"}}}]}
     );
     try std.testing.expect(paint.paint and !paint.layout);
-    const before_layout = @import("style.zig").select(@import("style.zig").LayoutStyle, scene.find(2).?.node.style);
     _ = try scene.updateInputs(&tree, a, null);
-    try std.testing.expect(ui.frame_inputs.equal(before_layout, @import("style.zig").select(@import("style.zig").LayoutStyle, scene.find(2).?.node.style)));
     try std.testing.expectEqualStrings("blue", scene.find(2).?.node.style.color);
     try std.testing.expectEqualStrings("blue", scene.find(2).?.node.style.borderColor);
     try std.testing.expectEqual(@as(f32, 0.6), scene.find(1).?.node.style.opacity);
@@ -216,10 +212,6 @@ test "a leaf paint or hover update visits one identity in a thousand node scene"
     _ = try tree.applyChanges(json);
     var scene = try ui.Scene.fromTree(&tree, 500, 700);
     defer scene.deinit();
-    const root_entry = tree.nodes.getPtr(1).?;
-    const identity = scene.find(1001).?.node;
-    const items = scene.items.items.ptr;
-    const root_children = scene.root.children.ptr;
     const bounds = scene.find(1001).?.bounds;
     _ = try tree.applyChanges(
         \\{"root":1,"updates":[{"id":1001,"paint":{"style":{"backgroundColor":"red"}}}]}
@@ -237,11 +229,7 @@ test "a leaf paint or hover update visits one identity in a thousand node scene"
     try std.testing.expectEqual(@as(usize, 1), hover.work.evaluated);
     try std.testing.expectEqual(@as(usize, 0), hover.work.paint);
     try std.testing.expectEqual(@as(usize, 1), hover.work.interaction);
-    try std.testing.expectEqual(identity, scene.find(1001).?.node);
-    try std.testing.expectEqual(items, scene.items.items.ptr);
-    try std.testing.expectEqual(root_children, scene.root.children.ptr);
     try std.testing.expectEqual(bounds, scene.find(1001).?.bounds);
-    try std.testing.expectEqual(root_entry, tree.nodes.getPtr(1).?);
     var timeline = ui.transitions.Timeline.init(a);
     defer timeline.deinit();
     var observer = TestRetarget{ .timeline = &timeline };

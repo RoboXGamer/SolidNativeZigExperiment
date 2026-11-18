@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createSignal, flush } from 'solid-js';
 import * as r from '../packages/solid-zig/src/renderer.js';
-import { mountApp, findById, discoveryWork, resetDiscoveryWork } from '../packages/solid-zig/src/native.js';
+import { mountApp, discoveryWork, resetDiscoveryWork } from '../packages/solid-zig/src/native.js';
 import { setStyleSheet, clearStyleSheets } from '../packages/solid-zig/src/stylesheets.js';
 import { compileCss } from '../tools/css-compiler.mjs';
 
@@ -16,12 +16,8 @@ const collect = () => JSON.parse(uiFrameChanges());
 const commit = () => { const p = collect(); uiCommit(); return p; };
 function coldParity(label) {
   const warm = read();
-  const clear = n => {
-    for (const key of Object.keys(n)) if (key.startsWith('_css') || key.startsWith('_snapshot')) delete n[key];
-    n.children.forEach(clear);
-  };
-  clear(findById(warm.id));
-  assert.deepEqual(read(), warm, `${label}: cold parity`);
+  r.markTreeChanged();
+  assert.deepEqual(read(), warm, `${label}: incremental output matches full invalidation`);
   // Diagnostic recomputation is outside the measured transaction.
   commit();
 }

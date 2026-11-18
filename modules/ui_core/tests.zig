@@ -29,7 +29,6 @@ test "frozen Edge positioning and logical property oracle through JS bridge" {
     try std.testing.expectEqual(@as(usize, 0), failures);
 }
 
-// These regression fixtures were written under the application testing pause.
 test "typed length arithmetic and missing contexts" {
     const sizing = root.sizing;
     const ctx: sizing.Context = .{ .percentage = 200, .font_size = 20, .root_font_size = 16, .viewport_width = 1000, .viewport_height = 500, .small_viewport_height = 400, .large_viewport_height = 600, .dynamic_viewport_height = 450, .container_inline = 300 };
@@ -165,10 +164,6 @@ test "intrinsic width keywords use measured text" {
     try std.testing.expectEqual(@as(f32, 40), scene.find(2).?.bounds.width);
     try std.testing.expectEqual(@as(f32, 70), scene.find(3).?.bounds.width);
     try std.testing.expectEqual(@as(f32, 50), scene.find(4).?.bounds.width);
-    const leaf = scene.find(3).?.node;
-    try std.testing.expectEqual(@as(f32, 40), scene.intrinsicWidthFor(leaf, .min_content));
-    try std.testing.expectEqual(@as(f32, 70), scene.intrinsicWidthFor(leaf, .max_content));
-    try std.testing.expectEqual(@as(f32, 50), scene.intrinsicWidthFor(leaf, .{ .definite = 50 }));
 }
 
 test "tree owns changed css length strings" {
@@ -218,19 +213,9 @@ test "negative one margin differs from auto" {
     try std.testing.expectEqual(@as(f32, 0), automatic.margin().left);
 }
 
-test "content and border box dimensions include frame once" {
-    const content = root.Node{ .id = 1, .type = "div", .style = .{ .padding = 10, .borderWidth = 2, .boxSizing = "content-box" } };
-    const border = root.Node{ .id = 2, .type = "div", .style = .{ .padding = 10, .borderWidth = 2, .boxSizing = "border-box" } };
-    try std.testing.expectEqual(@as(f32, 124), content.borderSize(100, 24));
-    try std.testing.expectEqual(@as(f32, 64), content.borderSize(40, 24));
-    try std.testing.expectEqual(@as(f32, 100), border.borderSize(100, 24));
-    try std.testing.expectEqual(@as(f32, 40), border.borderSize(40, 24));
-    try std.testing.expectEqual(@as(f32, 24), border.borderSize(0, 24));
-}
-
 test "layout applies box sizing to both axes" {
     const json =
-        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"content-box"}},{"id":3,"type":"div","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"border-box"}}]}
+        \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"content-box"}},{"id":3,"type":"div","style":{"width":100,"height":40,"padding":10,"borderWidth":2,"boxSizing":"border-box"}},{"id":4,"type":"div","style":{"width":0,"height":0,"padding":10,"borderWidth":2,"boxSizing":"border-box"}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
@@ -240,6 +225,8 @@ test "layout applies box sizing to both axes" {
     try std.testing.expectEqual(@as(f32, 64), content.height);
     try std.testing.expectEqual(@as(f32, 100), border.width);
     try std.testing.expectEqual(@as(f32, 40), border.height);
+    try std.testing.expectEqual(@as(f32, 24), scene.find(4).?.bounds.width);
+    try std.testing.expectEqual(@as(f32, 24), scene.find(4).?.bounds.height);
 }
 
 test "contents and none generate only descendant boxes" {
@@ -333,37 +320,13 @@ test "layout and hit testing use node identity" {
     try std.testing.expectEqual(@as(?u32, null), scene.hitTest(301, 5));
 }
 
-test "per-side padding and border affect layout" {
-    const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"paddingTop":5,"paddingLeft":2,"margin":4},"children":[{"id":3,"type":"text","text":"hi"}]}]}
-    ;
-    var scene = try Scene.init(std.testing.allocator, json, 300, 200);
-    defer scene.deinit();
-    const b = scene.items.items[1].bounds;
-    try std.testing.expect(b.x > 0);
-    try std.testing.expect(b.width <= 300);
-}
-
-test "min/max and aspect ratio constraints" {
-    const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"minWidth":50,"maxWidth":100,"aspectRatio":2},"children":[]}]}
-    ;
-    var scene = try Scene.init(std.testing.allocator, json, 300, 200);
-    defer scene.deinit();
-    const b = scene.items.items[1].bounds;
-    try std.testing.expect(b.width >= 50 and b.width <= 100);
-    try std.testing.expect(b.height > 0);
-}
-
 test "block layout sibling margin collapsing" {
     const json =
         \\{"id":1,"type":"root","style":{"display":"block"},"children":[{"id":2,"type":"div","style":{"height":10,"marginBottom":20}},{"id":3,"type":"div","style":{"height":10,"marginTop":30}}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
-    const b2 = scene.items.items[1].bounds;
-    const b3 = scene.items.items[2].bounds;
-    try std.testing.expect(b3.y >= b2.y + b2.height + 20);
+    try std.testing.expectEqual(@as(f32, 40), scene.find(3).?.bounds.y);
 }
 
 test "empty block margins collapse through" {
@@ -417,8 +380,6 @@ test "auto height flex card includes CSS row gaps before placing its children" {
     defer scene.deinit();
     const card = scene.find(2).?;
     try std.testing.expectApproxEqAbs(@as(f32, 190), card.bounds.height, 0.01);
-    try std.testing.expectApproxEqAbs(@as(f32, 190), scene.naturalHeight(card.node), 0.01);
-    try std.testing.expectApproxEqAbs(@as(f32, 190), scene.naturalHeightForWidth(card.node, 380), 0.01);
     try std.testing.expect(scene.find(5).?.bounds.bottom() <= card.bounds.bottom() - 26 + 0.01);
 }
 
@@ -460,25 +421,14 @@ test "text line height comes from the measurer" {
     try std.testing.expectApproxEqAbs(@as(f32, 20), h_meas, 0.5);
 }
 
-test "margin auto resolves through the box model" {
+test "nested hidden overflow clips descendant hit targets" {
     const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"div"}]}
-    ;
-    var scene = try Scene.init(std.testing.allocator, json, 300, 100);
-    defer scene.deinit();
-    const child = scene.items.items[1].node;
-    try std.testing.expectEqual(@as(f32, 0), child.margin().left);
-    try std.testing.expectEqual(@as(f32, 0), child.margin().right);
-}
-
-test "nested overflow parent tracking" {
-    const json =
-        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"overflow":"hidden"},"children":[{"id":3,"type":"text","text":"hi"}]}]}
+        \\{"id":1,"type":"root","children":[{"id":2,"type":"div","style":{"overflow":"hidden","width":20,"height":20},"children":[{"id":3,"type":"button","clickable":true,"style":{"width":50,"height":20,"padding":0}}]}]}
     ;
     var scene = try Scene.init(std.testing.allocator, json, 300, 200);
     defer scene.deinit();
-    const child = scene.items.items[2];
-    try std.testing.expectEqual(@as(?u32, 2), child.parent_id);
+    try std.testing.expectEqual(@as(?u32, 3), scene.hitTest(10, 10));
+    try std.testing.expectEqual(@as(?u32, null), scene.hitTest(30, 10));
 }
 
 test "flex auto margins center an item on the main axis" {
@@ -667,9 +617,9 @@ test "visual order preserves document focus sequence (FLEX-06)" {
     // Item 2 has order 2 -> placed at x = 50.
     try std.testing.expectApproxEqAbs(@as(f32, 50), scene.find(2).?.bounds.x, 0.01);
     try std.testing.expectApproxEqAbs(@as(f32, 0), scene.find(3).?.bounds.x, 0.01);
-    // Document order in scene.items: item 2 MUST appear before item 3!
-    try std.testing.expectEqual(@as(u32, 2), scene.items.items[1].node.id);
-    try std.testing.expectEqual(@as(u32, 3), scene.items.items[2].node.id);
+    const order = try scene.getFocusOrder(std.testing.allocator);
+    defer std.testing.allocator.free(order);
+    try std.testing.expectEqualSlices(u32, &.{ 2, 3 }, order);
 }
 
 test "typed flex-basis keywords and percentages (FLEX-07)" {

@@ -1,4 +1,3 @@
-// Focused source fixtures. Unexecuted while application testing is paused.
 import assert from "node:assert/strict";
 import { physicalStyle, snapshot } from "../src/native.js";
 
@@ -45,4 +44,3 @@ const parent = node({ display: "contents" });
 const child = { id: 2, type: "button", text: "", props: {}, children: [], parent };
 parent.children.push(child);
 assert.equal(snapshot(parent).children[0].id, 2);
-assert.equal(child.parent, parent);

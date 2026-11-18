@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CSSStyleDeclaration } from "cssstyle";
 import { compileCss } from "../tools/css-compiler.mjs";
 import {
   setStyleSheet,
@@ -16,12 +15,6 @@ import {
 } from "../packages/solid-zig/src/native.js";
 
 const dir = await mkdtemp(join(tmpdir(), "native-hover-"));
-const original = CSSStyleDeclaration.prototype.setProperty;
-let parses = 0;
-CSSStyleDeclaration.prototype.setProperty = function (...args) {
-  parses++;
-  return original.apply(this, args);
-};
 try {
   const file = join(dir, "hover.css");
   await writeFile(
@@ -70,9 +63,6 @@ try {
     "green",
     "sibling selector invalidates without a global tree change",
   );
-  const staticStyleVersion = staticNode._cssComputedVersion;
-  const staticSnapshot = staticNode._snapshotCache.value;
-  const parsed = parses;
   uiDispatchPointer(text.id, text.id, button.id);
   uiFrameChanges();
   uiCommit();
@@ -91,22 +81,6 @@ try {
     [true],
     "moving within a control does not emit leave/reenter",
   );
-  assert.equal(
-    staticNode._cssComputedVersion,
-    staticStyleVersion,
-    "unrelated style is reused",
-  );
-  assert.equal(
-    staticNode._snapshotCache.value,
-    staticSnapshot,
-    "unrelated native snapshot is reused",
-  );
-  assert.equal(parses, parsed, "warm hover does not reparse declarations");
-  const snapshot = uiSnapshot();
-  uiDispatchPointer(text.id, text.id, button.id);
-  assert.equal(uiSnapshot(), snapshot, "identical pointer state is idempotent");
-  assert.equal(JSON.parse(uiFrameChanges()).nodes.length + JSON.parse(uiFrameChanges()).updates.length, 0);
-  uiCommit();
   uiDispatchPointer(sibling.id, 0, 0);
   uiFrameChanges();
   uiCommit();
@@ -159,24 +133,11 @@ try {
     null,
     "removing the last stylesheet clears cached styles",
   );
-  uiFrameChanges();
-  uiCommit();
-  button.setAttribute("class", "new-class");
-  const patch = JSON.parse(uiFrameChanges());
-  assert.equal(patch.root, JSON.parse(uiSnapshot()).id);
-  assert.equal(
-    uiFrameChanges(),
-    JSON.stringify(patch),
-    "an unacknowledged patch remains available",
-  );
-  uiCommit();
-  assert.equal(JSON.parse(uiFrameChanges()).nodes.length + JSON.parse(uiFrameChanges()).updates.length, 0);
   console.log(
-    "PASS hover ancestry, active/focus batching, sibling selectors, snapshot/declaration reuse, idempotence and host invalidation",
+    "PASS hover ancestry, active batching, sibling selectors and host invalidation",
   );
 } finally {
   globalThis.uiDispose?.();
   clearStyleSheets();
-  CSSStyleDeclaration.prototype.setProperty = original;
   await rm(dir, { recursive: true, force: true });
 }

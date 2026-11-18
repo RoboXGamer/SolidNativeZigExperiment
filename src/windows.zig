@@ -733,7 +733,7 @@ pub fn run() void {
         const animating = timeline.active() and runtime.now() != last_motion_time and (sample_motion or changed.state);
         const layout_changed = changed.layout or resized or (animating and timeline.needsLayout());
         const scene_changed = changed.state or animating or resized;
-        if (scene_changed) scene_revision += 1;
+        if (scene_changed or scrolled) scene_revision += 1;
         var paint_changed = false;
         if (layout_changed) {
             var next = buildScene(&tree, &text_cache) catch |err| {

@@ -266,6 +266,10 @@ pub const Driver = struct {
     pub fn transportError(self: *Driver, message: []const u8) void {
         self.rawError(message);
     }
+    pub fn flush(self: *Driver) void {
+        _ = self;
+        ui_driver_flush();
+    }
     pub fn reply(self: *Driver, runtime: *bridge.Runtime, tree: *ui.Tree, scene: *ui.Scene, scene_revision: usize, layouts: usize, paints: usize, submitted: u64, allocator: std.mem.Allocator) !void {
         const parsed = self.request orelse return;
         const r = parsed.value;

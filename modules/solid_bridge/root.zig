@@ -273,6 +273,15 @@ test "VM allocation failure and disposal release roots exactly once" {
     try advanceTest(&next, 1000);
     try expectJS("x", "0");
 }
+test "runaway microtasks stop with partial time and dispose pending jobs" {
+    var rt = try Runtime.initMode("setTimeout(()=>{const loop=()=>Promise.resolve().then(loop);loop()},1);", .controlled);
+    errdefer rt.deinit();
+    try std.testing.expectError(error.JavaScriptCallbackFailed, advanceTest(&rt, 2));
+    try std.testing.expectEqual(@as(f64, 1), rt.now());
+    try std.testing.expect(rt.jobsPending());
+    rt.deinit();
+    try std.testing.expectEqual(@as(u64, 0), rt.memory().live_bytes);
+}
 test "matched schedule cancel and dispatch measurement against previous JS Map timers" {
     if (ui_probes_enabled() == 0) return;
     const legacy = "globalThis.__timers=new Map();let __timerId=0;globalThis.setTimeout=(fn,ms=0,...args)=>{const id=++__timerId;__timers.set(id,{fn:()=>fn(...args),at:__nativeNow()+Math.max(0,Number(ms)||0)});return id};globalThis.clearTimeout=id=>__timers.delete(id);globalThis.__pumpTimers=()=>{const now=__nativeNow();for(const [id,t] of __timers){if(t.at>now)continue;__timers.delete(id);t.fn()}};";

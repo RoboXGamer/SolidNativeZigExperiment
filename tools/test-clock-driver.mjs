@@ -115,8 +115,13 @@ for(const example of ['css','tictactoe','fixture']){
     assert.equal(idleEnd.revisions.layout,idleStart.revisions.layout);assert.equal(idleEnd.revisions.paint,idleStart.revisions.paint);
     assert.ok(idleEnd.real.hostTurns-idleStart.real.hostTurns<1000,'idle must enter event waiting; receipts record external wakes');
     samples.sort((a,b)=>a-b);measurements.push({example,optimize:optimize.length?'ReleaseSafe':'Debug',p50:samples[25],p95:samples[47],p99:samples[49],failures:0,scheduler:capture.metrics,quickjs:capture.quickjs,native:capture.native,driverStorageBytes:capture.driverStorageBytes,idle:{wallNs:idleEnd.real.monotonicNs-idleStart.real.monotonicNs,cpuNs:idleEnd.real.cpuNs-idleStart.real.cpuNs,hostTurns:idleEnd.real.hostTurns-idleStart.real.hostTurns}});
-    const close=await driver.command('close');assert.equal(close.error,null);driver.disconnect();
-    await new Promise((resolve,reject)=>{child.once('exit',code=>code===0?resolve():reject(Error(diagnostics)));setTimeout(()=>reject(Error('Native close timeout')),5000).unref();});
+    if(example==='fixture'){
+      await assert.rejects(()=>driver.command('click',{target:{testId:'jobs'}}),error=>error.receipt?.error==='JavaScriptEvaluationFailed'&&error.receipt.pending.jobs===true);
+      console.log('Runaway jobs: final partial-progress receipt arrived before runtime shutdown');
+    }else{const close=await driver.command('close');assert.equal(close.error,null);}
+    driver.disconnect();
+    if(child.exitCode===null)await new Promise((resolve,reject)=>{child.once('exit',code=>code===0?resolve():reject(Error(diagnostics)));setTimeout(()=>reject(Error('Native close timeout')),5000).unref();});
+    assert.equal(child.exitCode,0);
   }catch(e){throw Error(`${example}: ${e.stack}\n${diagnostics}`);}
   finally{driver?.disconnect();if(child.exitCode===null)child.kill();}
 }

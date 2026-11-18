@@ -726,6 +726,12 @@ pub fn run() void {
             last_focused = focused;
         }
         const changed = synchronize(&runtime, &tree) catch |err| {
+            if (driver_enabled and driver.request != null) {
+                driver.failure = @errorName(err);
+                driver.target_time = null;
+                driver.reply(&runtime, &tree, &scene, scene_revision, layout_runs, paint_frames, submitted, scratch.allocator()) catch driver.transportError(@errorName(err));
+                driver.flush();
+            }
             std.log.err("Could not update UI scene: {}", .{err});
             break;
         };

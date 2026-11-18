@@ -84,6 +84,8 @@ when neither is set.
   pending jobs are bounded at 1024 per drain. Reentrant advancement is
   refused. Errors report the last reached time/revisions; previous effects remain
   committed. Arbitrary JS is never rolled back.
+  An unrecoverable bridge/job failure emits the last committed receipt before
+  the UI thread shuts down the unusable runtime.
 
 The scheduler uses 4096 reusable slots and an indexed binary heap. Numeric IDs
 include a monotonically checked slot generation. Cancellation is indexed, ties

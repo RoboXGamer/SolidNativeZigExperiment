@@ -18,6 +18,7 @@ function App(){
     <button data-testid="delayed" onClick={()=>{setTransition('opacity 200ms linear 100ms');setOpacity(1)}}>Delayed</button>
     <button data-testid="zero" onClick={()=>{setTransition('opacity 0ms');setOpacity(0)}}>Zero</button>
     <button data-testid="throw" onClick={()=>{setTime('before error');console.log('fixture partial progress');throw Error('fixture exception')}}>Throw</button>
+    <button data-testid="jobs" onClick={()=>setTimeout(()=>{const loop=()=>Promise.resolve().then(loop);loop()},0)}>Runaway jobs</button>
     <div data-testid="motion" style={{width:100,height:100,backgroundColor:'#ff0000',opacity:opacity(),transition:transition()}} />
     <div data-testid="observation">{time()}</div>
     <button data-testid="disabled" disabled>Disabled</button>

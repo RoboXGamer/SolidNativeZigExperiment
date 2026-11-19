@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 /** One controller connection. Never retries a mutation after a lost reply. */
 export class Driver {
   constructor(socket) {
-    this.socket=socket; this.id=0; this.pending=[]; this.bytes=Buffer.alloc(0);
+    this.socket=socket; this.id=0; this.pending=[]; this.bytes=Buffer.alloc(0);this.nodeGraphs=new Map();
     socket.on('data',chunk=>{
       this.bytes=Buffer.concat([this.bytes,chunk]);
       if(this.bytes.length>65536&&!this.bytes.includes(10)){socket.destroy(Error('Driver response exceeds 64 KiB'));return;}
@@ -42,13 +42,15 @@ export class Driver {
     });
   }
   async command(cmd,args={}) {
+    if(args.target?.node!=null){const t=args.target,identity=this.nodeGraphs.get(t.node);if((t.graph??identity?.graph)==null||(t.generation??identity?.generation)==null)throw Error('MissingTargetIdentity: discover nodes with tree() or supply graph/generation');args={...args,target:{...t,graph:t.graph??identity?.graph,generation:t.generation??identity?.generation}};}
     const result=await this.raw({version:1,id:++this.id,cmd,session:this.session,generation:this.generation,...args}).catch(error=>{error.message=cmd+': '+error.message;throw error;});
+    if(result.graph!=null)this.graph=result.graph;
     if(result.error)throw Object.assign(Error(result.error),{receipt:result});
     return result;
   }
   async tree(cmd='tree') {
-    const nodes=[];let cursor;
-    do {const page=await this.command(cmd,{...(cursor?{cursor}:{}),limit:64});nodes.push(...page.nodes);cursor=page.cursor;}while(cursor);
+    const nodes=[];let cursor;this.nodeGraphs.clear();
+    do {const page=await this.command(cmd,{...(cursor?{cursor}:{}),limit:64});for(const n of page.nodes){n.graph=page.graph;n.generation=page.generation;if(this.nodeGraphs.size<4096)this.nodeGraphs.set(n.node,{graph:page.graph,generation:page.generation});}nodes.push(...page.nodes);cursor=page.cursor;}while(cursor);
     return nodes;
   }
   disconnect(){this.socket.end();}

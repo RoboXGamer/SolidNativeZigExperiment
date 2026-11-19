@@ -14,6 +14,11 @@ pub const Input = struct {
     presses: [512]bool = @splat(false),
     text: [4096]u8 = undefined,
     text_len: usize = 0,
+    pub fn cancelHeld(self: *Input) void {
+        self.next();
+        self.down = false;
+        self.keys = @splat(false);
+    }
     pub fn isKeyDown(self: *const Input, key: rl.KeyboardKey) bool {
         return self.keys[@intCast(@backingInt(key))];
     }

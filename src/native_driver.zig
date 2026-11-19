@@ -13,6 +13,7 @@ extern fn ui_driver_flush() void;
 extern fn getenv([*:0]const u8) ?[*:0]const u8;
 extern fn ui_real_ns() u64;
 extern fn ui_cpu_ns() u64;
+extern fn ui_wake_test_stale() c_int;
 extern "user32" fn InvalidateRect(?*anyopaque, ?*const anyopaque, c_int) c_int;
 extern "user32" fn UpdateWindow(?*anyopaque) c_int;
 extern "user32" fn SendMessageW(?*anyopaque, u32, usize, isize) isize;
@@ -46,6 +47,14 @@ pub const Driver = struct {
     pub fn stop(self: *Driver) void {
         if (self.active) ui_driver_stop();
         if (self.request) |p| p.deinit();
+    }
+    pub fn graphChanged(self: *Driver) void {
+        self.graph += 1;
+        self.input.cancelHeld();
+        if (self.request) |p| if (p.value.is("click") or std.mem.startsWith(u8, p.value.cmd, "pointer.")) {
+            self.failure = "StaleGraph";
+            self.target_time = null;
+        };
     }
     pub fn begin(self: *Driver, runtime: *bridge.Runtime, scene: *ui.Scene, revision: u64, scene_revision: usize) void {
         self.host_turns += 1;
@@ -138,7 +147,23 @@ pub const Driver = struct {
             _ = SendMessageW(rl.getWindowHandle(), 0x000f, 0, 0);
             return;
         }
+        if (r.is("surface.state")) {
+            const value = r.value orelse return error.MissingSurfaceState;
+            if (std.mem.eql(u8, value, "minimize")) rl.minimizeWindow() else if (std.mem.eql(u8, value, "restore")) {
+                rl.restoreWindow();
+                if (getenv("SOLID_NATIVE_DRIVER_HIDDEN") != null) rl.setWindowState(.{ .window_hidden = true });
+            } else if (std.mem.eql(u8, value, "focus-gained")) {
+                _ = SendMessageW(rl.getWindowHandle(), 0x0007, 0, 0);
+            } else if (std.mem.eql(u8, value, "focus-lost")) {
+                _ = SendMessageW(rl.getWindowHandle(), 0x0008, 0, 0);
+                self.input.cancelHeld();
+            } else if (std.mem.eql(u8, value, "stale-wake")) {
+                if (ui_wake_test_stale() == 0) return error.StaleWakeDispatched;
+            } else return error.UnsupportedSurfaceState;
+            return;
+        }
         if (r.is("screenshot")) {
+            if (rl.isWindowMinimized() or rl.getRenderWidth() <= 0 or rl.getRenderHeight() <= 0) return error.SurfaceUnavailable;
             const p = r.path orelse return error.MissingPath;
             if (p.len > 4096 or std.mem.indexOfScalar(u8, p, 0) != null or !std.mem.endsWith(u8, p, ".png")) return error.InvalidPath;
             return;
@@ -151,6 +176,8 @@ pub const Driver = struct {
         }
         if (r.is("pointer.move") or r.is("pointer.down") or r.is("pointer.up") or r.is("click")) {
             if (r.target) |target| {
+                if (target.generation) |generation| if (generation != runtime.runtimeGeneration()) return error.StaleRuntime;
+                if (target.graph) |graph| if (graph != self.graph) return error.StaleGraph;
                 const id = try resolve(scene, target);
                 const item = scene.find(id) orelse return error.StaleTarget;
                 const matrix = scene.worldTransform(item);
@@ -318,7 +345,7 @@ pub const Driver = struct {
             .driverStorageBytes = @sizeOf(Driver),
             .input = .{ .pointerDown = self.input.down, .keysHeld = std.mem.count(bool, &self.input.keys, &.{true}) },
             .logs = if (r.is("logs")) try runtime.logs(allocator) else null,
-            .viewport = .{ .width = rl.getScreenWidth(), .height = rl.getScreenHeight(), .framebufferWidth = rl.getRenderWidth(), .framebufferHeight = rl.getRenderHeight(), .scale = rl.getWindowScaleDPI() },
+            .viewport = .{ .width = rl.getScreenWidth(), .height = rl.getScreenHeight(), .framebufferWidth = rl.getRenderWidth(), .framebufferHeight = rl.getRenderHeight(), .scale = rl.getWindowScaleDPI(), .minimized = rl.isWindowMinimized(), .focused = rl.isWindowFocused() },
             .capabilities = if (r.is("hello")) &protocol.commands else &.{},
             .preferences = if (r.is("hello")) &[_][]const u8{ "color-scheme", "contrast", "reduced-motion" } else &.{},
             .keys = if (r.is("hello")) &Input.key_names else &.{},

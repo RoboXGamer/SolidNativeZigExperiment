@@ -28,6 +28,30 @@ static HANDLE timer_handle, stop_event, worker;
 static SRWLOCK timer_lock = SRWLOCK_INIT;
 static ULONGLONG deadline_ticks;
 static volatile LONG64 wake_generation;
+static ULONGLONG wake_now(void) { LARGE_INTEGER now; QueryPerformanceCounter(&now); return (ULONGLONG)now.QuadPart; }
+static ULONGLONG wake_frequency(void) { LARGE_INTEGER frequency; QueryPerformanceFrequency(&frequency); return (ULONGLONG)frequency.QuadPart; }
+static int deliver_wake(LONG64 observed) {
+    int delivered=0;
+    AcquireSRWLockExclusive(&timer_lock);
+    if(deadline_ticks && observed==InterlockedCompareExchange64(&wake_generation,0,0)){
+        ULONGLONG now=wake_now();
+        if(now>=deadline_ticks){deadline_ticks=0;glfwPostEmptyEvent();delivered=1;}
+        else { // A one-shot OS timer can signal early; never lose the wake.
+            LARGE_INTEGER due; due.QuadPart=-(LONGLONG)fmax(1,ceil((double)(deadline_ticks-now)*10000000.0/(double)wake_frequency()));
+            SetWaitableTimer(timer_handle,&due,0,NULL,NULL,FALSE);
+        }
+    }
+    ReleaseSRWLockExclusive(&timer_lock);return delivered;
+}
+#ifdef UI_DRIVER
+int ui_wake_test_stale(void){
+    LONG64 stale=InterlockedCompareExchange64(&wake_generation,0,0);
+    AcquireSRWLockExclusive(&timer_lock);InterlockedIncrement64(&wake_generation);deadline_ticks=wake_now();ReleaseSRWLockExclusive(&timer_lock);
+    int rejected=!deliver_wake(stale);
+    AcquireSRWLockExclusive(&timer_lock);deadline_ticks=0;ReleaseSRWLockExclusive(&timer_lock);
+    return rejected;
+}
+#endif
 static DWORD WINAPI timer_worker(LPVOID unused) {
     (void)unused;
     HANDLE handles[] = { stop_event, timer_handle };
@@ -35,13 +59,9 @@ static DWORD WINAPI timer_worker(LPVOID unused) {
         DWORD event = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
         if (event != WAIT_OBJECT_0 + 1) break;
         LONG64 observed = InterlockedCompareExchange64(&wake_generation,0,0);
-        AcquireSRWLockExclusive(&timer_lock);
         // A cancelled/older OS delivery cannot authorize application callbacks.
         // Also reject an already-signalled timer after a later re-arm.
-        if (deadline_ticks && GetTickCount64() >= deadline_ticks && observed == InterlockedCompareExchange64(&wake_generation,0,0)) {
-            deadline_ticks=0; glfwPostEmptyEvent();
-        }
-        ReleaseSRWLockExclusive(&timer_lock);
+        deliver_wake(observed);
     }
     return 0;
 }
@@ -64,7 +84,7 @@ void ui_wake_schedule(double seconds) {
     if (seconds > 86400) seconds = 86400;
     LARGE_INTEGER due;
     due.QuadPart = -(LONGLONG)fmax(1, ceil(seconds * 10000000.0));
-    deadline_ticks=GetTickCount64()+(ULONGLONG)floor(seconds*1000.0);
+    deadline_ticks=wake_now()+(ULONGLONG)ceil(seconds*(double)wake_frequency());
     SetWaitableTimer(timer_handle, &due, 0, NULL, NULL, FALSE);
     ReleaseSRWLockExclusive(&timer_lock);
 }

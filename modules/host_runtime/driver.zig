@@ -3,8 +3,8 @@ const std = @import("std");
 pub const frame_limit = 65536;
 pub const page_limit = 256;
 pub const cache_limit = 16;
-pub const commands = [_][]const u8{ "hello", "tree", "layout", "logs", "pointer.move", "pointer.down", "pointer.up", "pointer.cancel", "click", "key.down", "key.up", "type", "scroll", "resize", "prefer", "reset", "clock.advance", "settle", "metrics", "screenshot", "surface.expose", "close" };
-pub const Target = struct { node: ?u32 = null, testId: ?[]const u8 = null, role: ?[]const u8 = null, name: ?[]const u8 = null };
+pub const commands = [_][]const u8{ "hello", "tree", "layout", "logs", "pointer.move", "pointer.down", "pointer.up", "pointer.cancel", "click", "key.down", "key.up", "type", "scroll", "resize", "prefer", "reset", "clock.advance", "settle", "metrics", "screenshot", "surface.expose", "surface.state", "close" };
+pub const Target = struct { node: ?u32 = null, graph: ?u64 = null, generation: ?u64 = null, testId: ?[]const u8 = null, role: ?[]const u8 = null, name: ?[]const u8 = null };
 pub const Cursor = struct { revision: u64, scene: usize, graph: u64, offset: usize };
 pub const Request = struct {
     version: u32,
@@ -64,6 +64,7 @@ pub const Request = struct {
         if (self.target) |t| {
             const count = @as(u8, @intFromBool(t.node != null)) + @as(u8, @intFromBool(t.testId != null)) + @as(u8, @intFromBool(t.role != null or t.name != null));
             if (count != 1) return error.InvalidTarget;
+            if (t.node != null and (t.graph == null or t.generation == null)) return error.MissingTargetIdentity;
         }
         if (self.is("click") or self.is("pointer.move") or self.is("pointer.down") or self.is("pointer.up")) {
             if (self.target == null and (self.x == null or self.y == null)) return error.MissingPoint;
@@ -78,6 +79,7 @@ pub const Request = struct {
     }
 };
 fn allowed(cmd: []const u8, field: []const u8) bool {
+    if (std.mem.eql(u8, cmd, "surface.state")) return std.mem.eql(u8, field, "value");
     const set: []const u8 = if (std.mem.eql(u8, cmd, "hello")) " token " else if (std.mem.eql(u8, cmd, "tree") or std.mem.eql(u8, cmd, "layout")) " cursor limit " else if (std.mem.startsWith(u8, cmd, "pointer.") or std.mem.eql(u8, cmd, "click")) " target x y " else if (std.mem.startsWith(u8, cmd, "key.")) " key " else if (std.mem.eql(u8, cmd, "type")) " text " else if (std.mem.eql(u8, cmd, "scroll")) " x y dx dy " else if (std.mem.eql(u8, cmd, "resize")) " width height " else if (std.mem.eql(u8, cmd, "prefer")) " preference value " else if (std.mem.eql(u8, cmd, "clock.advance")) " ms " else if (std.mem.eql(u8, cmd, "screenshot")) " path " else " ";
     var it = std.mem.tokenizeScalar(u8, set, ' ');
     while (it.next()) |f| if (std.mem.eql(u8, f, field)) return true;
@@ -120,6 +122,9 @@ test "strict protocol refuses unknown/inapplicable fields before mutation" {
     try std.testing.expectError(error.UnknownField, parse(a, "{\"version\":1,\"id\":1,\"cmd\":\"settle\",\"eval\":\"x\"}"));
     try std.testing.expectError(error.UnexpectedField, parse(a, "{\"version\":1,\"id\":1,\"cmd\":\"settle\",\"ms\":1}"));
     try std.testing.expectError(error.InvalidTime, parse(a, "{\"version\":1,\"id\":1,\"cmd\":\"clock.advance\",\"ms\":-1}"));
+    try std.testing.expectError(error.MissingTargetIdentity, parse(a, "{\"version\":1,\"id\":1,\"cmd\":\"click\",\"target\":{\"node\":1}}"));
+    const target = try parse(a, "{\"version\":1,\"id\":1,\"cmd\":\"click\",\"target\":{\"node\":1,\"graph\":2,\"generation\":3}}");
+    defer target.deinit();
     const p = try parse(a, "{\"version\":1,\"id\":1,\"cmd\":\"type\",\"text\":\"hi \\uD83D\\uDE00\\n\\\"\"}");
     defer p.deinit();
     var failing = std.testing.FailingAllocator.init(a, .{ .fail_index = 0 });

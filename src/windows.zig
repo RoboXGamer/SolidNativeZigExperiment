@@ -3,13 +3,16 @@ const std = @import("std");
 const ui = @import("ui_core");
 const bridge = @import("solid_bridge");
 const driver_enabled = @import("host_options").driver;
+const profile_enabled = @import("host_options").profile;
+const probes_enabled = driver_enabled or profile_enabled;
+const Profile = @import("host_profile.zig").Profile;
 const Driver = @import("native_driver.zig").Driver;
 const Input = @import("input.zig").Input;
 var frame_input: Input = .{};
 var preference_override: ?ui.sizing.Context = null;
-var native_accounting: if (driver_enabled) @import("host_accounting").Accounting else void = if (driver_enabled) .{} else {};
+var native_accounting: if (probes_enabled) @import("host_accounting").Accounting else void = if (probes_enabled) .{} else {};
 fn hostAllocator() std.mem.Allocator {
-    return if (driver_enabled) native_accounting.allocator() else std.heap.page_allocator;
+    return if (probes_enabled) native_accounting.allocator() else std.heap.page_allocator;
 }
 extern fn ui_watch_start() c_int;
 extern fn ui_watch_changed() c_int;
@@ -27,6 +30,7 @@ extern fn getenv([*:0]const u8) ?[*:0]const u8;
 extern "user32" fn InvalidateRect(?*anyopaque, ?*const anyopaque, c_int) c_int;
 extern "user32" fn UpdateWindow(?*anyopaque) c_int;
 extern "user32" fn SendMessageW(?*anyopaque, u32, usize, isize) isize;
+extern "user32" fn SetThreadDpiAwarenessContext(?*anyopaque) ?*anyopaque;
 
 const source = @embedFile("ui_bundle");
 const window_width = 1280;
@@ -507,15 +511,20 @@ fn buildScene(tree: *ui.Tree, text_cache: *text_backend.Cache) !ui.Scene {
 }
 
 pub fn run() void {
-    defer if (driver_enabled) std.debug.assert(native_accounting.stats.live_count == 0);
+    defer if (probes_enabled) std.debug.assert(native_accounting.stats.live_count == 0);
+    var profile: if (profile_enabled) Profile else void = if (profile_enabled) Profile.init() else {};
     const smoke = getenv("SOLID_NATIVE_SMOKE") != null;
-    var runtime = (if (driver_enabled) bridge.Runtime.initDriver(source, if (getenv("SOLID_NATIVE_CONTROLLED") != null) .controlled else .live) else bridge.Runtime.init(source)) catch |err| {
+    var runtime = (if (probes_enabled) bridge.Runtime.initDriver(source, if (getenv("SOLID_NATIVE_CONTROLLED") != null) .controlled else .live) else bridge.Runtime.init(source)) catch |err| {
         std.log.err("Could not initialize Solid UI: {}", .{err});
         return;
     };
-    defer runtime.deinit();
-    rl.setConfigFlags(.{ .window_resizable = true, .window_highdpi = true, .vsync_hint = true, .window_hidden = smoke or (driver_enabled and getenv("SOLID_NATIVE_DRIVER_HIDDEN") != null) });
+    defer {
+        runtime.deinit();
+        if (profile_enabled) std.debug.print("HOST_PROFILE_TEARDOWN {d} {d}\n", .{ native_accounting.stats.live_bytes, runtime.memory().live_bytes });
+    }
+    rl.setConfigFlags(.{ .window_resizable = true, .window_highdpi = true, .vsync_hint = true, .window_hidden = smoke or (probes_enabled and getenv("SOLID_NATIVE_DRIVER_HIDDEN") != null) });
     text_backend.initializeDpi();
+    if (probes_enabled and getenv("SOLID_NATIVE_TEST_DPI_UNAWARE") != null) _ = SetThreadDpiAwarenessContext(@ptrFromInt(std.math.maxInt(usize)));
     rl.initWindow(window_width, window_height, "Solid + Zig experiment");
     defer rl.closeWindow();
     text_backend.watchFonts(rl.getWindowHandle());
@@ -589,6 +598,7 @@ pub fn run() void {
     var last_motion_time = runtime.now();
     var layout_runs: usize = 1;
     var scene_revision: usize = 1;
+    var window_focused = rl.isWindowFocused();
     var paint_frames: usize = 0;
     var scene_recovery = false;
     while (!rl.windowShouldClose()) {
@@ -602,6 +612,17 @@ pub fn run() void {
             if (driver.request != null) rl.disableEventWaiting();
         }
         frame_input = if (driver_enabled) (if (driver.synthetic) driver.input else Input.native()) else Input.native();
+        if (profile_enabled) frame_input = profile.before(&runtime) catch |err| {
+            std.log.err("Profile failed: {}", .{err});
+            break;
+        };
+        const focused_window = rl.isWindowFocused();
+        if (window_focused and !focused_window) {
+            frame_input.cancelHeld();
+            pressed_target = null;
+            if (driver_enabled) driver.input.cancelHeld();
+        }
+        window_focused = focused_window;
 
         const dpi_changed = text_cache.setScale(rl.getWindowScaleDPI().x);
         const fonts_changed = text_backend.fontsChanged();
@@ -631,7 +652,9 @@ pub fn run() void {
         if (watching and ui_watch_changed() != 0) {
             const delivery = runtime.reload();
             if (delivery == 1) {
-                if (driver_enabled) driver.graph += 1;
+                pressed_target = null;
+                frame_input.cancelHeld();
+                if (driver_enabled) driver.graphChanged();
             } else if (delivery == 0) {
                 std.log.warn("HMR delivery failed; waiting for correction", .{});
             }
@@ -846,6 +869,7 @@ pub fn run() void {
         if (event_waiting) {
             const timeout = runtime.nextTimeout();
             ui_wake_schedule(if (reconcile_pointer) 0 else if (timeline.active() and !runtime.controlled()) (if (timeout < 0) 1.0 / 60.0 else @min(timeout, 1.0 / 60.0)) else timeout);
+            if (profile_enabled) if (profile.wait()) |seconds| ui_wake_schedule(seconds);
         }
         if (needs_paint) {
             rl.endDrawing();
@@ -866,6 +890,12 @@ pub fn run() void {
             driver.reply(&runtime, &tree, &scene, scene_revision, layout_runs, paint_frames, submitted, scratch.allocator()) catch |err| driver.transportError(@errorName(err));
             if (driver.close) break;
             if (event_waiting) rl.enableEventWaiting();
+        }
+        if (profile_enabled) {
+            if (profile.after(&runtime, &scene, paint_frames, layout_runs, native_accounting.stats, scratch.allocator(), driver_enabled, if (driver_enabled) @sizeOf(Driver) else 0) catch |err| {
+                std.log.err("Profile failed: {}", .{err});
+                break;
+            }) break;
         }
         if (smoke) {
             smoke_frames += 1;

@@ -32,6 +32,8 @@
         "test:hmr:boundaries": "node tools/test-hmr-delivery-native.mjs && node tools/test-hmr-restarts.mjs && node tools/test-hmr-compiler-native.mjs",
         "test:runtime": "zig build test-runtime -Ddriver=true",
         "test:driver": "node tools/test-clock-driver.mjs",
+        "test:clock:acceptance": "node tools/test-clock-hmr-native.mjs && node tools/test-driver-edges.mjs",
+        "profile:clock:host": "node tools/profile-clock-host.mjs",
         "test:smoke": "node tools/smoke-native.mjs"
     },
     "dependencies": {

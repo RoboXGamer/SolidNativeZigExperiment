@@ -6,6 +6,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const driver_enabled = b.option(bool, "driver", "Enable the local development/test driver") orelse false;
+    const profile_enabled = b.option(bool, "host-profile", "Enable deterministic full-host measurement turns") orelse false;
     const raylib = b.dependency("raylib_zig", .{ .target = target, .optimize = optimize });
     const ui_core = core_build.addModule(b, .{
         .source = b.path("modules/ui_core/root.zig"),
@@ -13,7 +14,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     const solid_bridge = bridge_build.addModule(b, .{
-        .probes = driver_enabled,
+        .probes = driver_enabled or profile_enabled,
         .optimize_quickjs = b.option(bool, "quickjs-optimize", "Optimize QuickJS C interpreter even in Debug builds") orelse true,
         .source = b.path("modules/solid_bridge/root.zig"),
         .c_source = b.path("modules/solid_bridge/quickjs_bridge.c"),
@@ -31,6 +32,7 @@ pub fn build(b: *std.Build) void {
     module.addImport("solid_bridge", solid_bridge);
     const options = b.addOptions();
     options.addOption(bool, "driver", driver_enabled);
+    options.addOption(bool, "profile", profile_enabled);
     module.addOptions("host_options", options);
     if (driver_enabled) {
         module.addCSourceFile(.{ .file = b.path("src/driver_pipe.c"), .flags = &.{} });
@@ -44,7 +46,7 @@ pub fn build(b: *std.Build) void {
     });
     module.linkLibrary(raylib.artifact("raylib"));
     module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = if (driver_enabled) &.{"-DUI_DRIVER=1"} else &.{} });
-    module.addCSourceFile(.{ .file = b.path("src/event_wakeup.c"), .flags = &.{} });
+    module.addCSourceFile(.{ .file = b.path("src/event_wakeup.c"), .flags = if (driver_enabled) &.{"-DUI_DRIVER=1"} else &.{} });
     module.addCSourceFile(.{ .file = b.path("src/text_backend.cpp"), .flags = &.{ "-std=c++17", "-fno-exceptions" } });
     module.link_libcpp = true;
     module.addCSourceFile(.{ .file = b.path("src/cursor_backend.c"), .flags = &.{} });

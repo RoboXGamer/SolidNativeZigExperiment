@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "command": "pnpm dev --example tictactoe",
+  "absoluteBundlePath": true,
+  "nativeReceipt": {
+    "session": "36c23c68-6939-476a-921c-2435e564c743",
+    "revision": 2,
+    "phase": "presented"
+  },
+  "visibleWindowStayedOpenMs": 5000,
+  "normalClose": true,
+  "producerExit": 0
+}

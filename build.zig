@@ -41,8 +41,9 @@ pub fn build(b: *std.Build) void {
     }
     module.addAnonymousImport("host_driver", .{ .root_source_file = b.path("modules/host_runtime/driver.zig") });
     module.addAnonymousImport("host_accounting", .{ .root_source_file = b.path("modules/host_runtime/accounting.zig") });
+    const bundle_path = b.option([]const u8, "ui-bundle", "JavaScript bundle to embed") orelse "src/ui-bundle.js";
     module.addAnonymousImport("ui_bundle", .{
-        .root_source_file = b.path(b.option([]const u8, "ui-bundle", "JavaScript bundle to embed") orelse "src/ui-bundle.js"),
+        .root_source_file = if (std.fs.path.isAbsolute(bundle_path)) .{ .cwd_relative = bundle_path } else b.path(bundle_path),
     });
     module.linkLibrary(raylib.artifact("raylib"));
     module.addCSourceFile(.{ .file = b.path("src/hmr_watcher.c"), .flags = if (driver_enabled) &.{"-DUI_DRIVER=1"} else &.{} });

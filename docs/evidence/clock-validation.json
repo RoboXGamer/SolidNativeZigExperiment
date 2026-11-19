@@ -1,0 +1,20 @@
+{
+    "date":  "2026-11-19",
+    "implementation":  "4fc8b8c90c8ea46c78507a5fc94325af6a75640f",
+    "passed":  true,
+    "checks":  [
+                   "pnpm test including native HMR delivery/restarts/compiler boundaries",
+                   "Debug UI-core/native framebuffer/runtime/protocol/scheduler",
+                   "ReleaseSafe runtime/protocol/scheduler",
+                   "Debug and ReleaseSafe CSS/game/driver including 349+1ms and final partial-progress shutdown",
+                   "shared native frame scheduling",
+                   "native HMR clock/timer ownership/reload/stale identities",
+                   "Debug/ReleaseSafe native edge fixture including PNG pixel validation",
+                   "ordinary ReleaseSafe visible launch/close and absent endpoint",
+                   "Debug/ReleaseSafe repeated full-host matching scene/work/teardown",
+                   "absolute Windows bundle path configure regression",
+                   "actual pnpm dev --example tictactoe: presented native graph, visible five-second launch and normal close; added test run separately after full suite"
+               ],
+    "scope":  "Local Windows native/QuickJS/OpenGL proof; physical display, UIA/IME, physical multi-monitor movement, generalized OS/GPU memory budgets remain separate.",
+    "devBuildFix":  "6f2deedb2535b4405507a0ab2ba2c3898d87b5c1"
+}

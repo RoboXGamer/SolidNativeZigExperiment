@@ -1,6 +1,6 @@
 # Shared clock and native app driver: one implementation PR
 
-Status: implemented in one clock/driver branch with separate task commits.
+Status: core implementation merged in #402; integrated qualification completed.
 The runtime contract, frozen v1 limits, commands, validation and measured-stage
 boundaries are documented in [../clock-driver.md](../clock-driver.md).
 Rune-derived acceptance additions are recorded in [rune-adaptation.md](rune-adaptation.md):
@@ -9,7 +9,7 @@ and measured allocation ownership. They extend #344/#345 within the same two-tas
 Local baseline: `1c75169323257fe484ec1bf14218c8c145c11e9f`.
 Exact reference baseline: `65a19452362aa883024456673b723239edb47b71`.
 This document records the original implementation plan; current validation is
-reported in the runtime document linked above.
+reported in the runtime document linked above and [integrated acceptance](../clock-driver-acceptance.md).
 
 ## GitHub tracking
 
@@ -233,10 +233,10 @@ Depends on: none; coordinate shared host file ownership.
 
 ### Scope
 
-- [ ] Add a host-owned monotonic application clock selected at startup: live or controlled, with checked integer duration storage and explicit ms/seconds conversions.
-- [ ] Own deadline/rAF scheduling records in Zig; keep callable/argument roots in QuickJS behind opaque handles and C dispatch/release functions. Keep JSValue layout and reference management out of Zig.
-- [ ] Advance controlled time through deadlines and frame boundaries, stable ordering, microtask/Solid settling and bridge commits. Preserve live waitable-timer wakeups and idle no-paint behavior.
-- [ ] Route performance.now, timer/rAF timestamps and native motion through the same turn sample; define controlled Date.now/new Date epoch without changing explicit-date semantics.
+- [x] Add a host-owned monotonic application clock selected at startup: live or controlled, with checked integer duration storage and explicit ms/seconds conversions.
+- [x] Own deadline/rAF scheduling records in Zig; keep callable/argument roots in QuickJS behind opaque handles and C dispatch/release functions. Keep JSValue layout and reference management out of Zig.
+- [x] Advance controlled time through deadlines and frame boundaries, stable ordering, microtask/Solid settling and bridge commits. Preserve live waitable-timer wakeups and idle no-paint behavior.
+- [x] Route performance.now, timer/rAF timestamps and native motion through the same turn sample; define controlled Date.now/new Date epoch without changing explicit-date semantics.
 
 ### Edge cases
 
@@ -246,10 +246,10 @@ Depends on: none; coordinate shared host file ownership.
 
 ### Acceptance
 
-- [ ] One test advances the existing tic-tac-toe CPU timer by 349 ms then 1 ms and observes the boundary through the real QuickJS/native pipeline.
-- [ ] Native transition samples and JS timer/rAF timestamps agree at fixed app times; deterministic ordering covers the listed timer cases.
-- [ ] Live event waiting, zero unchanged-frame work, cancellation/shutdown and existing bridge/frame suites remain valid; leak/failure-injection checks cover timer roots/slots.
-- [ ] Report real CPU duration and native/QuickJS allocation high-water marks under repeated schedule/cancel/advance, separately from virtual elapsed time.
+- [x] One test advances the existing tic-tac-toe CPU timer by 349 ms then 1 ms and observes the boundary through the real QuickJS/native pipeline.
+- [x] Native transition samples and JS timer/rAF timestamps agree at fixed app times; deterministic ordering covers the listed timer cases.
+- [x] Live event waiting, zero unchanged-frame work, cancellation/shutdown and existing bridge/frame suites remain valid; leak/failure-injection checks cover timer roots/slots.
+- [x] Report real CPU duration and native/QuickJS allocation high-water marks under repeated schedule/cancel/advance, separately from virtual elapsed time.
 
 ### Ownership and efficiency
 
@@ -279,11 +279,11 @@ Depends on: [#344](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues
 
 ### Scope
 
-- [ ] Extract normal native input/focus/scroll operations; route human and synthetic input through those operations with native hit testing and pointer/key state.
-- [ ] Add a build-gated local named-pipe protocol and CLI. Include handshake/capabilities, tree/layout/logs, pointer/click, key/type, scroll, resize/preference overrides, clock.advance/settle, metrics, screenshot and close.
-- [ ] Return typed replies with session/runtime generation, request ID, app time, tree/layout/paint revisions and pending work. Define committed versus presented barriers and bounded semantics.
-- [ ] Add a minimal semantic inspection projection with author test IDs and role/name fallback; reject ambiguity/stale/hidden/disabled targets. Preserve full OS UIA work for the Windows accessibility task.
-- [ ] Migrate current example-specific native probe scenarios into driver scripts; keep a thin existing command compatibility wrapper where useful.
+- [x] Extract normal native input/focus/scroll operations; route human and synthetic input through those operations with native hit testing and pointer/key state.
+- [x] Add a build-gated local named-pipe protocol and CLI. Include handshake/capabilities, tree/layout/logs, pointer/click, key/type, scroll, resize/preference overrides, clock.advance/settle, metrics, screenshot and close.
+- [x] Return typed replies with session/runtime generation, request ID, app time, tree/layout/paint revisions and pending work. Define committed versus presented barriers and bounded semantics.
+- [x] Add a minimal semantic inspection projection with author test IDs and role/name fallback; reject ambiguity/stale/hidden/disabled targets. Preserve full OS UIA work for the Windows accessibility task.
+- [x] Migrate current example-specific native probe scenarios into driver scripts; keep a thin existing command compatibility wrapper where useful.
 
 ### Edge cases
 
@@ -294,10 +294,10 @@ Depends on: [#344](https://github.com/RoboXGamer/SolidNativeZigExperiment/issues
 
 ### Acceptance
 
-- [ ] One CLI script discovers and operates CSS and tic-tac-toe examples through normal native input, captures matching committed frames and observes the 349+1 ms timer boundary.
-- [ ] Existing no-work/paint-only/layout/hover frame assertions are preserved through the common operations, without game-specific branches in windows.zig.
-- [ ] Protocol/parser and lifecycle tests cover the listed failure paths; a fresh session/reconnect/reload cannot target an old node or replay an uncertain click.
-- [ ] Default release builds expose no driver endpoint and incur no driver queue/thread/allocation overhead; explicitly enabled testing builds work without global OS cursor automation.
+- [x] One CLI script discovers and operates CSS and tic-tac-toe examples through normal native input, captures matching committed frames and observes the 349+1 ms timer boundary.
+- [x] Existing no-work/paint-only/layout/hover frame assertions are preserved through the common operations, without game-specific branches in windows.zig.
+- [x] Protocol/parser and lifecycle tests cover the listed failure paths; a fresh session/reconnect/reload cannot target an old node or replay an uncertain click.
+- [x] Default release builds expose no driver endpoint and incur no driver queue/thread/allocation overhead; explicitly enabled testing builds work without global OS cursor automation.
 
 ### Ownership and efficiency
 

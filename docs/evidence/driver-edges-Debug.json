@@ -1,0 +1,118 @@
+{
+  "optimization": "Debug",
+  "passed": true,
+  "cases": [
+    "transformed",
+    "clipped",
+    "occluded",
+    "select pointer/keyboard",
+    "popover open/close",
+    "removed target",
+    "reparent between down/up and fresh resolution",
+    "focus loss cancels held input",
+    "stale OS wake rejected",
+    "zero size rejected before mutation",
+    "motion/layout capture",
+    "minimized capture refusal",
+    "DPI aware/unaware child windows",
+    "read-only no rendering"
+  ],
+  "captures": [
+    {
+      "unaware": false,
+      "viewport": {
+        "width": 640,
+        "height": 480,
+        "framebufferWidth": 800,
+        "framebufferHeight": 600,
+        "scale": {
+          "x": 1.25,
+          "y": 1.25
+        },
+        "minimized": false,
+        "focused": false
+      },
+      "appTime": 120,
+      "motionOpacity": 0.5,
+      "motionCenterRgba": [
+        153,
+        25,
+        25,
+        255
+      ],
+      "readback": 1
+    },
+    {
+      "unaware": false,
+      "viewport": {
+        "width": 960,
+        "height": 560,
+        "framebufferWidth": 1200,
+        "framebufferHeight": 700,
+        "scale": {
+          "x": 1.25,
+          "y": 1.25
+        },
+        "minimized": false,
+        "focused": false
+      },
+      "appTime": 120,
+      "motionOpacity": 0.5,
+      "motionCenterRgba": [
+        153,
+        25,
+        25,
+        255
+      ],
+      "readback": 2
+    },
+    {
+      "unaware": true,
+      "viewport": {
+        "width": 800,
+        "height": 600,
+        "framebufferWidth": 800,
+        "framebufferHeight": 600,
+        "scale": {
+          "x": 1,
+          "y": 1
+        },
+        "minimized": false,
+        "focused": false
+      },
+      "appTime": 120,
+      "motionOpacity": 0.5,
+      "motionCenterRgba": [
+        153,
+        25,
+        25,
+        255
+      ],
+      "readback": 1
+    },
+    {
+      "unaware": true,
+      "viewport": {
+        "width": 1200,
+        "height": 700,
+        "framebufferWidth": 1200,
+        "framebufferHeight": 700,
+        "scale": {
+          "x": 1,
+          "y": 1
+        },
+        "minimized": false,
+        "focused": false
+      },
+      "appTime": 120,
+      "motionOpacity": 0.5,
+      "motionCenterRgba": [
+        153,
+        25,
+        25,
+        255
+      ],
+      "readback": 2
+    }
+  ]
+}

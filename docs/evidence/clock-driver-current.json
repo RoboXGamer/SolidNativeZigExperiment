@@ -1,0 +1,244 @@
+{
+  "implementation": "4fc8b8c90c8ea46c78507a5fc94325af6a75640f",
+  "scope": "Current Debug and ReleaseSafe driver runs; 50 sequential metric command samples per app; fixed controlled data; idle real wait 1200ms; p50/p95/p99 are milliseconds. Concurrent build/system load was not pinned. Counts/bytes exclude C/OS/GPU owners bypassing wrappers.",
+  "runs": [
+    {
+      "optimization": "Debug",
+      "applications": [
+        {
+          "example": "css",
+          "optimize": "Debug",
+          "p50": 5.484799999999268,
+          "p95": 6.143500000000131,
+          "p99": 6.206699999999728,
+          "failures": 0,
+          "scheduler": {
+            "active": 0,
+            "highWater": 0,
+            "capacity": 4096,
+            "bytes": 180288,
+            "fired": 0
+          },
+          "quickjs": {
+            "allocations": 1666067,
+            "frees": 1537490,
+            "live_count": 128577,
+            "live_bytes": 12403790,
+            "high_count": 129347,
+            "high_bytes": 16447820,
+            "roots": 0
+          },
+          "native": {
+            "allocations": 2170,
+            "frees": 1971,
+            "live_count": 199,
+            "live_bytes": 1740524,
+            "high_count": 372,
+            "high_bytes": 2884366
+          },
+          "driverStorageBytes": 1120424,
+          "idle": {
+            "wallNs": 1212136600,
+            "cpuNs": 15625000,
+            "hostTurns": 2
+          }
+        },
+        {
+          "example": "tictactoe",
+          "optimize": "Debug",
+          "p50": 17.222499999999854,
+          "p95": 22.811699999998382,
+          "p99": 35.88160000000062,
+          "failures": 0,
+          "scheduler": {
+            "active": 0,
+            "highWater": 1,
+            "capacity": 4096,
+            "bytes": 180288,
+            "fired": 1
+          },
+          "quickjs": {
+            "allocations": 6191551,
+            "frees": 6045879,
+            "live_count": 145672,
+            "live_bytes": 14605175,
+            "high_count": 146724,
+            "high_bytes": 16726953,
+            "roots": 0
+          },
+          "native": {
+            "allocations": 1808,
+            "frees": 1458,
+            "live_count": 350,
+            "live_bytes": 4883544,
+            "high_count": 613,
+            "high_bytes": 8013080
+          },
+          "driverStorageBytes": 1120424,
+          "idle": {
+            "wallNs": 1219433200,
+            "cpuNs": 15625000,
+            "hostTurns": 2
+          }
+        },
+        {
+          "example": "fixture",
+          "optimize": "Debug",
+          "p50": 2.210899999998219,
+          "p95": 2.908900000002177,
+          "p99": 3.4156999999977415,
+          "failures": 0,
+          "scheduler": {
+            "active": 0,
+            "highWater": 3,
+            "capacity": 4096,
+            "bytes": 180288,
+            "fired": 6
+          },
+          "quickjs": {
+            "allocations": 1451121,
+            "frees": 1325548,
+            "live_count": 125573,
+            "live_bytes": 12180679,
+            "high_count": 126436,
+            "high_bytes": 16357651,
+            "roots": 0
+          },
+          "native": {
+            "allocations": 3224,
+            "frees": 3035,
+            "live_count": 189,
+            "live_bytes": 1684650,
+            "high_count": 345,
+            "high_bytes": 2798310
+          },
+          "driverStorageBytes": 1120424,
+          "idle": {
+            "wallNs": 1208950800,
+            "cpuNs": 31250000,
+            "hostTurns": 2
+          }
+        }
+      ]
+    },
+    {
+      "optimization": "ReleaseSafe",
+      "applications": [
+        {
+          "example": "css",
+          "optimize": "ReleaseSafe",
+          "p50": 0.26250000001164153,
+          "p95": 0.47610000002896413,
+          "p99": 0.7486000000499189,
+          "failures": 0,
+          "scheduler": {
+            "active": 0,
+            "highWater": 0,
+            "capacity": 4096,
+            "bytes": 180288,
+            "fired": 0
+          },
+          "quickjs": {
+            "allocations": 1666067,
+            "frees": 1537490,
+            "live_count": 128577,
+            "live_bytes": 12403790,
+            "high_count": 129347,
+            "high_bytes": 16447820,
+            "roots": 0
+          },
+          "native": {
+            "allocations": 2170,
+            "frees": 1971,
+            "live_count": 199,
+            "live_bytes": 1740524,
+            "high_count": 372,
+            "high_bytes": 2884366
+          },
+          "driverStorageBytes": 1120424,
+          "idle": {
+            "wallNs": 1209004400,
+            "cpuNs": 15625000,
+            "hostTurns": 2
+          }
+        },
+        {
+          "example": "tictactoe",
+          "optimize": "ReleaseSafe",
+          "p50": 0.5540000000037253,
+          "p95": 1.2626999999629334,
+          "p99": 1.8021999999764375,
+          "failures": 0,
+          "scheduler": {
+            "active": 0,
+            "highWater": 1,
+            "capacity": 4096,
+            "bytes": 180288,
+            "fired": 1
+          },
+          "quickjs": {
+            "allocations": 6191551,
+            "frees": 6045879,
+            "live_count": 145672,
+            "live_bytes": 14605175,
+            "high_count": 146724,
+            "high_bytes": 16726953,
+            "roots": 0
+          },
+          "native": {
+            "allocations": 1808,
+            "frees": 1458,
+            "live_count": 350,
+            "live_bytes": 4883544,
+            "high_count": 613,
+            "high_bytes": 8013080
+          },
+          "driverStorageBytes": 1120424,
+          "idle": {
+            "wallNs": 1214212200,
+            "cpuNs": 15625000,
+            "hostTurns": 2
+          }
+        },
+        {
+          "example": "fixture",
+          "optimize": "ReleaseSafe",
+          "p50": 0.4059999999590218,
+          "p95": 0.9406000000308268,
+          "p99": 1.8746000000392087,
+          "failures": 0,
+          "scheduler": {
+            "active": 0,
+            "highWater": 3,
+            "capacity": 4096,
+            "bytes": 180288,
+            "fired": 6
+          },
+          "quickjs": {
+            "allocations": 1451121,
+            "frees": 1325548,
+            "live_count": 125573,
+            "live_bytes": 12180679,
+            "high_count": 126436,
+            "high_bytes": 16357651,
+            "roots": 0
+          },
+          "native": {
+            "allocations": 3224,
+            "frees": 3035,
+            "live_count": 189,
+            "live_bytes": 1684650,
+            "high_count": 345,
+            "high_bytes": 2798310
+          },
+          "driverStorageBytes": 1120424,
+          "idle": {
+            "wallNs": 1213927100,
+            "cpuNs": 0,
+            "hostTurns": 2
+          }
+        }
+      ]
+    }
+  ]
+}

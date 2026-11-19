@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "optimization": "ReleaseSafe",
+  "driver": false,
+  "profile": false,
+  "endpointAbsent": true,
+  "visibleWindowOpenedAndClosedNormally": true,
+  "driverEnvironmentIgnored": true
+}

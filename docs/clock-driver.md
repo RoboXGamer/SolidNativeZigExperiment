@@ -34,6 +34,10 @@ pnpm test:runtime
 pnpm test:driver
 node tools/test-clock-driver.mjs --release
 pnpm test:frames:native
+pnpm test:clock:acceptance
+node tools/test-driver-edges.mjs --release
+node tools/test-driver-gate.mjs
+pnpm profile:clock:host
 ```
 
 Ordinary `zig build`, including ReleaseSafe/portable builds, does not link the
@@ -109,7 +113,13 @@ generation and graph stamps are separate from request IDs.
 ```
 
 Subsequent requests include the returned session/generation and increasing safe
-integer IDs. The envelope and command fields are strict. Unknown versions,
+integer IDs. Numeric node targets also carry their discovery graph and runtime
+generation (`target: {node, graph, generation}`); `Driver.tree()` attaches these
+fields and the client retains at most 4096 shortcut identities from its last
+discovery. Keep the scoped token when retaining a target across updates. Semantic
+targets resolve against the current scene. HMR cancels held input and pending
+pointer/click work before the replacement graph can receive it.
+The envelope and command fields are strict. Unknown versions,
 fields, invalid UTF-8, duplicate object fields, nonfinite/out-of-range geometry,
 invalid targets and unsupported operations fail before command mutation.
 
@@ -132,7 +142,10 @@ mutations.
 Supported commands are returned by `hello`: tree/layout/logs/metrics, pointer
 move/down/up/cancel, click, key down/up, type, scroll, resize, prefer/reset,
 clock.advance/settle, screenshot, close, and `surface.expose` for the normal OS
-exposure regression. No arbitrary eval/private-store serialization is exposed.
+exposure regression. Explicit driver builds also offer `surface.state` for
+child-window minimize/restore, focus-message and stale-wake regression injection.
+These operations affect only the app's window; they do not automate the global
+cursor. No arbitrary eval/private-store serialization is exposed.
 Preferences are color-scheme, contrast and reduced-motion using the native enum
 values. Keys supported by this host are Tab, Enter, Escape, Space, arrows,
 Home/End, Backspace/Delete, Shift/Control and a/c/x/v. Text insertion is distinct
@@ -235,3 +248,9 @@ allocation and idle counters. Release driver samples precede the final cursor/
 fatal-job follow-ups; those follow-ups passed the Debug native driver suite.
 The ordinary ReleaseSafe gate also passed a normal visible launch and close
 with no endpoint despite supplying driver environment variables.
+
+The remaining clock/driver qualification is recorded in
+[clock-driver-acceptance.md](clock-driver-acceptance.md), including native HMR
+timer ownership, stale wake/target rejection, surface admission, actual DPI
+capture modes and repeated full-host driver-out/driver-on measurements. The
+historical snapshots above retain their original source provenance.

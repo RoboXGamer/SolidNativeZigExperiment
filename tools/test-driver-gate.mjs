@@ -1,16 +1,27 @@
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
-import {randomBytes} from 'node:crypto';
-import {Driver} from './driver.mjs';
-const pipe='solid-disabled-'+process.pid,token=randomBytes(24).toString('hex');
-const child=spawn(process.argv[2]??'zig-out/no-driver/bin/windows.exe',[],{windowsHide:true,stdio:'ignore',env:{...process.env,SOLID_NATIVE_PIPE:pipe,SOLID_NATIVE_TOKEN:token,SOLID_NATIVE_CONTROLLED:'1'}});
+import net from 'node:net';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {build} from 'vite';
+import {stopNative} from './native-process.mjs';
+const executable=process.argv[2]??'zig-out/driver-disabled/bin/windows.exe';
+if(!process.argv[2]){
+  const bundle='.zig-cache/driver-gate/ui-bundle.js';
+  await build({mode:'production',logLevel:'warn',build:{outDir:'.zig-cache/driver-gate',lib:{entry:resolve('tests/fixtures/driver-edges.jsx'),name:'GateFixture',formats:['iife'],fileName:()=>'ui-bundle.js'}}});
+  const result=spawnSync('zig',['build','-Ddriver=false','-Doptimize=ReleaseSafe','-Dui-bundle='+bundle,'--prefix','zig-out/driver-disabled'],{encoding:'utf8',timeout:1200000});assert.equal(result.status,0,result.stdout+result.stderr);
+}
+const pipe='disabled-driver-'+process.pid;
+const env={...process.env};for(const k of Object.keys(env))if(k.startsWith('DRAFT1_HMR')||k.startsWith('SOLID_NATIVE'))delete env[k];
+Object.assign(env,{SOLID_NATIVE_PIPE:pipe,SOLID_NATIVE_TOKEN:'test-disabled',SOLID_NATIVE_CONTROLLED:'1',SOLID_NATIVE_DRIVER_HIDDEN:'1',SOLID_NATIVE_DRIVER_SOURCE:'nonexistent.js'});
+const child=spawn(executable,[],{windowsHide:false,env,stdio:['ignore','pipe','pipe']});
+let output='';child.stdout.on('data',x=>output+=x);child.stderr.on('data',x=>output+=x);
 try{
-  await assert.rejects(()=>Driver.connect({pipe,token,timeout:750}),/ENOENT/);
-  assert.equal(child.exitCode,null,'ordinary app remains running');
-  // Close only the normal visible window belonging to this test-owned process.
-  const close=spawnSync('powershell.exe',['-NoProfile','-Command',`$p=Get-Process -Id ${child.pid}; for($i=0;$i -lt 50 -and $p.MainWindowHandle -eq 0;$i++){Start-Sleep -Milliseconds 100;$p.Refresh()}; if(!$p.CloseMainWindow()){exit 1}`],{windowsHide:true,encoding:'utf8',timeout:10000});
-  assert.equal(close.status,0,close.stderr);
-  if(child.exitCode===null)await new Promise((resolve,reject)=>{child.once('exit',code=>code===0?resolve():reject(Error('native exit '+code)));setTimeout(()=>reject(Error('normal close timeout')),10000).unref();});
-  assert.equal(child.exitCode,0);
-  console.log('PASS ordinary ReleaseSafe host: no driver pipe, normal visible launch and close');
-}finally{if(child.exitCode===null)child.kill();}
+  await new Promise(r=>setTimeout(r,5000));assert.equal(child.exitCode,null,output);
+  await assert.rejects(()=>new Promise((res,rej)=>{const s=net.connect('\\\\.\\pipe\\'+pipe);s.once('connect',()=>{s.destroy();res()});s.once('error',rej)}),/ENOENT|EACCES|ECONNREFUSED/);
+  const closed=new Promise((res,rej)=>{const t=setTimeout(()=>rej(Error('normal close timed out')),10000);child.once('exit',code=>{clearTimeout(t);code===0?res():rej(Error(output))})});
+  const close=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`$p=Get-Process -Id ${child.pid}; if ($p.MainWindowHandle -eq 0 -or -not $p.CloseMainWindow()) { exit 1 }`],{encoding:'utf8',windowsHide:true});assert.equal(close.status,0,close.stdout+close.stderr);await closed;
+  assert.ok(!/Could not|failed:|ERROR:/.test(output),output);
+  await mkdir('docs/evidence',{recursive:true});await writeFile('docs/evidence/driver-release-gate.json',JSON.stringify({passed:true,optimization:'ReleaseSafe',driver:false,profile:false,endpointAbsent:true,visibleWindowOpenedAndClosedNormally:true,driverEnvironmentIgnored:true},null,2)+'\n');
+  console.log('PASS ordinary ReleaseSafe: visible launch/normal close, no endpoint despite driver environment');
+}finally{await stopNative(child)}

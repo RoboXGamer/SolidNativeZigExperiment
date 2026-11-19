@@ -1,0 +1,757 @@
+{
+  "date": "2026-11-19",
+  "source": "4fc8b8c90c8ea46c78507a5fc94325af6a75640f",
+  "sourceTreeDirty": true,
+  "artifacts": {
+    "bundleSha256": "36eb67b8be993db90cebb4ee3e984348de918bb710f5b7413d888b9c86c1d43e",
+    "binaries": [
+      {
+        "driver": false,
+        "sha256": "16eb6c74b7be03910856410d30d3784e1fa4e2a1692284170deb084f6ee497c4"
+      },
+      {
+        "driver": true,
+        "sha256": "b2e0e6d4d93cae2a1fee1d7d67808fcbb282e3c8e79e10422eb62780e491d28d"
+      }
+    ]
+  },
+  "optimization": "ReleaseSafe",
+  "baseline": "same current host with driver compiled out",
+  "candidate": "same current host with driver enabled and listening",
+  "workload": "cold startup; 120 unchanged moves; 50 paint changes; 50 layout changes; 20 bounded scene inspection pages; 200ms frozen-clock idle",
+  "scope": "Full native host in both cases with identical allocator probes and controlled app data; compares optional driver overhead. Historical JS Map vs Zig scheduling comparison is separately scoped. C/OS/GPU allocations bypassing the wrapper are excluded.",
+  "runs": [
+    {
+      "repeat": 0,
+      "driver": false,
+      "driverStorageBytes": 0,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "framebufferWidth": 1600,
+        "framebufferHeight": 900,
+        "scale": {
+          "x": 1.25,
+          "y": 1.25
+        }
+      },
+      "stages": [
+        {
+          "name": "cold",
+          "wallNs": 1121080600,
+          "cpuNs": 953125000,
+          "appTime": 0,
+          "paints": 1,
+          "layouts": 1,
+          "native": {
+            "allocations": 1956,
+            "frees": 120,
+            "live_count": 1836,
+            "live_bytes": 22218012,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1727668,
+            "frees": 1607761,
+            "live_count": 119907,
+            "live_bytes": 14984827,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "noop",
+          "wallNs": 34810500,
+          "cpuNs": 31250000,
+          "appTime": 0,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 2197,
+            "frees": 364,
+            "live_count": 1833,
+            "live_bytes": 22217940,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1763548,
+            "frees": 1643641,
+            "live_count": 119907,
+            "live_bytes": 14984829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "paint",
+          "wallNs": 825126400,
+          "cpuNs": 750000000,
+          "appTime": 50,
+          "paints": 50,
+          "layouts": 0,
+          "native": {
+            "allocations": 2501,
+            "frees": 667,
+            "live_count": 1834,
+            "live_bytes": 22427440,
+            "high_count": 1838,
+            "high_bytes": 22479056
+          },
+          "quickjs": {
+            "allocations": 1937677,
+            "frees": 1816942,
+            "live_count": 120735,
+            "live_bytes": 15011146,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 1
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "layout",
+          "wallNs": 1433443300,
+          "cpuNs": 1656250000,
+          "appTime": 100,
+          "paints": 50,
+          "layouts": 50,
+          "native": {
+            "allocations": 84753,
+            "frees": 82920,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2163983,
+            "frees": 2042057,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "inspection",
+          "wallNs": 7040400,
+          "cpuNs": 0,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84793,
+            "frees": 82960,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2169963,
+            "frees": 2048037,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 115610
+        },
+        {
+          "name": "idle",
+          "wallNs": 201511700,
+          "cpuNs": 0,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84795,
+            "frees": 82962,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2170262,
+            "frees": 2048336,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        }
+      ],
+      "teardown": {
+        "nativeBytes": 0,
+        "vmBytes": 0
+      }
+    },
+    {
+      "repeat": 0,
+      "driver": true,
+      "driverStorageBytes": 1120424,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "framebufferWidth": 1600,
+        "framebufferHeight": 900,
+        "scale": {
+          "x": 1.25,
+          "y": 1.25
+        }
+      },
+      "stages": [
+        {
+          "name": "cold",
+          "wallNs": 965297000,
+          "cpuNs": 937500000,
+          "appTime": 0,
+          "paints": 1,
+          "layouts": 1,
+          "native": {
+            "allocations": 1956,
+            "frees": 120,
+            "live_count": 1836,
+            "live_bytes": 22218012,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1727668,
+            "frees": 1607761,
+            "live_count": 119907,
+            "live_bytes": 14984827,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "noop",
+          "wallNs": 35324200,
+          "cpuNs": 31250000,
+          "appTime": 0,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 2197,
+            "frees": 364,
+            "live_count": 1833,
+            "live_bytes": 22217940,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1763548,
+            "frees": 1643641,
+            "live_count": 119907,
+            "live_bytes": 14984829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "paint",
+          "wallNs": 833935900,
+          "cpuNs": 718750000,
+          "appTime": 50,
+          "paints": 50,
+          "layouts": 0,
+          "native": {
+            "allocations": 2501,
+            "frees": 667,
+            "live_count": 1834,
+            "live_bytes": 22427440,
+            "high_count": 1838,
+            "high_bytes": 22479056
+          },
+          "quickjs": {
+            "allocations": 1937677,
+            "frees": 1816942,
+            "live_count": 120735,
+            "live_bytes": 15011146,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 1
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "layout",
+          "wallNs": 1419703200,
+          "cpuNs": 1625000000,
+          "appTime": 100,
+          "paints": 50,
+          "layouts": 50,
+          "native": {
+            "allocations": 84753,
+            "frees": 82920,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2163983,
+            "frees": 2042057,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "inspection",
+          "wallNs": 6715100,
+          "cpuNs": 15625000,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84793,
+            "frees": 82960,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2169963,
+            "frees": 2048037,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 115610
+        },
+        {
+          "name": "idle",
+          "wallNs": 200795400,
+          "cpuNs": 0,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84795,
+            "frees": 82962,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2170262,
+            "frees": 2048336,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        }
+      ],
+      "teardown": {
+        "nativeBytes": 0,
+        "vmBytes": 0
+      }
+    },
+    {
+      "repeat": 1,
+      "driver": false,
+      "driverStorageBytes": 0,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "framebufferWidth": 1600,
+        "framebufferHeight": 900,
+        "scale": {
+          "x": 1.25,
+          "y": 1.25
+        }
+      },
+      "stages": [
+        {
+          "name": "cold",
+          "wallNs": 992657500,
+          "cpuNs": 953125000,
+          "appTime": 0,
+          "paints": 1,
+          "layouts": 1,
+          "native": {
+            "allocations": 1956,
+            "frees": 120,
+            "live_count": 1836,
+            "live_bytes": 22218012,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1727668,
+            "frees": 1607761,
+            "live_count": 119907,
+            "live_bytes": 14984827,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "noop",
+          "wallNs": 36266900,
+          "cpuNs": 46875000,
+          "appTime": 0,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 2197,
+            "frees": 364,
+            "live_count": 1833,
+            "live_bytes": 22217940,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1763548,
+            "frees": 1643641,
+            "live_count": 119907,
+            "live_bytes": 14984829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "paint",
+          "wallNs": 822318300,
+          "cpuNs": 593750000,
+          "appTime": 50,
+          "paints": 50,
+          "layouts": 0,
+          "native": {
+            "allocations": 2501,
+            "frees": 667,
+            "live_count": 1834,
+            "live_bytes": 22427440,
+            "high_count": 1838,
+            "high_bytes": 22479056
+          },
+          "quickjs": {
+            "allocations": 1937677,
+            "frees": 1816942,
+            "live_count": 120735,
+            "live_bytes": 15011146,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 1
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "layout",
+          "wallNs": 1434004300,
+          "cpuNs": 1656250000,
+          "appTime": 100,
+          "paints": 50,
+          "layouts": 50,
+          "native": {
+            "allocations": 84753,
+            "frees": 82920,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2163983,
+            "frees": 2042057,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "inspection",
+          "wallNs": 7006100,
+          "cpuNs": 15625000,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84793,
+            "frees": 82960,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2169963,
+            "frees": 2048037,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 115610
+        },
+        {
+          "name": "idle",
+          "wallNs": 201172800,
+          "cpuNs": 0,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84795,
+            "frees": 82962,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2170262,
+            "frees": 2048336,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        }
+      ],
+      "teardown": {
+        "nativeBytes": 0,
+        "vmBytes": 0
+      }
+    },
+    {
+      "repeat": 1,
+      "driver": true,
+      "driverStorageBytes": 1120424,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "framebufferWidth": 1600,
+        "framebufferHeight": 900,
+        "scale": {
+          "x": 1.25,
+          "y": 1.25
+        }
+      },
+      "stages": [
+        {
+          "name": "cold",
+          "wallNs": 968580200,
+          "cpuNs": 968750000,
+          "appTime": 0,
+          "paints": 1,
+          "layouts": 1,
+          "native": {
+            "allocations": 1956,
+            "frees": 120,
+            "live_count": 1836,
+            "live_bytes": 22218012,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1727668,
+            "frees": 1607761,
+            "live_count": 119907,
+            "live_bytes": 14984827,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "noop",
+          "wallNs": 35559500,
+          "cpuNs": 31250000,
+          "appTime": 0,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 2197,
+            "frees": 364,
+            "live_count": 1833,
+            "live_bytes": 22217940,
+            "high_count": 1837,
+            "high_bytes": 22331156
+          },
+          "quickjs": {
+            "allocations": 1763548,
+            "frees": 1643641,
+            "live_count": 119907,
+            "live_bytes": 14984829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 2
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "paint",
+          "wallNs": 828701200,
+          "cpuNs": 609375000,
+          "appTime": 50,
+          "paints": 50,
+          "layouts": 0,
+          "native": {
+            "allocations": 2501,
+            "frees": 667,
+            "live_count": 1834,
+            "live_bytes": 22427440,
+            "high_count": 1838,
+            "high_bytes": 22479056
+          },
+          "quickjs": {
+            "allocations": 1937677,
+            "frees": 1816942,
+            "live_count": 120735,
+            "live_bytes": 15011146,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 1
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "layout",
+          "wallNs": 1441511700,
+          "cpuNs": 1640625000,
+          "appTime": 100,
+          "paints": 50,
+          "layouts": 50,
+          "native": {
+            "allocations": 84753,
+            "frees": 82920,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2163983,
+            "frees": 2042057,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        },
+        {
+          "name": "inspection",
+          "wallNs": 6791300,
+          "cpuNs": 15625000,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84793,
+            "frees": 82960,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2169963,
+            "frees": 2048037,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 115610
+        },
+        {
+          "name": "idle",
+          "wallNs": 200384400,
+          "cpuNs": 0,
+          "appTime": 100,
+          "paints": 0,
+          "layouts": 0,
+          "native": {
+            "allocations": 84795,
+            "frees": 82962,
+            "live_count": 1833,
+            "live_bytes": 22427088,
+            "high_count": 3402,
+            "high_bytes": 42218468
+          },
+          "quickjs": {
+            "allocations": 2170262,
+            "frees": 2048336,
+            "live_count": 121926,
+            "live_bytes": 15085829,
+            "high_count": 147912,
+            "high_bytes": 19311318,
+            "roots": 0
+          },
+          "sceneHash": "6036777486705813813",
+          "inspectionBytes": 0
+        }
+      ],
+      "teardown": {
+        "nativeBytes": 0,
+        "vmBytes": 0
+      }
+    }
+  ]
+}

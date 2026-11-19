@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "componentHotUpdate": true,
+  "unrelatedTimerPreserved": true,
+  "heldInputCancelled": true,
+  "fullReloadRetiredRoots": true,
+  "clockStayedForward": true,
+  "oldGraphRejected": true,
+  "restartedRuntimeRejected": true
+}
